@@ -5,6 +5,11 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Değişti
+- Sağlayıcı uç noktası, kimlik doğrulama başlıkları ve hızlı test sınırları (`resolveRuntimeOptions`, `providerEndpoint`, `providerAuthHeaders`) `src/runtime.js` ve `src/core.js` arasında birleştirildi.
+- Şifreleme anahtarı doğrulaması (`parseEncryptionKey`) `src/profileStore.js` ve `src/setup.js` arasında ortaklaştırıldı.
+- `public/llm.html` içindeki mükerrer `<style>` blokları birleştirildi; `public/llm-ui.js`, `examples/server.js` ve test dosyaları okunabilir biçime getirildi.
+
 ## [1.0.0] - 2026-10-19
 
 İlk bağımsız sürüm.

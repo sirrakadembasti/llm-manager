@@ -8,10 +8,14 @@ import { PROVIDERS, validateProviderUrl } from './providers.js';
 const CONFLICT_MESSAGE = 'Profil başka bir işlemde değiştirildi; yenileyin.';
 const conflictError = () => Object.assign(new Error(CONFLICT_MESSAGE), { code: 'PROFILE_CONFLICT' });
 
-function keyBytes(value) {
+export function parseEncryptionKey(value) {
   const raw = String(value || '').trim();
-  const bytes = /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, 'hex') : Buffer.from(raw, 'base64');
-  if (bytes.length !== 32) throw new Error('LLM_CONFIG_ENCRYPTION_KEY 32 baytlık hex veya base64 anahtar olmalıdır.');
+  const isHex = /^[0-9a-f]{64}$/i.test(raw);
+  const isBase64 = /^[A-Za-z0-9+/]+={0,2}$/.test(raw);
+  const bytes = isHex ? Buffer.from(raw, 'hex') : isBase64 ? Buffer.from(raw, 'base64') : Buffer.alloc(0);
+  if (bytes.length !== 32) {
+    throw new Error('LLM_CONFIG_ENCRYPTION_KEY 32 baytlık hex veya base64 anahtar olmalıdır.');
+  }
   return bytes;
 }
 
@@ -74,7 +78,7 @@ export function createLLMProfileStore({
   // Sunucu tarafı görünüm: çözülmüş apiKey ve transport içerir.
   const withSecret = profile => ({
     ...publicProfile(profile),
-    apiKey: decrypt(profile.secret, keyBytes(encryptionKey)),
+    apiKey: decrypt(profile.secret, parseEncryptionKey(encryptionKey)),
     transport: transportOf(profile.provider),
     revision: profile.revision || null
   });
@@ -116,7 +120,7 @@ export function createLLMProfileStore({
       if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
         throw new Error('Sağlayıcı değişince yeni API anahtarı girin.');
       }
-      const secret = newKey ? encrypt(newKey, keyBytes(encryptionKey)) : existing?.secret;
+      const secret = newKey ? encrypt(newKey, parseEncryptionKey(encryptionKey)) : existing?.secret;
       if (!secret) throw new Error('API anahtarı zorunludur.');
       const runtime = normalizeRuntimeOptions({ ...existing, ...input });
       const profile = {

@@ -27,8 +27,10 @@
 - Klasör adı `llm-yonetimi` -> `llm-manager` olarak güncellendi.
 
 ## Tamamlanan ek geliştirmeler (2026-10-19)
-- `index.js` / `profileStore.js` sıkıştırılmış kodun okunabilir hale getirilmesi.
+- Tüm kaynak (`src/*`), arayüz (`public/*`), örnek (`examples/*`) ve test (`tests/*`) dosyalarındaki sıkıştırılmış kodların okunabilir hale getirilmesi ve `public/llm.html` içindeki mükerrer stil bloklarının birleştirilmesi.
+- `src/runtime.js` ile `src/core.js` arasındaki ortak sağlayıcı adresi, yetki başlığı ve çalışma zamanı seçenek çözümlemesinin (`providerEndpoint`, `providerAuthHeaders`, `resolveRuntimeOptions`) tekilleştirilmesi.
+- `src/profileStore.js` ile `src/setup.js` arasındaki şifreleme anahtarı doğrulamasının (`parseEncryptionKey`) ortaklaştırılması.
 - `bin/llm-manager.js` ile CLI başlatma (`npx llm-manager`).
 - Framework-agnostik çekirdek API (`src/core.js`, `llm-manager/core` export'u; Express adaptörü `src/index.js` içinde).
-- README'de kalan eski (geçmişe dönük) notların sadeleştirilmesi.
+- README'de kalan eski (geçmişe dönük) notların sadeleştirilmesi ve alt modül export'larının belgelenmesi.
 

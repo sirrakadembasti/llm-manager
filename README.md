@@ -160,13 +160,15 @@ raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullan
 
 [Xiaomi düşünme ve gecikme sözleşmesi](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/other/deep-thinking).
 
-## Dosya yapısı
+## Dosya yapısı ve paket alt yolları
 
-`src/`: sağlayıcı kataloğu, depo/şifreleme, ağ taşıyıcısı, model runtime'ı,
-framework-bağımsız çekirdek (`core.js`), Express adaptörü (`index.js`) ve key setup.
-`bin/`: CLI girişi (`npx llm-manager`). `public/`: bağımsız yönetim sayfası.
-`examples/`: güvenli yerel başlatma örneği. `tests/`: host projesini import etmeyen
-bağımsız kontroller.
+- `llm-manager` (`src/index.js`): Express adaptörü (`mountLLMManagement`) ve temel API'ler.
+- `llm-manager/core` (`src/core.js`): Framework-bağımsız çekirdek (`createLLMManager`, `createUiAssets`).
+- `llm-manager/setup` (`src/setup.js`): Şifreleme anahtarı üretimi ve doğrulaması (`ensureLLMEncryptionKey`).
+- `llm-manager/runtime` (`src/runtime.js`): Sağlayıcı istek oluşturma, model çağrısı ve hata sınıflandırma.
+- `llm-manager/transport` (`src/providerTransport.js`): SSRF ve DNS rebinding korumalı HTTPS taşıyıcısı.
+- `bin/`: CLI girişi (`npx llm-manager`). `public/`: bağımsız yönetim sayfası.
+- `examples/`: güvenli yerel başlatma örneği. `tests/`: host projesini import etmeyen bağımsız kontroller.
 
 Eklenti dağıtımı kullanıcı verilerini/anahtarlarını içermez.
 

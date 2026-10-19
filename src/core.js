@@ -5,7 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
-import { generateProfileResponse, classifyLLMError } from './runtime.js';
+import {
+  generateProfileResponse,
+  classifyLLMError,
+  providerEndpoint,
+  providerAuthHeaders,
+  resolveRuntimeOptions
+} from './runtime.js';
 import { providerFetch } from './providerTransport.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
@@ -28,17 +34,6 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm' } = {})
   html = html.replace(/src="(?:\.\/|\/llm\/)llm-ui\.js"/, `src="${pagePath}/llm-ui.js"`);
   const script = fs.readFileSync(path.join(publicDir, 'llm-ui.js'), 'utf8');
   return { html, script };
-}
-
-function providerEndpoint(profile, suffix, allowLocalHttp) {
-  const base = validateProviderUrl(profile.baseURL, { allowLocalHttp }).replace(/\/+$/, '');
-  return `${base.replace(/\/(chat\/completions|messages|models)$/, '')}/${suffix}`;
-}
-
-function authHeaders(profile) {
-  if (profile.transport === 'anthropic') return { 'x-api-key': profile.apiKey, 'anthropic-version': '2023-06-01' };
-  if (profile.transport === 'google') return { 'x-goog-api-key': profile.apiKey };
-  return { Authorization: `Bearer ${profile.apiKey}` };
 }
 
 // Sağlayıcı yanıtından benzersiz, temizlenmiş model kimliği listesi çıkarır.
@@ -91,12 +86,12 @@ export function createLLMManager({
       profile = store.get(id);
       if (!profile) return notFound();
       const quick = mode === 'quick';
+      const purpose = quick ? 'quick' : 'manager';
       const messages = testMessages ? testMessages(mode, profile) : defaultTestMessages(mode);
       const options = {
         ...profile,
-        purpose: quick ? 'quick' : 'manager',
-        timeoutMs: quick ? Math.min(profile.timeoutMs, 20000) : profile.timeoutMs,
-        maxOutputTokens: quick ? Math.min(profile.maxOutputTokens, 512) : profile.maxOutputTokens,
+        ...resolveRuntimeOptions(profile, { purpose }),
+        purpose,
         useManagedProfile: false,
         allowMockFallback: false
       };
@@ -135,7 +130,7 @@ export function createLLMManager({
       const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
       if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem }, 400);
       const url = providerEndpoint(profile, 'models', allowLocalHttp);
-      const response = await providerFetch(url, { headers: authHeaders(profile), signal: AbortSignal.timeout(10000) });
+      const response = await providerFetch(url, { headers: providerAuthHeaders(profile), signal: AbortSignal.timeout(10000) });
       if (!response.ok) return ok({ error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.` }, 502);
       return ok({ models: extractModelIds(await response.json(), profile) });
     } catch {
