@@ -18,3 +18,16 @@
 4. `setup.js` `.env.example` ve `.env` zorunluluğunu kaldır; bağımsız anahtar dosyası.
 5. Bağımsız paket metaverisi (isim, lisans, .env.example, .gitignore, bin/start).
 6. README'yi bağımsız kullanıma göre güncelle, testleri çalıştır.
+
+## Durum (2026-10-19)
+- Düzeltme listesi 1-6 TAMAMLANDI. Sürüm: **v1.0.0** (etiket 3bfcaab+), paket adı `llm-manager`, lisans MIT.
+- GitHub: https://github.com/sirrakadembasti/llm-manager (branch `main`, remote `origin`).
+- Sürümleme: SemVer + CHANGELOG.md (Keep a Changelog). Yayın: değişiklikleri `[Unreleased]` altına yaz, commit et, `npm run release:patch|minor|major`, `git push origin main --follow-tags`.
+- CSRF başlığı `X-LLM-CSRF: 1`. Git kimliği (yerel): llm-yonetimi <noreply@users.noreply.github.com>.
+- Klasör `llm-yonetimi` -> `llm-manager` olarak kullanıcı tarafından elle yeniden adlandırılacak.
+
+## Sıradaki olası işler (kullanıcı onayı bekler)
+- `index.js` / `profileStore.js` sıkıştırılmış kodun okunabilir hale getirilmesi.
+- `bin` ile CLI başlatma (`npx llm-manager`).
+- Framework-agnostik çekirdek API (Express dışı kullanım).
+- README'de kalan eski (geçmişe dönük) notların sadeleştirilmesi.
