@@ -64,17 +64,42 @@ const profileError = error => ({
 });
 
 export function createLLMManager({
-  store = createLLMProfileStore(),
+  dataDir,
+  filePath,
+  encryptionKey,
+  allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true',
+  store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
   generate,
   testMessages,
-  validateTestReply,
-  allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
+  validateTestReply
 } = {}) {
   const pendingTests = new Set();
+  let cachedUiKey = '';
+  let cachedUi = null;
 
   const guarded = (fn, status = 200) => {
     try { return ok(fn(), status); } catch (error) { return profileError(error); }
   };
+
+  function normalizeMessagesInput(bodyOrInput, systemPrompt) {
+    if (Array.isArray(bodyOrInput)) return bodyOrInput;
+    if (typeof bodyOrInput === 'string' && bodyOrInput.trim()) {
+      return [
+        ...(typeof systemPrompt === 'string' && systemPrompt.trim() ? [{ role: 'system', content: systemPrompt }] : []),
+        { role: 'user', content: bodyOrInput }
+      ];
+    }
+    if (bodyOrInput && typeof bodyOrInput === 'object') {
+      if (Array.isArray(bodyOrInput.messages)) return bodyOrInput.messages;
+      if (typeof bodyOrInput.prompt === 'string' && bodyOrInput.prompt.trim()) {
+        return [
+          ...(typeof bodyOrInput.system === 'string' && bodyOrInput.system.trim() ? [{ role: 'system', content: bodyOrInput.system }] : []),
+          { role: 'user', content: bodyOrInput.prompt }
+        ];
+      }
+    }
+    return null;
+  }
 
   async function testProfile(id, body) {
     const mode = body?.mode || 'quick';
@@ -141,13 +166,13 @@ export function createLLMManager({
   }
 
   async function chatCompletion(body) {
-    const messages = body?.messages;
+    const messages = normalizeMessagesInput(body);
     if (
       !Array.isArray(messages)
       || !messages.length
       || !messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string' && m.content.trim())
     ) {
-      return ok({ error: 'Geçerli bir mesaj listesi (messages) zorunludur.', code: 'MESSAGES_INVALID' }, 400);
+      return ok({ error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', code: 'MESSAGES_INVALID' }, 400);
     }
     const purpose = body?.purpose;
     if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
@@ -197,6 +222,22 @@ export function createLLMManager({
     }
   }
 
+  // Tek satırlık kullanım: await llm.ask('Merhaba!') veya await llm.ask([{ role: 'user', content: '...' }])
+  async function ask(promptOrMessages, options = {}) {
+    const messages = normalizeMessagesInput(promptOrMessages, options.system);
+    if (!Array.isArray(messages) || !messages.length) {
+      throw Object.assign(new Error('Geçerli bir mesaj listesi (messages) veya prompt zorunludur.'), { code: 'MESSAGES_INVALID' });
+    }
+    const result = await chatCompletion({ ...options, messages });
+    if (result.status !== 200) {
+      throw Object.assign(new Error(result.body?.error || 'Model çağrısı başarısız.'), {
+        code: result.body?.code || 'LLM_ERROR',
+        status: result.status
+      });
+    }
+    return result.body.content;
+  }
+
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
   async function handle({ method, path: routePath, body } = {}) {
     const verb = String(method || 'GET').toUpperCase();
@@ -225,5 +266,53 @@ export function createLLMManager({
     return null;
   }
 
-  return { handle, store };
+  // Next.js, SvelteKit, Nuxt, Astro, Hono, Bun/Deno için standart Web Request -> Response adaptörü.
+  async function fetchHandler(request, { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true } = {}) {
+    const key = `${apiPath}|${pagePath}`;
+    if (cachedUiKey !== key) {
+      cachedUi = createUiAssets({ apiPath, pagePath });
+      cachedUiKey = key;
+    }
+    const commonHeaders = {
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY'
+    };
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (request.method === 'GET' && pathname === pagePath) {
+      return new Response(cachedUi.html, {
+        status: 200,
+        headers: {
+          ...commonHeaders,
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      });
+    }
+    if (request.method === 'GET' && pathname === `${pagePath}/llm-ui.js`) {
+      return new Response(cachedUi.script, {
+        status: 200,
+        headers: { ...commonHeaders, 'Content-Type': 'text/javascript; charset=utf-8' }
+      });
+    }
+    if (pathname === apiPath || pathname.startsWith(`${apiPath}/`)) {
+      if (requireCsrf && !SAFE_METHODS.includes(request.method) && request.headers.get(CSRF_HEADER) !== '1') {
+        return Response.json(
+          { error: 'İstek doğrulama başlığı eksik.', code: 'CSRF_REQUIRED' },
+          { status: 403, headers: commonHeaders }
+        );
+      }
+      const subPath = pathname.slice(apiPath.length) || '/';
+      const body = !SAFE_METHODS.includes(request.method)
+        ? await request.json().catch(() => ({}))
+        : null;
+      const result = await handle({ method: request.method, path: subPath, body });
+      if (!result) return new Response(null, { status: 404, headers: commonHeaders });
+      if (result.body === undefined) return new Response(null, { status: result.status, headers: commonHeaders });
+      return Response.json(result.body, { status: result.status, headers: commonHeaders });
+    }
+    return new Response(null, { status: 404, headers: commonHeaders });
+  }
+
+  return { handle, ask, fetch: fetchHandler, store };
 }

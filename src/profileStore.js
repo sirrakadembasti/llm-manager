@@ -62,11 +62,39 @@ function assertRevision(profile, revision) {
   if (revision === undefined || (profile.revision ?? null) !== revision) throw conflictError();
 }
 
+function resolveAutoEncryptionKey(filePath) {
+  if (process.env.LLM_CONFIG_ENCRYPTION_KEY) return process.env.LLM_CONFIG_ENCRYPTION_KEY;
+  const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
+  if (fs.existsSync(keyPath)) {
+    return fs.readFileSync(keyPath, 'utf8').trim();
+  }
+  if (fs.existsSync(filePath)) {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (data.profiles?.some(profile => profile.secret)) {
+      throw new Error('Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok. Önce eski LLM_CONFIG_ENCRYPTION_KEY değerini yedekten kurtarın.');
+    }
+  }
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  const generated = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.writeFileSync(keyPath, `${generated}\n`, { mode: 0o600, flag: 'wx' });
+    return generated;
+  } catch (error) {
+    if (error.code === 'EEXIST') return fs.readFileSync(keyPath, 'utf8').trim();
+    throw error;
+  }
+}
+
 export function createLLMProfileStore({
-  filePath = process.env.LLM_CONFIG_PATH || path.resolve('data/llm-profiles.json'),
-  encryptionKey = process.env.LLM_CONFIG_ENCRYPTION_KEY,
+  dataDir,
+  filePath = process.env.LLM_CONFIG_PATH || path.resolve(dataDir || 'data', 'llm-profiles.json'),
+  encryptionKey,
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
 } = {}) {
+  const getKeyBytes = () => parseEncryptionKey(
+    encryptionKey !== undefined ? encryptionKey : resolveAutoEncryptionKey(filePath)
+  );
+
   const read = () => fs.existsSync(filePath)
     ? JSON.parse(fs.readFileSync(filePath, 'utf8'))
     : { profiles: [], activeId: null };
@@ -86,7 +114,7 @@ export function createLLMProfileStore({
   // Sunucu tarafı görünüm: çözülmüş apiKey ve transport içerir.
   const withSecret = profile => ({
     ...publicProfile(profile),
-    apiKey: decrypt(profile.secret, parseEncryptionKey(encryptionKey)),
+    apiKey: decrypt(profile.secret, getKeyBytes()),
     transport: transportOf(profile.provider),
     revision: profile.revision || null
   });
@@ -128,7 +156,7 @@ export function createLLMProfileStore({
       if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
         throw new Error('Sağlayıcı değişince yeni API anahtarı girin.');
       }
-      const secret = newKey ? encrypt(newKey, parseEncryptionKey(encryptionKey)) : existing?.secret;
+      const secret = newKey ? encrypt(newKey, getKeyBytes()) : existing?.secret;
       if (!secret) throw new Error('API anahtarı zorunludur.');
       const runtime = normalizeRuntimeOptions({ ...existing, ...input });
       const keepTests = Boolean(existing && existing.provider === provider && existing.baseURL === baseURL && existing.model === model && !newKey);

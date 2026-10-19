@@ -1,263 +1,163 @@
-# LLM Manager — Uygulama Entegrasyon Kılavuzu
+# LLM Manager — Kolay Entegrasyon Kılavuzu (Sıfır Ayar)
 
-Bu kılavuz, `llm-manager` eklentisinin farklı mimarilerdeki GitHub repolarına, web uygulamalarına ve masaüstü uygulamalarına **API anahtarlarını hiçbir zaman istemciye (tarayıcıya) sızdırmadan** nasıl entegre edileceğini adım adım açıklar.
+Bu kılavuz, `llm-manager` eklentisini farklı türdeki projelere **en az kod ve sıfır karmaşık ayar** ile nasıl bağlayacağınızı anlatır.
 
----
-
-## Entegrasyon Senaryoları Özeti
-
-| Senaryo | Uygulama Türü | Entegrasyon Yöntemi | Model Çağrısı Nasıl Yapılır? |
-| :--- | :--- | :--- | :--- |
-| **1. Node.js / Express Sunucu** | Express API, MVC, Monolit | `mountLLMManagement(app, ...)` | Sunucu içinde `generateProfileResponse()` veya istemciden `POST /api/llm/chat` |
-| **2. Tek Sayfalık / Statik Web (SPA)** | React, Vue, Vite, Vanilla JS, GitHub Pages | `npx llm-manager` (Sidecar / BFF) + `LLM_ALLOWED_ORIGINS` | Tarayıcıdan `fetch('http://127.0.0.1:8010/api/llm/chat')` |
-| **3. Full-Stack Framework** | Next.js (App Router), Nuxt, SvelteKit, Astro | `llm-manager/core` (`createLLMManager`, `createUiAssets`) | Server Action / Route Handler içinde `generateProfileResponse()` veya `/api/llm/chat` |
-| **4. Diğer Sunucu Dilleri / Framework'ler** | Fastify, Koa, Hono veya Python (FastAPI/Django), Go, C#, PHP | Node içi `llm-manager/core` veya yerel `npx llm-manager` mikroservisi | `POST http://127.0.0.1:8010/api/llm/chat` |
-| **5. Masaüstü Uygulamaları** | Electron, Tauri, C# WPF/MAUI, PyQt | Electron Main Process (`llm-manager/core` + IPC) veya Tauri Sidecar (`npx llm-manager`) | Electron `ipcMain.handle('llm:chat')` veya `POST http://127.0.0.1:8010/api/llm/chat` |
+> **Temel Mantık Çok Basit:**
+> 1. Eklentiyi başlatırsınız (şifreleme anahtarını ve `data/` klasörünü **kendisi otomatik oluşturur**).
+> 2. Tarayıcıdan `/llm` sayfasına girip kullandığınız modeli (OpenAI, Gemini, Claude, DeepSeek, MiMo vb.) ve API anahtarınızı kaydedip **"Etkinleştir"** dersiniz.
+> 3. Uygulamanızdan sadece **`await llm.ask("Sorunuz")`** (veya HTTP ile `{ prompt: "Sorunuz" }`) çağrısı yaparsınız. Modeli değiştirmek istediğinizde kodunuza dokunmazsınız; sadece `/llm` ekranından başka bir profili etkinleştirirsiniz!
 
 ---
 
-## Senaryo 1: Express.js Sunucu Uygulamaları (Doğrudan Gömülü)
+## 1. Express.js Sunucu Uygulamaları (Sadece 2 Satır Kod)
 
-Mevcut bir Express.js projesine tek komutla kurulur ve uygulamanın kendi oturum (session/JWT) yapısını kullanır.
+Dosya yolu, şifreleme anahtarı veya depo (`store`) tanımlamanıza **gerek yoktur**; hepsi otomatik yapılır.
 
-### Adım 1: Kurulum
+### Adım 1: Paketi Kurun
 ```sh
 npm install github:sirrakadembasti/llm-manager
 ```
 
-### Adım 2: Express Uygulamasına Bağlama (`server.js` / `app.js`)
+### Adım 2: `app.js` / `server.js` İçine Ekleyin
 ```js
 import express from 'express';
-import path from 'node:path';
-import { createLLMProfileStore, mountLLMManagement, generateProfileResponse } from 'llm-manager';
-import { ensureLLMEncryptionKey } from 'llm-manager/setup';
+import { mountLLMManagement } from 'llm-manager';
 
 const app = express();
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json());
 
-const filePath = path.resolve('data/llm-profiles.json');
-const encryptionKey = ensureLLMEncryptionKey({
-  profilePath: filePath,
-  environment: { ...process.env, NODE_ENV: 'production' }
-});
-const store = createLLMProfileStore({ filePath, encryptionKey });
+// 1. Eklentiyi bağlayın (adminPassword verirseniz hazır giriş ekranı açılır;
+//    kendi oturum sisteminiz varsa adminPassword yerine requireAuth verebilirsiniz):
+const llm = mountLLMManagement(app, { adminPassword: 'gizli-parolam' });
 
-// Host uygulamanın kimlik doğrulama middleware'i:
-const requireAuth = (req, res, next) => {
-  if (!req.user) return res.sendStatus(401);
-  req.user.isAdmin = req.user.role === 'admin';
-  next();
-};
-
-// Yönetim arayüzü (/llm) yalnız Admin'e; /api/llm/chat ise giriş yapmış kullanıcılara açılır:
-mountLLMManagement(app, {
-  store,
-  requireAuth,
-  pagePath: '/llm',
-  apiPath: '/api/llm',
-  chatAccess: 'authenticated' // 'authenticated' (varsayılan) | 'admin' | false
+// 2. Uygulamanızın herhangi bir yerinde tek satırla modele soru sorun:
+app.post('/ozetle', async (req, res) => {
+  const cevap = await llm.ask(req.body.metin, { system: 'Metni 3 maddede özetle.' });
+  res.json({ cevap });
 });
 
-// Backend içinden doğrudan etkin profille çağrı:
-export async function askActiveLLM(messages, signal) {
-  const profile = store.getActive();
-  if (!profile) throw new Error('Etkin LLM profili seçilmedi.');
-  return generateProfileResponse(messages, profile, { purpose: 'production', signal });
-}
+app.listen(3000);
 ```
+* **Yönetim Ekranı:** `http://localhost:3000/llm` (Kullanıcı adı: `admin`, Şifre: `gizli-parolam`).
 
 ---
 
-## Senaryo 2: Tek Sayfalık (SPA) ve Statik Web Uygulamaları (React, Vue, Vite, HTML/JS)
+## 2. Tek Sayfalık (SPA) ve Statik Web Uygulamaları (React, Vue, Vite, HTML/JS)
 
-Statik web uygulamalarında (tarayıcıda çalışan SPA'larda) API anahtarlarını `localStorage` veya frontend kodunda tutmak güvenlik açığı yaratır. Bunun yerine `llm-manager` yerel veya sunucu tarafında **hazır mikroservis (BFF)** olarak çalıştırılır.
+Sadece HTML/JS, React veya Vue olan (kendi arka uç sunucusu olmayan) projelerde API anahtarını tarayıcıya koymak tehlikelidir. Bunun yerine `llm-manager` tek komutla hazır arka uç olarak çalıştırılır.
 
-### Adım 1: LLM Manager Servisini CORS İzinleriyle Başlatma
-Projenizin yanında veya sunucuda `.env` oluşturun ya da doğrudan CLI ile başlatın:
+### Adım 1: Terminalde Tek Komutla Başlatın
 ```sh
-LLM_ADMIN_USER=admin \
-LLM_ADMIN_PASSWORD=guclu-parola \
-LLM_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173 \
-npx github:sirrakadembasti/llm-manager --port 8010
+npx github:sirrakadembasti/llm-manager --password 12345 --cors *
 ```
-> **Not:** Geliştirme sırasında Vite (`vite.config.js`) içinde `/api/llm` ve `/llm` yollarını `http://127.0.0.1:8010` adresine proxy'lerseniz CORS ayarına dahi gerek kalmaz.
+*(Bu komut `http://127.0.0.1:8010/llm` adresinde yönetim panelini açar ve SPA uygulamanızın bağlanmasına izin verir.)*
 
-### Adım 2: Yönetim Sayfasından Profil Tanımlama
-Tarayıcıda `http://127.0.0.1:8010/llm` adresini açın, sağlayıcı ve API anahtarınızı girip **Etkinleştir** butonuna basın.
+### Adım 2: Yönetim Ekranından Modelinizi Seçin
+`http://127.0.0.1:8010/llm` adresine girin (`admin` / `12345`), API anahtarınızı kaydedip **Etkinleştir** butonuna tıklayın.
 
-### Adım 3: SPA (React / Vue / Vanilla JS) İçinden Çağrı Yapma
+### Adım 3: Frontend (React / Vue / JS) Kodunuzdan Çağırın
 ```js
-export async function sendChatToLLM(userPrompt) {
-  const response = await fetch('http://127.0.0.1:8010/api/llm/chat', {
+async function modeleSor(soru) {
+  const res = await fetch('http://127.0.0.1:8010/api/llm/chat', {
     method: 'POST',
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'X-LLM-CSRF': '1',
-      // Standalone sunucu kullanılıyorsa Basic Auth; reverse proxy/host session varsa cookie kullanılır:
-      'Authorization': 'Basic ' + btoa('admin:guclu-parola')
+      'Authorization': 'Basic ' + btoa('admin:12345')
     },
-    body: JSON.stringify({
-      purpose: 'production',
-      messages: [
-        { role: 'system', content: 'Yardımcı bir asistansın.' },
-        { role: 'user', content: userPrompt }
-      ]
-    })
+    body: JSON.stringify({ prompt: soru })
   });
-
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'LLM çağrısı başarısız.');
-  return data.content; // API anahtarı hiçbir zaman tarayıcıya dönmez
+  const veri = await res.json();
+  return veri.content; // Modelin cevabı
 }
 ```
 
 ---
 
-## Senaryo 3: Full-Stack Uygulamalar (Next.js App Router, Nuxt, SvelteKit)
+## 3. Full-Stack Uygulamalar (Next.js, SvelteKit, Nuxt, Astro, Hono)
 
-Express kullanmayan full-stack Node.js framework'lerinde `llm-manager/core` doğrudan Route Handler / API Route içine bağlanır.
+Modern full-stack framework'lerde standart Web `Request` / `Response` nesneleri kullanılır. `llm.fetch(request)` metodu hem `/llm` yönetim sayfasını hem de `/api/llm/*` uç noktalarını **tek satırda** sunar.
 
-### Adım 1: Kurulum ve Singleton Oluşturma (`lib/llm.js`)
+### Adım 1: Tek Dosyada Tanımlayın (`lib/llm.js`)
 ```js
-import path from 'node:path';
-import { createLLMManager, createLLMProfileStore, createUiAssets, generateProfileResponse } from 'llm-manager/core';
-import { ensureLLMEncryptionKey } from 'llm-manager/setup';
+import { createLLMManager } from 'llm-manager/core';
 
-const filePath = path.resolve(process.cwd(), 'data/llm-profiles.json');
-const encryptionKey = ensureLLMEncryptionKey({
-  profilePath: filePath,
-  environment: { ...process.env, NODE_ENV: 'production' }
-});
-
-export const llmStore = createLLMProfileStore({ filePath, encryptionKey });
-export const llmManager = createLLMManager({ store: llmStore });
-export const llmUi = createUiAssets({ apiPath: '/api/llm', pagePath: '/llm' });
-
-// Server Action veya RSC içinden doğrudan kullanım:
-export async function generateServerReply(messages) {
-  const profile = llmStore.getActive();
-  if (!profile) throw new Error('Etkin LLM profili yok.');
-  return generateProfileResponse(messages, profile);
-}
+// Şifreleme anahtarı ve data/ klasörü otomatik yönetilir:
+export const llm = createLLMManager();
 ```
 
-### Adım 2: Next.js Catch-All API Route (`app/api/llm/[...slug]/route.js`)
+### Adım 2: Sunucu İçinde (Server Action / API) Soru Sorun
 ```js
-import { NextResponse } from 'next/server';
-import { llmManager } from '@/lib/llm';
+import { llm } from '@/lib/llm';
 
-async function handler(request, { params }) {
-  // 1. Kendi session/auth kontrolünüzü yapın (ör. NextAuth / Lucia / Clerk)
-  const { slug = [] } = await params;
-  const subPath = '/' + slug.join('/');
+const cevap = await llm.ask('Bana bir proje planı çıkar.');
+```
 
-  // 2. Yazma isteklerinde CSRF başlığını doğrulayın
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('x-llm-csrf') !== '1') {
-    return NextResponse.json({ error: 'CSRF başlığı eksik.' }, { status: 403 });
-  }
+### Adım 3: Yönetim Panelini ve API'yi Bağlayın (Next.js App Router Örneği)
+`app/api/llm/[...slug]/route.js` ve `app/llm/[[...slug]]/route.js` dosyalarına sadece şunu yazın:
+```js
+import { llm } from '@/lib/llm';
 
-  const body = ['POST', 'PUT', 'DELETE'].includes(request.method)
-    ? await request.json().catch(() => ({}))
-    : null;
-
-  const result = await llmManager.handle({ method: request.method, path: subPath, body });
-  if (!result) return new NextResponse(null, { status: 404 });
-  if (result.body === undefined) return new NextResponse(null, { status: result.status });
-  return NextResponse.json(result.body, { status: result.status });
-}
-
+const handler = (request) => llm.fetch(request);
 export { handler as GET, handler as POST, handler as PUT, handler as DELETE };
 ```
 
-### Adım 3: Next.js Yönetim Sayfası (`app/llm/route.js` ve `app/llm/llm-ui.js/route.js`)
-- `app/llm/route.js` içinde `new Response(llmUi.html, { headers: { 'content-type': 'text/html; charset=utf-8' } })`
-- `app/llm/llm-ui.js/route.js` içinde `new Response(llmUi.script, { headers: { 'content-type': 'text/javascript; charset=utf-8' } })` döndürün.
-
 ---
 
-## Senaryo 4: Diğer Sunucu Uygulamaları (Fastify/Koa veya Python, Go, C#, PHP)
+## 4. Diğer Sunucu Dilleri (Python, Go, C#, PHP) ve Diğer Node.js Çatıları
 
-### 4A. Fastify / Koa / Hono (Node.js Sunucuları)
-`llm-manager/core` içindeki `manager.handle({ method, path, body })` fonksiyonunu doğrudan kendi framework yönlendiricinize sarın:
-```js
-// Fastify örneği:
-fastify.all('/api/llm/*', async (request, reply) => {
-  const subPath = request.url.replace(/^\/api\/llm/, '').split('?')[0] || '/';
-  const result = await manager.handle({ method: request.method, path: subPath, body: request.body });
-  if (!result) return reply.code(404).send();
-  return reply.code(result.status).send(result.body ?? '');
-});
-```
+### 4A. Python (FastAPI / Django / Flask), Go, C#, PHP
+Başka bir programlama dili kullanıyorsanız `llm-manager`'ı yan servis olarak başlatıp HTTP ile çağırın:
 
-### 4B. Python (FastAPI / Django), Go, C# (.NET) veya PHP Sunucuları (Sidecar Modeli)
-Node.js dışı bir backend kullanıyorsanız `llm-manager`'ı `127.0.0.1:8010` üzerinde yerel bir **Sidecar servisi** olarak çalıştırın:
-
-1. **Başlatma (systemd / supervisor / PM2 / Docker Compose):**
+1. **Servisi Başlatın:**
    ```sh
-   LLM_ADMIN_USER=internal LLM_ADMIN_PASSWORD=gizli-token npx llm-manager --port 8010
+   npx github:sirrakadembasti/llm-manager --password 12345
    ```
-2. **Python (FastAPI / Requests) İçinden Çağrı:**
+2. **Python'dan Tek Fonksiyonla Çağırın:**
    ```python
    import requests
 
-   def ask_llm(messages: list[dict]) -> str:
-       resp = requests.post(
+   def modele_sor(soru: str) -> str:
+       r = requests.post(
            "http://127.0.0.1:8010/api/llm/chat",
-           auth=("internal", "gizli-token"),
+           auth=("admin", "12345"),
            headers={"X-LLM-CSRF": "1"},
-           json={"messages": messages, "purpose": "production"},
-           timeout=125,
+           json={"prompt": soru},
        )
-       resp.raise_for_status()
-       return resp.json()["content"]
+       return r.json()["content"]
    ```
+
+### 4B. Fastify / Koa (Node.js)
+```js
+import { createLLMManager } from 'llm-manager/core';
+const llm = createLLMManager();
+
+// Herhangi bir route içinde doğrudan kullanın:
+const cevap = await llm.ask('Merhaba!');
+```
 
 ---
 
-## Senaryo 5: Masaüstü Uygulamaları (Electron, Tauri, .NET MAUI/WPF)
+## 5. Masaüstü Uygulamaları (Electron ve Tauri)
 
-Masaüstü uygulamalarında kullanıcıların kendi API anahtarlarını işletim sistemi kullanıcı dizininde (`AppData` / `~/.config`) şifreli saklaması ve yönetmesi için iki yöntem kullanılır:
+Masaüstü uygulamalarında kullanıcının girdiği API anahtarları bilgisayardaki uygulama klasörüne (`AppData` / `~/.config`) şifreli kaydedilir.
 
-### 5A. Electron Uygulamaları (Main Process + IPC — Sıfır Port Açma)
-Electron'un **Main** süreci tam Node.js ortamına sahip olduğu için HTTP portu açmaya gerek kalmadan doğrudan `llm-manager/core` kullanılır:
-
+### 5A. Electron (Sadece 3 Satır — Port Açmadan)
+`electron/main.js` dosyasında `dataDir` olarak Electron'un kullanıcı klasörünü vermeniz yeterlidir:
 ```js
-// electron/main.js
 import { app, ipcMain } from 'electron';
-import path from 'node:path';
-import { createLLMManager, createLLMProfileStore, generateProfileResponse } from 'llm-manager/core';
-import { ensureLLMEncryptionKey } from 'llm-manager/setup';
+import { createLLMManager } from 'llm-manager/core';
 
 app.whenReady().then(() => {
-  const userDataDir = app.getPath('userData');
-  const filePath = path.join(userDataDir, 'llm-profiles.json');
-  const keyPath = path.join(userDataDir, 'llm-encryption.key');
+  // 1. Kullanıcı klasöründe otomatik şifreli depo başlat:
+  const llm = createLLMManager({ dataDir: app.getPath('userData') });
 
-  const encryptionKey = ensureLLMEncryptionKey({
-    profilePath: filePath,
-    keyPath,
-    environment: { ...process.env, NODE_ENV: 'production' }
-  });
-
-  const store = createLLMProfileStore({ filePath, encryptionKey });
-  const manager = createLLMManager({ store });
-
-  // Yönetim işlemleri için IPC köprüsü:
-  ipcMain.handle('llm:manage', (_event, { method, path: routePath, body }) =>
-    manager.handle({ method, path: routePath, body })
-  );
-
-  // Sohbet çağrıları için IPC köprüsü:
-  ipcMain.handle('llm:chat', async (_event, messages) => {
-    const profile = store.getActive();
-    if (!profile) throw new Error('Etkin LLM profili seçilmedi.');
-    return generateProfileResponse(messages, profile);
-  });
+  // 2. Arayüzden gelen soruları yanıtla:
+  ipcMain.handle('llm:sor', (_e, soru) => llm.ask(soru));
 });
 ```
 
-### 5B. Tauri (Rust) / PyQt / C# Masaüstü Uygulamaları (Yerel Sidecar)
-1. Uygulama başlarken arka planda `127.0.0.1` üzerinde rastgele veya sabit bir portta `llm-manager` alt sürecini (child process) rastgele üretilen tek kullanımlık `LLM_ADMIN_PASSWORD` ve `LLM_ALLOWED_ORIGINS=tauri://localhost,http://localhost:1420` ile başlatın.
-2. Ayarlar penceresinde `/llm` arayüzünü bir WebView sekmesinde açın.
-3. Uygulama içi LLM isteklerini `POST http://127.0.0.1:8010/api/llm/chat` uç noktasına gönderin. Uygulama kapanırken alt süreci (`SIGTERM`) sonlandırın.
+### 5B. Tauri (Rust) / C# WPF / PyQt Masaüstü Uygulamaları
+1. Uygulama açılırken arka planda `npx llm-manager --password 12345 --cors *` komutunu alt süreç (sidecar) olarak başlatın.
+2. Ayarlar penceresinde `http://127.0.0.1:8010/llm` adresini açın.
+3. Uygulama içinden `http://127.0.0.1:8010/api/llm/chat` adresine `{ "prompt": "..." }` gönderip yanıtı alın.

@@ -6,8 +6,9 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
-- SPA, masaüstü ve Node.js dışı uygulamaların API anahtarını görmeden model çağrısı yapabilmesi için `POST /chat` çalışma zamanı uç noktası (`src/core.js`), `mountLLMManagement` için `chatAccess` (`'authenticated' | 'admin' | false`) yetkilendirme seçeneği (`src/index.js`) ve bağımsız sunucu için `LLM_ALLOWED_ORIGINS` CORS beyaz listesi (`examples/server.js`) eklendi.
-- Farklı mimariler (Express, SPA/Statik, Next.js/Full-Stack, Python/Go Sidecar, Electron/Tauri Masaüstü) için adım adım entegrasyon kılavuzu (`docs/ENTEGRASYON.md`) eklendi.
+- Sıfır konfigürasyonlu entegrasyon yardımcıları eklendi: `dataDir` ile otomatik şifreleme anahtarı (`llm-encryption.key`), tek satırlık `await llm.ask(prompt)`, Web standart `await llm.fetch(request)` adaptörü (Next.js, SvelteKit, Nuxt, Astro, Hono), Express için yerleşik `adminPassword` seçeneği ve CLI için `--password` / `--cors` bayrakları.
+- SPA, masaüstü ve Node.js dışı uygulamaların API anahtarını görmeden model çağrısı yapabilmesi için `POST /chat` çalışma zamanı uç noktası (`{ prompt }` veya `{ messages }`), `mountLLMManagement` için `chatAccess` (`'authenticated' | 'admin' | false`) yetkilendirme seçeneği (`src/index.js`) ve bağımsız sunucu için `LLM_ALLOWED_ORIGINS` CORS beyaz listesi (`examples/server.js`) eklendi.
+- Farklı mimariler (Express, SPA/Statik, Next.js/Full-Stack, Python/Go Sidecar, Electron/Tauri Masaüstü) için sadeleştirilmiş entegrasyon kılavuzu (`docs/ENTEGRASYON.md`) eklendi.
 - Sağlayıcı kataloğuna (`src/providers.js`) tüm sağlayıcılar için varsayılan model listeleri ve bölgesel uç nokta seçenekleri eklendi.
 - Yönetim arayüzüne (`public/llm.html`, `public/llm-ui.js`) önerilen model seçici (`#model-select`) ve 3 durumlu şifreli API anahtarı rozeti/durum bildirimi eklendi.
 

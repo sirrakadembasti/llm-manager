@@ -24,127 +24,93 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 ### CLI (`npx llm-manager`)
 
 ```sh
-LLM_ADMIN_USER=kullanici LLM_ADMIN_PASSWORD=guclu-parola npx github:sirrakadembasti/llm-manager --port 8010
+npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
 ```
 
-Seçenekler: `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env`
-otomatik okunur; veriler `./data/` altında tutulur.
+Seçenekler: `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
 
 ### Kaynaktan
-
 
 ```sh
 npm ci
 npm test
 ```
 
-Örnek sunucu için `LLM_ADMIN_USER` ve `LLM_ADMIN_PASSWORD` ortam değişkenlerini
-kendiniz tanımlayıp `npm start` çalıştırın. Varsayılan kullanıcı/parola yoktur.
-Sunucu yalnız `127.0.0.1:8010` adresini dinler; `/llm` sayfasını açın. Örnek Basic
-authentication yerel deneme içindir; başka bilgisayarlara açmak için host
-uygulamanızın session/rol sistemi ve HTTPS reverse proxy kullanın.
+Örnek sunucu için `LLM_ADMIN_PASSWORD` ortam değişkenini tanımlayıp (`LLM_ADMIN_USER`
+verilmezse varsayılan `admin` kullanılır) `npm start` çalıştırın. Sunucu yalnız
+`127.0.0.1:8010` adresini dinler; `/llm` sayfasını açın.
 
-Windows PowerShell örneği (değerleri kendi seçiminizle değiştirin):
+Windows PowerShell örneği:
 
 ```powershell
-$env:LLM_ADMIN_USER = 'kendi-kullanici-adiniz'
 $env:LLM_ADMIN_PASSWORD = 'kendi-guclu-parolaniz'
 npm start
 ```
 
-Linux/macOS üzerinde aynı iki ortam değişkenini `export` ile tanımlayın.
-
 API anahtarlarınızı yalnız arayüzden girin. `data/` altındaki profil ve şifreleme
 anahtarı dosyalarını kaynak depoya eklemeyin. Profil dosyasını **ve şifreleme
-anahtarını** birlikte yedekleyin. Anahtar kaybolursa mevcut şifreli profiller
-çözülemez; eklenti otomatik anahtar değiştirerek kayıtları bozmaz.
+anahtarını** birlikte yedekleyin.
 
-## Başka uygulamaya entegrasyon
+## Başka uygulamaya entegrasyon (Sıfır Ayar)
 
-Bu klasörü uygulamanın yanına koyup uygulamanızda:
+Paketi kurun:
 
 ```sh
-npm install ../llm-manager --install-links
-# veya GitHub reposundan: npm install github:sirrakadembasti/llm-manager
+npm install github:sirrakadembasti/llm-manager
 ```
 
-Paket kopyalanır ve bağımlılıkları host tarafından çözülür; geliştirme symlink'ine
-bağımlı değildir. Sürüm değişince yeniden kurun. npm registry'ye yayınlamak gerekmez.
+Şifreleme anahtarı ve `data/` klasörü otomatik oluşturulur; yalnızca eklentiyi bağlayıp `llm.ask()` çağırın:
 
 ```js
 import express from 'express';
-import path from 'node:path';
-import { createLLMProfileStore, mountLLMManagement, generateProfileResponse }
-  from 'llm-manager';
-import { ensureLLMEncryptionKey } from 'llm-manager/setup';
+import { mountLLMManagement } from 'llm-manager';
 
 const app = express();
 app.use(express.json({ limit: '32kb' }));
-const filePath = path.resolve('data/llm-profiles.json');
-const encryptionKey = ensureLLMEncryptionKey({ profilePath: filePath,
-  environment: { ...process.env, NODE_ENV: 'production' } });
-const store = createLLMProfileStore({ filePath, encryptionKey });
 
-// Host session middleware'iniz req.user bilgisini yüklemelidir.
-const requireAuth = (req, res, next) => {
-  if (!req.user) return res.sendStatus(401);
-  req.user.isAdmin = req.user.roles?.includes('admin') === true;
-  next();
-};
-mountLLMManagement(app, { store, requireAuth,
-  pagePath: '/llm', apiPath: '/api/llm' });
+// 1. Eklentiyi bağlayın (hazır giriş için adminPassword veya kendi session middleware'iniz için requireAuth verin):
+const llm = mountLLMManagement(app, {
+  adminPassword: process.env.LLM_ADMIN_PASSWORD // veya requireAuth: (req, res, next) => ...
+});
 
-// Model çağrısı yalnız backend'de yapılır; API anahtarı tarayıcıya verilmez.
-async function askManager(messages, signal) {
-  const profile = store.getActive();
-  if (!profile) throw new Error('Etkin profil seçilmedi.');
-  return generateProfileResponse(messages, profile, { purpose: 'manager', signal });
-}
+// 2. Tek satırla etkin modele soru sorun (API anahtarı tarayıcıya asla verilmez):
+const cevap = await llm.ask('Bana kısa bir özet çıkar.', {
+  system: 'Yardımcı bir asistansın.'
+});
 ```
 
 Mevcut `generate(messages, options)` adaptörünüz varsa `mountLLMManagement`
-seçeneklerine `generate` verin. Adaptör `timeoutMs`, `maxOutputTokens`, `thinking`,
-`purpose`, `provider`, `transport`, `baseURL`, `model`, `apiKey` alanlarını uygulamalı,
-gerçek model metni döndürmeli; testte sahte başarı üretmemelidir.
+seçeneklerine `generate` verin. İsteğe bağlı olarak `dataDir` (ör. Electron'da `app.getPath('userData')`)
+veya özel `store` verebilirsiniz.
 
 Eklenti kendi yönetim sayfası ve API yanıtlarında `Cache-Control: no-store`,
 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` ve yönetim HTML sayfasında
 `Content-Security-Policy` başlıklarını otomatik uygular; Express 4 üzerinde asenkron
-depo/yönlendirici hatalarını `next(err)` ile host hata katmanına iletir. Host uygulama
-session cookie ayarlarını, Origin/CORS politikasını, istek boyutu ve hız sınırlarını
-uygulamalıdır. Eklenti kendi yazma API'lerinde `X-LLM-CSRF: 1` başlığını ister. Host
-fetch istemcisi bu başlığı ve kendi session cookie'sini gönderir. `requireCsrf: false`
-yalnız host eşdeğer CSRF denetimi uyguluyorsa kullanılmalıdır. Aynı profil dosyasında
-tek yazıcı süreç çalıştırın; çok süreç/çok sunucu için host veritabanı deposu adaptörü
-kullanın.
+depo/yönlendirici hatalarını `next(err)` ile host hata katmanına iletir. Eklenti kendi
+yazma API'lerinde `X-LLM-CSRF: 1` başlığını ister.
 
-### Express dışı (framework-agnostik) ve çoklu platform entegrasyonları
+### Express dışı (Next.js, SPA, Python, Masaüstü) entegrasyonlar
 
-Express kullanmayan projeler (Fastify, Koa, Next.js, Hono, Electron Main Process vb.)
-`llm-manager/core` alt modülünü doğrudan import edebilir; SPA (React/Vue/Vite),
-Tauri masaüstü veya Python/Go/C# sunucu uygulamaları ise `npx llm-manager` servisini
-`POST /api/llm/chat` uç noktası üzerinden çağırabilir:
-
-| Uygulama Türü | Önerilen Yöntem | Çağrı Noktası |
+| Uygulama Türü | Kurulum / Bağlama | Nasıl Soru Sorulur? |
 | --- | --- | --- |
-| **Express.js Sunucu** | `mountLLMManagement(app, ...)` | `generateProfileResponse()` veya `POST /api/llm/chat` |
-| **SPA / Statik Web (React, Vue, Vite)** | `npx llm-manager` + `LLM_ALLOWED_ORIGINS` | `POST /api/llm/chat` |
-| **Full-Stack (Next.js, Nuxt, SvelteKit)** | `llm-manager/core` (`createLLMManager`) | Server Action / Route Handler |
-| **Diğer Diller (Python, Go, C#, PHP)** | Yerel Sidecar (`npx llm-manager`) | `POST http://127.0.0.1:8010/api/llm/chat` |
-| **Masaüstü (Electron / Tauri)** | Electron IPC (`llm-manager/core`) veya Sidecar | `ipcMain.handle` veya `POST /api/llm/chat` |
+| **Express.js Sunucu** | `const llm = mountLLMManagement(app, { adminPassword })` | `await llm.ask('Merhaba')` |
+| **SPA / Statik Web (React, Vue, Vite)** | `npx llm-manager --password 123 --cors *` | `POST /api/llm/chat` (`{ prompt: 'Merhaba' }`) |
+| **Full-Stack (Next.js, Nuxt, SvelteKit)** | `const llm = createLLMManager()` + `llm.fetch(request)` | `await llm.ask('Merhaba')` |
+| **Diğer Diller (Python, Go, C#, PHP)** | `npx llm-manager --password 123` | `POST http://127.0.0.1:8010/api/llm/chat` |
+| **Masaüstü (Electron / Tauri)** | `createLLMManager({ dataDir: app.getPath('userData') })` | `ipcMain.handle('sor', (_, s) => llm.ask(s))` |
 
-Tüm senaryoların adım adım kurulum ve kod örnekleri için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
+Tüm senaryoların sade ve adım adım açıklamaları için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 
 ```js
-import { createLLMManager, createLLMProfileStore, createUiAssets } from 'llm-manager/core';
+import { createLLMManager } from 'llm-manager/core';
 
-const store = createLLMProfileStore({ filePath, encryptionKey });
-const manager = createLLMManager({ store });
-const { html, script } = createUiAssets({ apiPath: '/api/llm', pagePath: '/llm' });
+const llm = createLLMManager(); // data/ klasörü ve şifreleme anahtarı otomatik hazırlanır
 
-// Kimlik doğrulama, yönetici yetkisi ve CSRF denetimi host sorumluluğundadır.
-// Eşleşen yollarda { status, body }, eşleşmeyenlerde null döner:
-const result = await manager.handle({ method: 'GET', path: '/profiles', body: null });
+// Doğrudan soru sorma:
+const cevap = await llm.ask('Merhaba!');
+
+// Next.js / SvelteKit / Hono standart Web Request -> Response adaptörü:
+const response = await llm.fetch(request);
 ```
 
 ## API ve depo sözleşmesi
@@ -158,7 +124,7 @@ Varsayılan kök `/api/llm`:
 | Etkinleştir | `POST /profiles/:id/activate` |
 | Test | `POST /profiles/:id/test`, JSON `{ "mode": "quick" }` veya `conversation` |
 | Model listesi | `GET /profiles/:id/models` |
-| Model yanıtı (Runtime) | `POST /chat`, JSON `{ "messages": [...], "profileId"?, "purpose"? }` |
+| Model yanıtı (Runtime) | `POST /chat`, JSON `{ "prompt": "..." }` veya `{ "messages": [...] }` |
 
 `POST /chat` uç noktası etkin profili (veya isteğe bağlı `profileId` değerini) kullanarak
 model çağrısını sunucu tarafında yürütür ve yalnız `{ ok: true, content, profileId, profileName, provider, model, durationMs }`

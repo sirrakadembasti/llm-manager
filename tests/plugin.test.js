@@ -314,3 +314,68 @@ test('POST /chat endpoint supports active and explicit profileId, enforces chatA
   }
 });
 
+test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, adminPassword, and llm.fetch(Request) work seamlessly', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-zeroconfig-'));
+  const savedEnvKey = process.env.LLM_CONFIG_ENCRYPTION_KEY;
+  delete process.env.LLM_CONFIG_ENCRYPTION_KEY;
+  try {
+    const app = express();
+    app.use(express.json());
+    const llm = mountLLMManagement(app, {
+      dataDir: root,
+      adminPassword: 'kolay-sifre',
+      generate: async (messages, options) => `Cevap:${options.model}:${messages.map(m => m.content).join('|')}`
+    });
+
+    // Otomatik anahtar dosyasi olusturarak kaydetmeli
+    const saved = llm.store.save({
+      name: 'Hizli Profil',
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'sk-auto-key-secret'
+    });
+    assert.ok(fs.existsSync(path.join(root, 'llm-encryption.key')));
+    llm.store.activate(saved.id, saved.revision);
+
+    // Tek satirlik llm.ask(string, { system }) calismali
+    const directReply = await llm.ask('Merhaba', { system: 'Kisa yaz' });
+    assert.equal(directReply, 'Cevap:gpt-4.1-mini:Kisa yaz|Merhaba');
+
+    // Web Request -> Response (Next.js / SvelteKit / Hono) adaptoru calismali
+    const webPageRes = await llm.fetch(new Request('http://localhost/llm'));
+    assert.equal(webPageRes.status, 200);
+    assert.ok((await webPageRes.text()).includes('LLM Yönetimi'));
+
+    const webChatRes = await llm.fetch(new Request('http://localhost/api/llm/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
+      body: JSON.stringify({ prompt: 'Web standart cagri' })
+    }));
+    assert.equal(webChatRes.status, 200);
+    assert.equal((await webChatRes.json()).content, 'Cevap:gpt-4.1-mini:Web standart cagri');
+
+    // Express adminPassword Basic Auth ve { prompt } ile HTTP cagri
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise(resolve => server.once('listening', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      assert.equal((await fetch(`${base}/api/llm/profiles`)).status, 401);
+      const auth = 'Basic ' + Buffer.from('admin:kolay-sifre').toString('base64');
+      const chatRes = await fetch(`${base}/api/llm/chat`, {
+        method: 'POST',
+        headers: { Authorization: auth, 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
+        body: JSON.stringify({ prompt: 'Kolay prompt' })
+      });
+      assert.equal(chatRes.status, 200);
+      assert.equal((await chatRes.json()).content, 'Cevap:gpt-4.1-mini:Kolay prompt');
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+  } finally {
+    if (savedEnvKey !== undefined) process.env.LLM_CONFIG_ENCRYPTION_KEY = savedEnvKey;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
