@@ -7,6 +7,7 @@ import { PROVIDERS, validateProviderUrl } from './providers.js';
 
 const CONFLICT_MESSAGE = 'Profil başka bir işlemde değiştirildi; yenileyin.';
 const conflictError = () => Object.assign(new Error(CONFLICT_MESSAGE), { code: 'PROFILE_CONFLICT' });
+const notFoundError = () => Object.assign(new Error('Profil bulunamadı.'), { code: 'PROFILE_NOT_FOUND' });
 
 export function parseEncryptionKey(value) {
   const raw = String(value || '').trim();
@@ -27,8 +28,15 @@ function encrypt(secret, key) {
 }
 
 function decrypt(payload, key) {
-  const [iv, tag, data] = String(payload).split('.').map(part => Buffer.from(part, 'base64'));
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const parts = String(payload || '').split('.');
+  if (parts.length !== 3 || parts.some(part => !part)) {
+    throw new Error('Şifreli profil verisi geçersiz veya bozuk.');
+  }
+  const [iv, tag, data] = parts.map(part => Buffer.from(part, 'base64'));
+  if (iv.length !== 12 || tag.length !== 16) {
+    throw new Error('Şifreli profil verisi geçersiz veya bozuk.');
+  }
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
@@ -110,7 +118,7 @@ export function createLLMProfileStore({
       const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
       const data = read();
       const existing = data.profiles.find(item => item.id === input.id);
-      if (input.id && !existing) throw new Error('Profil bulunamadı.');
+      if (input.id && !existing) throw notFoundError();
       if (existing && (!Object.hasOwn(input, 'revision') || input.revision !== (existing.revision ?? null))) {
         throw conflictError();
       }
@@ -123,12 +131,14 @@ export function createLLMProfileStore({
       const secret = newKey ? encrypt(newKey, parseEncryptionKey(encryptionKey)) : existing?.secret;
       if (!secret) throw new Error('API anahtarı zorunludur.');
       const runtime = normalizeRuntimeOptions({ ...existing, ...input });
+      const keepTests = Boolean(existing && existing.provider === provider && existing.baseURL === baseURL && existing.model === model && !newKey);
       const profile = {
         ...runtime,
         id: existing?.id || crypto.randomUUID(),
         name, provider, model, baseURL, secret,
         revision: crypto.randomUUID(),
-        lastTest: null
+        lastTest: keepTests ? (existing.lastTest || null) : null,
+        lastTests: keepTests ? (existing.lastTests || {}) : {}
       };
       data.profiles = existing
         ? data.profiles.map(item => item.id === existing.id ? profile : item)
@@ -140,7 +150,7 @@ export function createLLMProfileStore({
     activate(id, revision) {
       const data = read();
       const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw new Error('Profil bulunamadı.');
+      if (!profile) throw notFoundError();
       assertRevision(profile, revision);
       data.activeId = id;
       write(data);
@@ -151,7 +161,7 @@ export function createLLMProfileStore({
       if (!['passed', 'failed'].includes(status)) throw new Error('Geçersiz bağlantı testi sonucu.');
       const data = read();
       const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw new Error('Profil bulunamadı.');
+      if (!profile) throw notFoundError();
       if (expectedRevision !== undefined && (profile.revision || null) !== expectedRevision) return null;
       const mode = details.mode === 'conversation' ? 'conversation' : 'quick';
       profile.lastTest = {
@@ -169,7 +179,7 @@ export function createLLMProfileStore({
     remove(id, revision) {
       const data = read();
       const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw new Error('Profil bulunamadı.');
+      if (!profile) throw notFoundError();
       assertRevision(profile, revision);
       data.profiles = data.profiles.filter(item => item.id !== id);
       if (data.activeId === id) data.activeId = null;

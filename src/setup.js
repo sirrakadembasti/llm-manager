@@ -4,12 +4,9 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import { parseEncryptionKey } from './profileStore.js';
 
-const backendDir = process.cwd();
-
 export function ensureLLMEncryptionKey({
-  envPath = path.join(backendDir, '.env'),
-  examplePath = path.join(backendDir, '.env.example'),
-  profilePath = process.env.LLM_CONFIG_PATH || path.join(backendDir, 'data', 'llm-profiles.json'),
+  envPath = path.join(process.cwd(), '.env'),
+  profilePath = process.env.LLM_CONFIG_PATH || path.join(process.cwd(), 'data', 'llm-profiles.json'),
   environment = process.env,
   keyPath = environment.LLM_CONFIG_KEY_PATH || path.join(path.dirname(profilePath), 'llm-encryption.key')
 } = {}) {
@@ -37,14 +34,16 @@ export function ensureLLMEncryptionKey({
       fs.writeFileSync(keyPath, `${key}\n`, { mode: 0o600, flag: 'wx' });
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      return ensureLLMEncryptionKey({ envPath, examplePath, profilePath, environment, keyPath });
+      return ensureLLMEncryptionKey({ envPath, profilePath, environment, keyPath });
     }
     environment.LLM_CONFIG_ENCRYPTION_KEY = key;
     return key;
   }
 
-  const base = envContent ?? (fs.existsSync(examplePath) ? fs.readFileSync(examplePath, 'utf8') : '');
-  const content = `${base.trimEnd()}${base.trim() ? '\n' : ''}LLM_CONFIG_ENCRYPTION_KEY=${key}\n`;
+  const base = envContent ?? '';
+  const content = /^LLM_CONFIG_ENCRYPTION_KEY=\s*$/m.test(base)
+    ? base.replace(/^LLM_CONFIG_ENCRYPTION_KEY=\s*$/m, `LLM_CONFIG_ENCRYPTION_KEY=${key}`)
+    : `${base.trimEnd()}${base.trim() ? '\n' : ''}LLM_CONFIG_ENCRYPTION_KEY=${key}\n`;
   fs.writeFileSync(envPath, content, { encoding: 'utf8', mode: 0o600, flag: envContent === null ? 'wx' : 'w' });
   environment.LLM_CONFIG_ENCRYPTION_KEY = key;
   return key;

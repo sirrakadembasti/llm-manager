@@ -59,7 +59,7 @@ function defaultTestMessages(mode) {
 const ok = (body, status = 200) => ({ status, body });
 const notFound = () => ({ status: 404 });
 const profileError = error => ({
-  status: error.code === 'PROFILE_CONFLICT' ? 409 : 400,
+  status: error.code === 'PROFILE_NOT_FOUND' ? 404 : error.code === 'PROFILE_CONFLICT' ? 409 : 400,
   body: { error: error.message, code: error.code || 'PROFILE_INVALID' }
 });
 
@@ -156,10 +156,7 @@ export function createLLMManager({
       return null;
     }
     if (!action) {
-      if (verb === 'PUT') {
-        if (!store.list().profiles.some(item => item.id === id)) return notFound();
-        return guarded(() => store.save({ ...body, id }));
-      }
+      if (verb === 'PUT') return guarded(() => store.save({ ...body, id }));
       if (verb === 'DELETE') return guarded(() => store.remove(id, body?.revision));
       return null;
     }
