@@ -3,6 +3,7 @@ const apiBase = (document.body.dataset.apiBase || '/api/llm').replace(/\/$/, '')
 let catalog = [], profiles = [], activeId = null;
 let pending = false, loadSequence = 0, stateVersion = 0;
 let editingRevision;
+let editingProfile = null;
 const disabledBefore = new Map();
 
 function message(text, error = false) {
@@ -79,26 +80,126 @@ function button(label, className, action, immediate = false) {
   return element;
 }
 
+function syncModelSelect() {
+  const select = $('model-select');
+  if (!select) return;
+  const current = $('model').value.trim();
+  const matches = [...select.options].some(opt => opt.value !== '' && opt.value === current);
+  select.value = matches ? current : '';
+}
+
 function populateModels(models) {
-  const list = $('known-models'); list.replaceChildren();
-  for (const model of models || []) { const option = document.createElement('option'); option.value = model; list.append(option); }
+  const uniqueModels = [...new Set((models || []).filter(Boolean))];
+  const list = $('known-models');
+  list.replaceChildren();
+  for (const model of uniqueModels) {
+    const option = document.createElement('option');
+    option.value = model;
+    list.append(option);
+  }
+
+  const select = $('model-select');
+  if (!select) return;
+  select.replaceChildren();
+  select.hidden = uniqueModels.length === 0;
+  for (const model of uniqueModels) {
+    const option = document.createElement('option');
+    option.value = model;
+    option.textContent = `Model: ${model}`;
+    select.append(option);
+  }
+  const customOption = document.createElement('option');
+  customOption.value = '';
+  customOption.textContent = 'Özel model kimliği (elle ekleyin / düzenleyin)';
+  select.append(customOption);
+  syncModelSelect();
 }
 
 function updateThinking() { $('thinking-field').hidden = $('provider').value !== 'xiaomi_mimo'; }
+
+function updateApiKeyFieldState() {
+  const input = $('api-key');
+  const badge = $('api-key-badge');
+  const status = $('api-key-status');
+  if (!editingProfile || !editingProfile.hasApiKey) {
+    input.required = true;
+    input.className = '';
+    input.placeholder = 'API anahtarını girin';
+    if (badge) badge.hidden = true;
+    if (status) status.hidden = true;
+    return;
+  }
+
+  const normalizeUrl = val => String(val || '').trim().replace(/\/+$/, '');
+  const targetChanged = $('provider').value !== editingProfile.provider
+    || normalizeUrl($('base-url').value) !== normalizeUrl(editingProfile.baseURL);
+  const hasNewInput = input.value.trim().length > 0;
+
+  if (hasNewInput) {
+    input.required = false;
+    input.className = 'updating-key';
+    if (badge) {
+      badge.hidden = false;
+      badge.className = 'key-badge updating';
+      badge.textContent = '↻ Yeni Anahtar Girildi';
+    }
+    if (status) {
+      status.hidden = false;
+      status.className = 'key-status updating';
+      status.textContent = 'Yeni API anahtarı girildi. Profili kaydettiğinizde önceki anahtarın üzerine yazılır ve en son girilen bu anahtar şifrelenerek saklanır.';
+    }
+  } else if (targetChanged) {
+    input.required = true;
+    input.className = 'warning-key';
+    input.placeholder = 'Yeni sağlayıcı/adres için API anahtarını girin';
+    if (badge) {
+      badge.hidden = false;
+      badge.className = 'key-badge warning';
+      badge.textContent = '! Yeni Anahtar Gerekli';
+    }
+    if (status) {
+      status.hidden = false;
+      status.className = 'key-status warning';
+      status.textContent = 'Sağlayıcı veya API temel adresi değiştirildiği için güvenlik gereği yeni API anahtarı girilmelidir.';
+    }
+  } else {
+    input.required = false;
+    input.className = 'has-saved-key';
+    input.placeholder = 'Kayıtlı anahtar korunur — değiştirmek için yeni anahtar yazın';
+    if (badge) {
+      badge.hidden = false;
+      badge.className = 'key-badge saved';
+      badge.textContent = '✓ Anahtar Kayıtlı (Şifreli)';
+    }
+    if (status) {
+      status.hidden = false;
+      status.className = 'key-status saved';
+      status.textContent = 'Bu profilde önceden kaydedilmiş şifreli bir API anahtarı var. Boş bırakırsanız mevcut anahtar korunur; yeni bir anahtar yazarsanız en son girilen anahtar kaydedilir.';
+    }
+  }
+}
 
 function serviceChoices() {
   let select = document.getElementById('llm-service');
   if (!select) {
     select = document.createElement('select');
     select.id = 'llm-service';
+    select.className = 'sub-select';
     select.setAttribute('aria-label', 'Hizmet / bölge');
-    $('base-url').after(select);
-    select.addEventListener('change', () => { $('base-url').value = select.value; });
+    $('base-url').before(select);
+    select.addEventListener('change', () => {
+      if (select.value) {
+        $('base-url').value = select.value;
+      } else {
+        $('base-url').focus();
+      }
+      updateApiKeyFieldState();
+    });
   }
   const endpoints = catalog.find(p => p.id === $('provider').value)?.endpoints || [];
   select.replaceChildren();
   select.hidden = !endpoints.length;
-  for (const item of [...endpoints, { name: 'Özel adres / konsoldaki adres', baseURL: '' }]) {
+  for (const item of [...endpoints, { name: 'Özel adres / konsoldaki adres (elle düzenleyin)', baseURL: '' }]) {
     const option = document.createElement('option');
     option.value = item.baseURL;
     option.textContent = item.name;
@@ -106,25 +207,30 @@ function serviceChoices() {
   }
   select.value = endpoints.some(e => e.baseURL === $('base-url').value) ? $('base-url').value : '';
 }
+
 function providerDefaults() {
   const provider = catalog.find(item => item.id === $('provider').value);
-  populateModels(provider?.models);
   $('base-url').value = provider?.baseURL || '';
   $('model').value = provider?.models?.[0] || '';
-  updateThinking(); serviceChoices();
+  populateModels(provider?.models);
+  updateThinking();
+  serviceChoices();
+  updateApiKeyFieldState();
 }
 
 function clearForm() {
   editingRevision = undefined;
+  editingProfile = null;
   $('profile-form').reset();
   $('profile-id').value = '';
-  $('api-key').required = true;
+  $('api-key').value = '';
   $('form-title').textContent = 'Yeni profil';
   providerDefaults();
 }
 
 function editProfile(profile) {
   editingRevision = profile.revision;
+  editingProfile = profile;
   if (![...$('provider').options].some(option => option.value === profile.provider)) {
     const option = document.createElement('option');
     option.value = profile.provider;
@@ -134,18 +240,18 @@ function editProfile(profile) {
   $('profile-id').value = profile.id;
   $('name').value = profile.name;
   $('provider').value = profile.provider;
-  populateModels(catalog.find(item => item.id === profile.provider)?.models);
   $('base-url').value = profile.baseURL;
   $('model').value = profile.model;
+  const known = catalog.find(item => item.id === profile.provider)?.models || [];
+  populateModels(profile.model && !known.includes(profile.model) ? [profile.model, ...known] : known);
   $('timeout-ms').value = profile.timeoutMs ?? 120000;
   $('max-output-tokens').value = profile.maxOutputTokens ?? 8192;
   $('thinking').value = profile.thinking || 'auto';
   updateThinking();
   $('api-key').value = '';
-  $('api-key').required = false;
-  $('api-key').placeholder = 'Kayıtlı anahtar korunur; değiştirmek için yeni anahtar girin';
   $('form-title').textContent = `Profili düzenle: ${profile.name}`;
   serviceChoices();
+  updateApiKeyFieldState();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -211,7 +317,7 @@ function render() {
 
     const details = document.createElement('div');
     details.className = 'muted';
-    details.textContent = `${profile.provider} · ${profile.model} · ${profile.baseURL} · Anahtar: ${profile.hasApiKey ? 'kayıtlı' : 'eksik'}`;
+    details.textContent = `${profile.provider} · ${profile.model} · ${profile.baseURL} · Anahtar: ${profile.hasApiKey ? '✓ kayıtlı (şifreli)' : 'eksik'}`;
 
     const settings = document.createElement('p');
     settings.className = 'muted';
@@ -274,6 +380,14 @@ async function loadProfiles() {
   if (sequence !== loadSequence || version !== stateVersion) return;
   profiles = result.profiles;
   activeId = result.activeId;
+  if (editingProfile) {
+    const updated = profiles.find(p => p.id === editingProfile.id);
+    if (updated) {
+      editingProfile = updated;
+      editingRevision = updated.revision;
+      updateApiKeyFieldState();
+    }
+  }
   render();
 }
 
@@ -288,6 +402,20 @@ async function init() {
     $('provider').append(option);
   }
   $('provider').addEventListener('change', providerDefaults);
+  $('base-url').addEventListener('input', () => {
+    serviceChoices();
+    updateApiKeyFieldState();
+  });
+  $('model-select')?.addEventListener('change', () => {
+    const selected = $('model-select').value;
+    if (selected) {
+      $('model').value = selected;
+    } else {
+      $('model').focus();
+    }
+  });
+  $('model').addEventListener('input', syncModelSelect);
+  $('api-key').addEventListener('input', updateApiKeyFieldState);
   $('clear-form').addEventListener('click', () => { if (!pending) clearForm(); });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault();
@@ -309,15 +437,18 @@ async function init() {
       if (!Number.isInteger(input.maxOutputTokens) || input.maxOutputTokens < 256 || input.maxOutputTokens > 32768) {
         throw new Error('Çıktı sınırı 256–32768 token arasında olmalı.');
       }
-      if ($('api-key').value) input.apiKey = $('api-key').value;
-      await request(id ? `/profiles/${encodeURIComponent(id)}` : '/profiles', {
+      if ($('api-key').value.trim()) input.apiKey = $('api-key').value.trim();
+      const saved = await request(id ? `/profiles/${encodeURIComponent(id)}` : '/profiles', {
         method: id ? 'PUT' : 'POST',
         body: JSON.stringify(input),
         timeoutMs: 30000
       });
-      clearForm();
       await loadProfiles();
-      return 'Profil kaydedildi. Bağlantıyı sınayıp etkinleştirin.';
+      const latestProfile = profiles.find(p => p.id === saved.id) || saved;
+      editProfile(latestProfile);
+      return input.apiKey
+        ? 'Profil ve yeni API anahtarı şifrelenerek kaydedildi. Bağlantıyı sınayıp etkinleştirin.'
+        : 'Profil güncellendi (mevcut şifreli API anahtarı korundu).';
     });
   });
   clearForm();

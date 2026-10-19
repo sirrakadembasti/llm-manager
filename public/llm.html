@@ -36,8 +36,32 @@
       box-shadow: 0 4px 18px #1725540d;
     }
     section.active-summary { border-color: #4f46e5; background: #eef2ff; margin-bottom: 20px; }
-    label { display: block; margin: 14px 0 5px; font-weight: 600; font-size: 14px; }
+    label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 5px; font-weight: 600; font-size: 14px; }
     input, select { width: 100%; padding: 10px; border: 1px solid #aebbd0; border-radius: 8px; font: inherit; }
+    .sub-select { margin-bottom: 6px; background: #f8fafc; font-size: 13px; }
+    input.has-saved-key { border-color: #059669; background: #ecfdf5; }
+    input.updating-key { border-color: #2563eb; background: #eff6ff; }
+    input.warning-key { border-color: #d97706; background: #fffbeb; }
+    .key-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .key-badge.saved { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .key-badge.updating { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .key-badge.warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .key-status {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .key-status.saved { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .key-status.updating { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .key-status.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
     input:focus, select:focus, button:focus-visible { outline: 3px solid #c7d2fe; outline-offset: 2px; }
     button {
       border: 0;
@@ -52,7 +76,7 @@
     button.secondary { background: #e7eaf2; color: #202c46; }
     button.danger { background: #b91c1c; }
     button:disabled { opacity: .5; cursor: wait; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+    .actions { display: flex; gap: 8px; flex-wrap:wrap; margin-top: 18px; }
     .card { border: 1px solid #dce2ef; border-radius: 12px; padding: 18px; margin: 12px 0; }
     .card.active { border-color: #4f46e5; border-left: 4px solid #4f46e5; background: #eef2ff; }
     .card h3 { margin: 0 0 5px; }
@@ -111,13 +135,18 @@
           <input id="name" required maxlength="80" placeholder="Örn. Üretim modeli">
           <label for="provider">Sağlayıcı</label>
           <select id="provider" required></select>
-          <label for="base-url">API temel adresi (elle düzenlenebilir)</label>
+          <label for="base-url">API temel adresi (listeden seçilebilir veya elle düzenlenebilir)</label>
           <input id="base-url" type="url" required placeholder="https://api.example.com/v1">
-          <label for="model">Model kimliği (elle yazılabilir)</label>
+          <label for="model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
+          <select id="model-select" class="sub-select" aria-label="Önerilen modeller"></select>
           <input id="model" list="known-models" required maxlength="160" placeholder="Örn. sağlayıcının güncel model kimliği">
           <datalist id="known-models"></datalist>
-          <label for="api-key">API anahtarı</label>
-          <input id="api-key" type="password" autocomplete="new-password" placeholder="Anahtarı girin veya mevcut anahtarı koruyun">
+          <label for="api-key">
+            <span>API anahtarı</span>
+            <span id="api-key-badge" class="key-badge" hidden></span>
+          </label>
+          <div id="api-key-status" class="key-status" role="status" aria-live="polite" hidden></div>
+          <input id="api-key" type="password" autocomplete="new-password" placeholder="API anahtarını girin">
           <div class="field-grid">
             <div>
               <label for="timeout-ms">Zaman sınırı (ms)</label>
