@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
-import { createLLMProfileStore, mountLLMManagement } from '../src/index.js';
+import { createLLMProfileStore, createUiAssets, mountLLMManagement } from '../src/index.js';
 import { buildProviderRequest, classifyLLMError, generateProfileResponse } from '../src/runtime.js';
 
 test('conversation runtime rejects nonempty truncated answers for every transport', async () => {
@@ -123,6 +123,11 @@ test('custom mounted plugin enforces auth/CSRF and stores actual conversation di
   try {
     assert.equal((await fetch(`${base}/admin-api/models/profiles`)).status, 401);
     const headers = { Authorization: 'fixture', 'content-type': 'application/json' };
+    const profilesResp = await fetch(`${base}/admin-api/models/profiles`, { headers });
+    assert.equal(profilesResp.status, 200);
+    assert.equal(profilesResp.headers.get('cache-control'), 'no-store');
+    assert.equal(profilesResp.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(profilesResp.headers.get('x-frame-options'), 'DENY');
     const endpoint = `${base}/admin-api/models/profiles/${profile.id}/test`;
     assert.equal((await fetch(endpoint, { method: 'POST', headers })).status, 403);
     const response = await fetch(endpoint, {
@@ -137,12 +142,49 @@ test('custom mounted plugin enforces auth/CSRF and stores actual conversation di
     assert.equal(calls[0].options.purpose, 'manager');
     assert.equal(calls[0].messages[0].role, 'system');
     assert.equal(store.list().profiles[0].lastTest.mode, 'conversation');
-    const html = await (await fetch(`${base}/admin-models`, { headers })).text();
+    const pageResp = await fetch(`${base}/admin-models`, { headers });
+    assert.equal(pageResp.headers.get('cache-control'), 'no-store');
+    assert.equal(pageResp.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(pageResp.headers.get('x-frame-options'), 'DENY');
+    assert.ok(pageResp.headers.get('content-security-policy')?.includes("default-src 'self'"));
+    const html = await pageResp.text();
     assert.ok(html.includes('/admin-models/llm-ui.js'));
     assert.ok(html.includes('data-api-base="/admin-api/models"'));
   } finally {
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('createUiAssets rejects invalid mount paths and Express 4 forwards async store errors to next(err)', async () => {
+  assert.throws(() => createUiAssets({ pagePath: '/llm/' }), /Geçersiz eklenti mount yolu/);
+  assert.throws(() => createUiAssets({ apiPath: '/llm"onload="alert(1)' }), /Geçersiz eklenti mount yolu/);
+  assert.throws(() => createUiAssets({ pagePath: '/llm//sub' }), /Geçersiz eklenti mount yolu/);
+
+  const app = express();
+  mountLLMManagement(app, {
+    store: {
+      list() {
+        throw new Error('corrupted store');
+      }
+    },
+    requireAuth: (req, _res, next) => {
+      req.user = { isAdmin: true };
+      next();
+    }
+  });
+  app.use((err, _req, res, _next) => {
+    res.status(500).json({ caught: err.message });
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const res = await fetch(`${base}/api/llm/profiles`);
+    assert.equal(res.status, 500);
+    assert.deepEqual(await res.json(), { caught: 'corrupted store' });
+  } finally {
+    await new Promise(resolve => server.close(resolve));
   }
 });
 
@@ -192,4 +234,3 @@ test('framework-agnostic core handles CRUD, activation, testing and unknown rout
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-

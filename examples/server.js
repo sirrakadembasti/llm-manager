@@ -16,9 +16,9 @@ const encryptionKey = ensureLLMEncryptionKey({
 });
 
 const equal = (left, right) => {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  const a = crypto.createHash('sha256').update(String(left)).digest();
+  const b = crypto.createHash('sha256').update(String(right)).digest();
+  return crypto.timingSafeEqual(a, b);
 };
 
 const requireAuth = (req, res, next) => {
@@ -27,11 +27,11 @@ const requireAuth = (req, res, next) => {
     ? Buffer.from(authorization.slice(6), 'base64').toString()
     : '';
   const colon = decoded.indexOf(':');
-  if (
-    colon < 0
-    || !equal(decoded.slice(0, colon), process.env.LLM_ADMIN_USER)
-    || !equal(decoded.slice(colon + 1), process.env.LLM_ADMIN_PASSWORD)
-  ) {
+  const user = colon < 0 ? '' : decoded.slice(0, colon);
+  const pass = colon < 0 ? '' : decoded.slice(colon + 1);
+  const userOk = equal(user, process.env.LLM_ADMIN_USER);
+  const passOk = equal(pass, process.env.LLM_ADMIN_PASSWORD);
+  if (colon < 0 || !userOk || !passOk) {
     res.set('WWW-Authenticate', 'Basic realm="LLM Yonetimi"');
     return res.sendStatus(401);
   }

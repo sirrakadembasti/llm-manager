@@ -23,11 +23,12 @@ export const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 
 export function isValidMountPath(value) {
-  return /^\/[a-zA-Z0-9/_-]+$/.test(value);
+  return typeof value === 'string' && /^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value);
 }
 
 // Yönetim sayfası ve betiği bir kez okunup yol ayarlarıyla önbelleğe alınır.
 export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm' } = {}) {
+  if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
   let html = fs.readFileSync(path.join(publicDir, 'llm.html'), 'utf8');
   html = html.replace(/data-api-base="[^"]*"/, `data-api-base="${apiPath}"`);
   if (!html.includes('data-api-base=')) html = html.replace('<body', `<body data-api-base="${apiPath}"`);
