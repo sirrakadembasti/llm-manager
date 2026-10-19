@@ -10,6 +10,19 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - Şifreleme anahtarı doğrulaması (`parseEncryptionKey`) `src/profileStore.js` ve `src/setup.js` arasında ortaklaştırıldı.
 - `public/llm.html` içindeki mükerrer `<style>` blokları birleştirildi; `public/llm-ui.js`, `examples/server.js` ve test dosyaları okunabilir biçime getirildi.
 
+### Düzeltildi
+- Express 4 üzerinde asenkron yönlendirici hatalarının `next(err)` ile hata katmanına iletilmesi sağlandı; yönetim sayfası ve API yanıtlarına güvenlik başlıkları (`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, yönetim sayfası için `Content-Security-Policy`) eklendi.
+- `createUiAssets` içinde `apiPath` ve `pagePath` parametrelerine mount yolu doğrulaması (`isValidMountPath`) eklendi.
+- `src/profileStore.js` içinde AES-256-GCM şifre çözme işlemine 12 bayt IV, 16 bayt kimlik doğrulama etiketi (`authTagLength: 16`) ve 3 parçalı format doğrulaması eklendi.
+- Profil kaydedilirken kimlik bilgisi, sağlayıcı, temel adres veya model değişmediğinde geçmiş test sonuçlarının (`lastTests` ve `lastTest`) korunması sağlandı.
+- Bulunamayan profil kimlikleri için `PUT`, `DELETE` ve `POST /activate` uç noktalarının `400` yerine `404` (`PROFILE_NOT_FOUND`) döndürmesi sağlandı.
+- `allowLocalHttp` seçeneğinin `createLLMProfileStore`, `createLLMManager`, `buildProviderRequest`, `generateProfileResponse` ve `providerFetch` katmanları boyunca ortam değişkenine gerek kalmadan iletilmesi sağlandı.
+- `src/setup.js` içinde geliştirme ortamında `.env.example` kopyalama davranışı kaldırıldı; boş `LLM_CONFIG_ENCRYPTION_KEY=` satırlarının yerinde güncellenmesi sağlandı.
+- `src/core.js` içindeki sohbet testi (`mode: 'conversation'`) akışında özel `generate` adaptörlerine `resolveRuntimeOptions(profile, { purpose })` çıktısının (Xiaomi MiMo `auto` profillerinde `thinking: 'disabled'` dahil) iletilmesi sağlandı.
+- Anthropic isteklerinde sistem mesajı olmadığında boş `system` alanı gönderilmemesi ve Google Gemini model adlarında mükerrer `models/` önekinin temizlenmesi sağlandı.
+- Ön yüzde (`public/llm-ui.js`) "Modelleri getir" eyleminin açık olan profil formundaki kaydedilmemiş değişiklikleri sıfırlamaması ve boş model listesi döndüğünde mevcut model seçeneklerini silmemesi sağlandı.
+- `createPublicLookup`, `GET /profiles/:id/models`, UI form korunumu ve diğer sertleştirme senaryoları için birim/entegrasyon testleri eklendi.
+
 ## [1.0.0] - 2026-10-19
 
 İlk bağımsız sürüm.

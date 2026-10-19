@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { createLLMProfileStore } from '../src/profileStore.js';
 import { createLLMManager } from '../src/core.js';
 import { ensureLLMEncryptionKey } from '../src/setup.js';
 import { classifyLLMError, buildProviderRequest } from '../src/runtime.js';
+import { createPublicLookup } from '../src/providerTransport.js';
 
 test('402 and 403 have actionable separate codes', () => {
   assert.equal(classifyLLMError({ upstreamStatus: 402 }).code, 'LLM_BILLING');
@@ -342,4 +344,306 @@ test('Anthropic omits empty system field and Google strips leading models/ prefi
   assert.equal(googleReq.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent');
 });
 
+test('createPublicLookup filters private/loopback IPv4/IPv6, accepts public addresses, and scopes allowLoopback', async () => {
+  const resolveWith = entries => (_hostname, _opts, cb) => cb(null, entries);
+  const runLookup = (lookup, hostname, options = {}) => new Promise((resolve, reject) => {
+    lookup(hostname, options, (err, address, family) => (err ? reject(err) : resolve({ address, family })));
+  });
 
+  for (const ip of ['10.0.0.1', '127.0.0.1', '169.254.169.254', '172.16.0.1', '192.168.1.1', '100.64.0.1']) {
+    const lookup = createPublicLookup({ resolver: resolveWith([{ address: ip, family: 4 }]) });
+    await assert.rejects(() => runLookup(lookup, 'provider.example'), /private networks are forbidden/);
+  }
+
+  for (const ip6 of ['::1', 'fe80::1', 'fc00::1']) {
+    const lookup = createPublicLookup({ resolver: resolveWith([{ address: ip6, family: 6 }]) });
+    await assert.rejects(() => runLookup(lookup, 'provider.example'), /private networks are forbidden/);
+  }
+
+  const publicV4Lookup = createPublicLookup({ resolver: resolveWith([{ address: '93.184.216.34', family: 4 }]) });
+  assert.deepEqual(await runLookup(publicV4Lookup, 'example.com'), { address: '93.184.216.34', family: 4 });
+
+  const publicV6Lookup = createPublicLookup({
+    resolver: resolveWith([{ address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 }])
+  });
+  assert.deepEqual(await runLookup(publicV6Lookup, 'example.com'), {
+    address: '2606:2800:220:1:248:1893:25c8:1946',
+    family: 6
+  });
+
+  const loopbackV4Lookup = createPublicLookup({
+    allowLoopback: true,
+    resolver: resolveWith([{ address: '127.0.0.1', family: 4 }])
+  });
+  assert.deepEqual(await runLookup(loopbackV4Lookup, 'localhost'), { address: '127.0.0.1', family: 4 });
+  assert.deepEqual(await runLookup(loopbackV4Lookup, '127.0.0.1'), { address: '127.0.0.1', family: 4 });
+  await assert.rejects(() => runLookup(loopbackV4Lookup, 'evil.example'), /private networks are forbidden/);
+
+  const loopbackV6Lookup = createPublicLookup({
+    allowLoopback: true,
+    resolver: resolveWith([{ address: '::1', family: 6 }])
+  });
+  assert.deepEqual(await runLookup(loopbackV6Lookup, '::1'), { address: '::1', family: 6 });
+});
+
+test('GET /profiles/:id/models parses OpenAI and Google model lists and returns 400 on Xiaomi MiMo credential mismatch', async () => {
+  const originalFetch = globalThis.fetch;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-models-'));
+  try {
+    const filePath = path.join(root, 'profiles.json');
+    const store = createLLMProfileStore({ filePath, encryptionKey: 'ab'.repeat(32) });
+    const openaiProfile = store.save({
+      name: 'OpenAI',
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'sk-openai-test'
+    });
+    const googleProfile = store.save({
+      name: 'Google',
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: 'goog-test-key'
+    });
+    const mimoProfile = store.save({
+      name: 'MiMo',
+      provider: 'xiaomi_mimo',
+      model: 'mimo-v2-flash',
+      baseURL: 'https://api.xiaomimimo.com/v1',
+      apiKey: 'sk-payg-secret'
+    });
+
+    // Mutate stored MiMo baseURL to a Token Plan host so stored PAYG sk- key mismatches endpoint
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    raw.profiles.find(p => p.id === mimoProfile.id).baseURL = 'https://token-plan-sgp.xiaomimimo.com/v1';
+    fs.writeFileSync(filePath, JSON.stringify(raw));
+
+    globalThis.fetch = async url => {
+      if (String(url).includes('api.openai.com')) {
+        return new Response(JSON.stringify({ data: [{ id: 'gpt-4.1' }, { id: 'gpt-4o' }] }), { status: 200 });
+      }
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        return new Response(JSON.stringify({
+          models: [
+            { name: 'models/gemini-2.5-pro', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] }
+          ]
+        }), { status: 200 });
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+
+    const manager = createLLMManager({ store });
+
+    const openaiRes = await manager.handle({ method: 'GET', path: `/profiles/${openaiProfile.id}/models` });
+    assert.equal(openaiRes.status, 200);
+    assert.deepEqual(openaiRes.body.models, ['gpt-4.1', 'gpt-4o']);
+
+    const googleRes = await manager.handle({ method: 'GET', path: `/profiles/${googleProfile.id}/models` });
+    assert.equal(googleRes.status, 200);
+    assert.deepEqual(googleRes.body.models, ['gemini-2.5-pro']);
+
+    const mimoRes = await manager.handle({ method: 'GET', path: `/profiles/${mimoProfile.id}/models` });
+    assert.equal(mimoRes.status, 400);
+    assert.equal(mimoRes.body.code, 'AI_CREDENTIAL_ENDPOINT_MISMATCH');
+  } finally {
+    globalThis.fetch = originalFetch;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('UI Modelleri getir action preserves in-progress form edits and keeps existing model options when response is empty', async () => {
+  const elements = new Map();
+  const makeElement = (tag = 'div', id = '') => {
+    const listeners = new Map();
+    const el = {
+      tagName: String(tag).toUpperCase(),
+      id,
+      value: '',
+      textContent: '',
+      className: '',
+      placeholder: '',
+      required: false,
+      disabled: false,
+      hidden: false,
+      children: [],
+      attributes: new Map(),
+      get options() {
+        return this.children.filter(c => c.tagName === 'OPTION');
+      },
+      append(...nodes) {
+        for (const n of nodes) {
+          if (n && typeof n === 'object') {
+            if (n.id) elements.set(n.id, n);
+            this.children.push(n);
+          }
+        }
+      },
+      replaceChildren(...nodes) {
+        this.children = [];
+        this.append(...nodes);
+      },
+      before(node) {
+        if (node?.id) elements.set(node.id, node);
+      },
+      setAttribute(k, v) {
+        this.attributes.set(k, v);
+      },
+      removeAttribute(k) {
+        this.attributes.delete(k);
+      },
+      addEventListener(type, fn) {
+        listeners.set(type, fn);
+      },
+      trigger(type, event = { preventDefault() {} }) {
+        return listeners.get(type)?.(event);
+      },
+      focus() {},
+      reset() {}
+    };
+    if (id) elements.set(id, el);
+    return el;
+  };
+
+  for (const [id, tag] of [
+    ['message', 'p'],
+    ['profile-form', 'form'],
+    ['model-select', 'select'],
+    ['model', 'input'],
+    ['known-models', 'datalist'],
+    ['thinking-field', 'div'],
+    ['provider', 'select'],
+    ['api-key', 'input'],
+    ['api-key-badge', 'span'],
+    ['api-key-status', 'div'],
+    ['base-url', 'input'],
+    ['profile-id', 'input'],
+    ['form-title', 'h2'],
+    ['name', 'input'],
+    ['timeout-ms', 'input'],
+    ['max-output-tokens', 'input'],
+    ['thinking', 'select'],
+    ['profile-count', 'strong'],
+    ['active-name', 'strong'],
+    ['active-summary', 'section'],
+    ['profiles', 'div'],
+    ['home-link', 'a'],
+    ['clear-form', 'button']
+  ]) {
+    makeElement(tag, id);
+  }
+
+  let modelsPayload = ['gpt-4.1', 'gpt-4o'];
+  const profileFixture = {
+    id: 'prof-1',
+    name: 'Kayıtlı Ad',
+    provider: 'openai',
+    model: 'gpt-4.1-mini',
+    baseURL: 'https://api.openai.com/v1',
+    hasApiKey: true,
+    revision: 'rev-1',
+    timeoutMs: 120000,
+    maxOutputTokens: 8192,
+    thinking: 'auto',
+    lastTests: {},
+    lastTest: null
+  };
+
+  const fakeFetch = async url => {
+    const u = String(url);
+    let data;
+    if (u.endsWith('/catalog')) {
+      data = {
+        providers: [
+          { id: 'openai', name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'] }
+        ]
+      };
+    } else if (u.endsWith('/profiles')) {
+      data = { activeId: 'prof-1', profiles: [profileFixture] };
+    } else if (u.endsWith('/profiles/prof-1/models')) {
+      data = { models: modelsPayload };
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => data
+    };
+  };
+
+  const findButtons = root => {
+    const out = [];
+    for (const child of root.children || []) {
+      if (child.tagName === 'BUTTON') out.push(child);
+      out.push(...findButtons(child));
+    }
+    return out;
+  };
+
+  const context = {
+    document: {
+      body: { dataset: { apiBase: '/api/llm', homeUrl: '/' } },
+      getElementById: id => elements.get(id) || null,
+      createElement: tag => makeElement(tag),
+      querySelectorAll: () => [...elements.values()].filter(el => ['BUTTON', 'INPUT', 'SELECT'].includes(el.tagName))
+    },
+    window: { scrollTo() {}, confirm: () => true },
+    fetch: fakeFetch,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    setInterval: () => 1,
+    clearInterval: () => {}
+  };
+
+  const scriptCode = fs.readFileSync(path.resolve('public/llm-ui.js'), 'utf8');
+  vm.runInNewContext(scriptCode, context);
+
+  // Wait for init() async completion
+  await new Promise(resolve => setTimeout(resolve, 20));
+
+  const cardButtons = findButtons(elements.get('profiles'));
+  const fetchModelsBtn = cardButtons.find(b => b.textContent === 'Modelleri getir');
+  assert.ok(fetchModelsBtn, 'Modelleri getir button should be rendered');
+
+  // 1. When form is NOT editing prof-1, clicking 'Modelleri getir' loads prof-1 into form
+  assert.equal(elements.get('profile-id').value, '');
+  fetchModelsBtn.trigger('click');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(elements.get('profile-id').value, 'prof-1');
+  assert.equal(elements.get('name').value, 'Kayıtlı Ad');
+  assert.deepEqual(
+    elements.get('known-models').options.map(o => o.value),
+    ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o']
+  );
+
+  // 2. While editing prof-1, user modifies form fields and sets a custom model id
+  elements.get('name').value = 'Düzenlenen Ad';
+  elements.get('api-key').value = 'sk-yeni-anahtar';
+  elements.get('timeout-ms').value = '45000';
+  elements.get('model').value = 'ozel-model-v1';
+
+  modelsPayload = ['gpt-4.1', 'gpt-4o'];
+  fetchModelsBtn.trigger('click');
+  await new Promise(resolve => setTimeout(resolve, 20));
+
+  // Unsaved form edits must be preserved
+  assert.equal(elements.get('name').value, 'Düzenlenen Ad');
+  assert.equal(elements.get('api-key').value, 'sk-yeni-anahtar');
+  assert.equal(elements.get('timeout-ms').value, '45000');
+  assert.equal(elements.get('model').value, 'ozel-model-v1');
+  assert.deepEqual(
+    elements.get('known-models').options.map(o => o.value),
+    ['ozel-model-v1', 'gpt-4.1', 'gpt-4o']
+  );
+
+  // 3. When provider returns an empty model list, existing model options must NOT be cleared
+  modelsPayload = [];
+  fetchModelsBtn.trigger('click');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(
+    elements.get('known-models').options.map(o => o.value),
+    ['ozel-model-v1', 'gpt-4.1', 'gpt-4o']
+  );
+});

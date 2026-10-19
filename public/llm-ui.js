@@ -348,10 +348,13 @@ function render() {
         const result = await request(`${path}/models`, {
           timeoutMs: Math.min(330000, (profile.timeoutMs || 120000) + 30000)
         });
-        editProfile(profile);
-        populateModels(result.models);
+        if ($('profile-id').value !== profile.id) editProfile(profile);
+        if (result.models?.length) {
+          const current = $('model').value.trim();
+          populateModels(current && !result.models.includes(current) ? [current, ...result.models] : result.models);
+        }
         $('model').focus();
-        return result.models.length
+        return result.models?.length
           ? `${result.models.length} model seçeneklere eklendi. Model alanından seçebilirsiniz.`
           : 'Model bulunamadı; kimliği elle girebilirsiniz.';
       }),
