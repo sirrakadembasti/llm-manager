@@ -5,6 +5,10 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Eklendi
+- Sağlayıcı kataloğuna (`src/providers.js`) tüm sağlayıcılar için varsayılan model listeleri ve bölgesel uç nokta seçenekleri eklendi.
+- Yönetim arayüzüne (`public/llm.html`, `public/llm-ui.js`) önerilen model seçici (`#model-select`) ve 3 durumlu şifreli API anahtarı rozeti/durum bildirimi eklendi.
+
 ### Değişti
 - Sağlayıcı uç noktası, kimlik doğrulama başlıkları ve hızlı test sınırları (`resolveRuntimeOptions`, `providerEndpoint`, `providerAuthHeaders`) `src/runtime.js` ve `src/core.js` arasında birleştirildi.
 - Şifreleme anahtarı doğrulaması (`parseEncryptionKey`) `src/profileStore.js` ve `src/setup.js` arasında ortaklaştırıldı.
@@ -12,6 +16,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ### Düzeltildi
 - Express 4 üzerinde asenkron yönlendirici hatalarının `next(err)` ile hata katmanına iletilmesi sağlandı; yönetim sayfası ve API yanıtlarına güvenlik başlıkları (`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, yönetim sayfası için `Content-Security-Policy`) eklendi.
+- Örnek sunucuda (`examples/server.js`) Basic Auth karşılaştırması SHA-256 özeti ve kısa devresiz kontrol ile sabit zamanlı (constant-time) hale getirildi.
 - `createUiAssets` içinde `apiPath` ve `pagePath` parametrelerine mount yolu doğrulaması (`isValidMountPath`) eklendi.
 - `src/profileStore.js` içinde AES-256-GCM şifre çözme işlemine 12 bayt IV, 16 bayt kimlik doğrulama etiketi (`authTagLength: 16`) ve 3 parçalı format doğrulaması eklendi.
 - Profil kaydedilirken kimlik bilgisi, sağlayıcı, temel adres veya model değişmediğinde geçmiş test sonuçlarının (`lastTests` ve `lastTest`) korunması sağlandı.
