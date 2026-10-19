@@ -1,6 +1,6 @@
 {
   "name": "llm-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Reusable authenticated LLM profile management and diagnostics",
   "type": "module",
   "main": "src/index.js",
@@ -35,7 +35,12 @@
     "node": ">=22.23.2"
   },
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/sirrakadembasti/llm-manager.git" },
-  "bugs": { "url": "https://github.com/sirrakadembasti/llm-manager/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sirrakadembasti/llm-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sirrakadembasti/llm-manager/issues"
+  },
   "homepage": "https://github.com/sirrakadembasti/llm-manager#readme"
 }
