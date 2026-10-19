@@ -1,0 +1,41 @@
+{
+  "name": "llm-yonetimi",
+  "version": "1.0.0",
+  "description": "Reusable authenticated LLM profile management and diagnostics",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./setup": "./src/setup.js",
+    "./transport": "./src/providerTransport.js",
+    "./runtime": "./src/runtime.js"
+  },
+  "files": [
+    "src",
+    "public",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "node examples/server.js",
+    "release:patch": "npm test && npm version patch -m \"chore(release): %s\"",
+    "release:minor": "npm test && npm version minor -m \"chore(release): %s\"",
+    "release:major": "npm test && npm version major -m \"chore(release): %s\""
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "undici": "^7.30.0"
+  },
+  "engines": {
+    "node": ">=22.23.2"
+  },
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/sirrakadembasti/llm-manager.git" },
+  "bugs": { "url": "https://github.com/sirrakadembasti/llm-manager/issues" },
+  "homepage": "https://github.com/sirrakadembasti/llm-manager#readme"
+}
