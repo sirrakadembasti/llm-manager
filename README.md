@@ -118,10 +118,22 @@ yalnız host eşdeğer CSRF denetimi uyguluyorsa kullanılmalıdır. Aynı profi
 tek yazıcı süreç çalıştırın; çok süreç/çok sunucu için host veritabanı deposu adaptörü
 kullanın.
 
-### Express dışı (framework-agnostik) kullanım
+### Express dışı (framework-agnostik) ve çoklu platform entegrasyonları
 
-Express kullanmayan projeler (Fastify, Koa, Next.js, Hono, CLI vb.) `llm-manager/core`
-alt modülünü doğrudan import edebilir:
+Express kullanmayan projeler (Fastify, Koa, Next.js, Hono, Electron Main Process vb.)
+`llm-manager/core` alt modülünü doğrudan import edebilir; SPA (React/Vue/Vite),
+Tauri masaüstü veya Python/Go/C# sunucu uygulamaları ise `npx llm-manager` servisini
+`POST /api/llm/chat` uç noktası üzerinden çağırabilir:
+
+| Uygulama Türü | Önerilen Yöntem | Çağrı Noktası |
+| --- | --- | --- |
+| **Express.js Sunucu** | `mountLLMManagement(app, ...)` | `generateProfileResponse()` veya `POST /api/llm/chat` |
+| **SPA / Statik Web (React, Vue, Vite)** | `npx llm-manager` + `LLM_ALLOWED_ORIGINS` | `POST /api/llm/chat` |
+| **Full-Stack (Next.js, Nuxt, SvelteKit)** | `llm-manager/core` (`createLLMManager`) | Server Action / Route Handler |
+| **Diğer Diller (Python, Go, C#, PHP)** | Yerel Sidecar (`npx llm-manager`) | `POST http://127.0.0.1:8010/api/llm/chat` |
+| **Masaüstü (Electron / Tauri)** | Electron IPC (`llm-manager/core`) veya Sidecar | `ipcMain.handle` veya `POST /api/llm/chat` |
+
+Tüm senaryoların adım adım kurulum ve kod örnekleri için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 
 ```js
 import { createLLMManager, createLLMProfileStore, createUiAssets } from 'llm-manager/core';
@@ -146,6 +158,13 @@ Varsayılan kök `/api/llm`:
 | Etkinleştir | `POST /profiles/:id/activate` |
 | Test | `POST /profiles/:id/test`, JSON `{ "mode": "quick" }` veya `conversation` |
 | Model listesi | `GET /profiles/:id/models` |
+| Model yanıtı (Runtime) | `POST /chat`, JSON `{ "messages": [...], "profileId"?, "purpose"? }` |
+
+`POST /chat` uç noktası etkin profili (veya isteğe bağlı `profileId` değerini) kullanarak
+model çağrısını sunucu tarafında yürütür ve yalnız `{ ok: true, content, profileId, profileName, provider, model, durationMs }`
+döndürür; API anahtarını asla açığa çıkarmaz. `mountLLMManagement` içinde `chatAccess`
+seçeneği ile erişim düzeyi `'authenticated'` (varsayılan: giriş yapmış tüm kullanıcılar),
+`'admin'` (yalnız yöneticiler) veya `false` (kapalı) olarak ayarlanabilir.
 
 `createLLMProfileStore` yerine host deposu da verilebilir: `list`, `get`, `getActive`,
 `save`, `remove`, `activate`, `recordTest(id,status,expectedRevision,details)`.

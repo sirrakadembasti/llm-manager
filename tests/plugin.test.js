@@ -234,3 +234,83 @@ test('framework-agnostic core handles CRUD, activation, testing and unknown rout
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('POST /chat endpoint supports active and explicit profileId, enforces chatAccess, and never leaks apiKey', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-chat-'));
+  const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'de'.repeat(32) });
+  const p1 = store.save({ name: 'Aktif Model', provider: 'openai', model: 'gpt-4.1', baseURL: 'https://api.openai.com/v1', apiKey: 'sk-secret-1' });
+  const p2 = store.save({ name: 'Yedek Model', provider: 'anthropic', model: 'claude-sonnet-4-20250514', baseURL: 'https://api.anthropic.com/v1', apiKey: 'sk-secret-2' });
+
+  const app = express();
+  app.use(express.json());
+  mountLLMManagement(app, {
+    store,
+    chatAccess: 'authenticated',
+    requireAuth: (req, res, next) => {
+      const role = req.get('x-role');
+      if (!role) return res.sendStatus(401);
+      req.user = { isAdmin: role === 'admin' };
+      next();
+    },
+    generate: async (messages, options) => `Yanit:${options.model}:${messages[0].content}`
+  });
+
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}/api/llm`;
+  const userHeaders = { 'x-role': 'user', 'content-type': 'application/json', 'X-LLM-CSRF': '1' };
+  const adminHeaders = { 'x-role': 'admin', 'content-type': 'application/json', 'X-LLM-CSRF': '1' };
+
+  try {
+    // Normal kullanici /profiles erisemez (403), ancak /chat cagirabilir
+    assert.equal((await fetch(`${base}/profiles`, { headers: userHeaders })).status, 403);
+
+    // Etkin profil yokken 409 donmeli
+    const noActive = await fetch(`${base}/chat`, {
+      method: 'POST',
+      headers: userHeaders,
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Merhaba' }] })
+    });
+    assert.equal(noActive.status, 409);
+    assert.equal((await noActive.json()).code, 'ACTIVE_PROFILE_MISSING');
+
+    // Gecersiz mesaj listesi 400 donmeli
+    const badMsg = await fetch(`${base}/chat`, {
+      method: 'POST',
+      headers: userHeaders,
+      body: JSON.stringify({ messages: [] })
+    });
+    assert.equal(badMsg.status, 400);
+    assert.equal((await badMsg.json()).code, 'MESSAGES_INVALID');
+
+    // Etkinlestir ve normal kullanici ile /chat cagir
+    store.activate(p1.id, p1.revision);
+    const activeRes = await fetch(`${base}/chat`, {
+      method: 'POST',
+      headers: userHeaders,
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Selam' }], purpose: 'manager' })
+    });
+    assert.equal(activeRes.status, 200);
+    const activeBody = await activeRes.json();
+    assert.equal(activeBody.ok, true);
+    assert.equal(activeBody.content, 'Yanit:gpt-4.1:Selam');
+    assert.equal(activeBody.model, 'gpt-4.1');
+    assert.ok(!JSON.stringify(activeBody).includes('sk-secret'));
+
+    // Belirli profileId ile cagir
+    const explicitRes = await fetch(`${base}/chat`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ profileId: p2.id, messages: [{ role: 'user', content: 'Test' }] })
+    });
+    assert.equal(explicitRes.status, 200);
+    const explicitBody = await explicitRes.json();
+    assert.equal(explicitBody.content, 'Yanit:claude-sonnet-4-20250514:Test');
+    assert.equal(explicitBody.provider, 'anthropic');
+    assert.ok(!JSON.stringify(explicitBody).includes('sk-secret'));
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+

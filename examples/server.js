@@ -39,7 +39,30 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
+const allowedOrigins = new Set(
+  String(process.env.LLM_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+);
+
 const app = express();
+if (allowedOrigins.size > 0) {
+  app.use((req, res, next) => {
+    const origin = req.get('Origin');
+    if (origin && allowedOrigins.has(origin)) {
+      res.set({
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-LLM-CSRF',
+        Vary: 'Origin'
+      });
+      if (req.method === 'OPTIONS') return res.sendStatus(204);
+    }
+    next();
+  });
+}
 app.use(express.json({ limit: '32kb' }));
 app.get('/', (_req, res) => res.redirect('/llm'));
 mountLLMManagement(app, { requireAuth, store: createLLMProfileStore({ filePath, encryptionKey }) });

@@ -140,16 +140,74 @@ export function createLLMManager({
     }
   }
 
-  // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test'.
+  async function chatCompletion(body) {
+    const messages = body?.messages;
+    if (
+      !Array.isArray(messages)
+      || !messages.length
+      || !messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string' && m.content.trim())
+    ) {
+      return ok({ error: 'Geçerli bir mesaj listesi (messages) zorunludur.', code: 'MESSAGES_INVALID' }, 400);
+    }
+    const purpose = body?.purpose;
+    if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
+      return ok({ error: 'Geçersiz çağrı amacı (purpose).', code: 'PURPOSE_INVALID' }, 400);
+    }
+    const profile = body?.profileId ? store.get(String(body.profileId)) : store.getActive();
+    if (!profile) {
+      return body?.profileId
+        ? ok({ error: 'Profil bulunamadı.', code: 'PROFILE_NOT_FOUND' }, 404)
+        : ok({ error: 'Etkin LLM profili seçilmedi.', code: 'ACTIVE_PROFILE_MISSING' }, 409);
+    }
+    const start = Date.now();
+    try {
+      const overrides = {};
+      if (body?.timeoutMs !== undefined) overrides.timeoutMs = body.timeoutMs;
+      if (body?.maxOutputTokens !== undefined) overrides.maxOutputTokens = body.maxOutputTokens;
+      if (body?.thinking !== undefined) overrides.thinking = body.thinking;
+      if (purpose !== undefined) overrides.purpose = purpose;
+      const runtimeOpts = resolveRuntimeOptions(profile, overrides);
+      const options = {
+        ...profile,
+        ...runtimeOpts,
+        purpose,
+        allowLocalHttp,
+        useManagedProfile: false,
+        allowMockFallback: false
+      };
+      const content = generate ? await generate(messages, options) : await generateProfileResponse(messages, profile, options);
+      if (!content) {
+        throw Object.assign(new Error('Model kullanılabilir cevap üretmedi.'), { code: 'LLM_EMPTY_RESPONSE' });
+      }
+      return ok({
+        ok: true,
+        content,
+        profileId: profile.id,
+        profileName: profile.name,
+        provider: profile.provider,
+        model: profile.model,
+        durationMs: Date.now() - start
+      });
+    } catch (error) {
+      if (error && !error.upstreamStatus && !error.code && /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error.message)) {
+        return ok({ error: error.message, code: 'RUNTIME_OPTIONS_INVALID' }, 400);
+      }
+      const classified = classifyLLMError(error);
+      return ok({ ...classified, durationMs: Date.now() - start }, classified.status);
+    }
+  }
+
+  // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
   async function handle({ method, path: routePath, body } = {}) {
     const verb = String(method || 'GET').toUpperCase();
-    const match = /^\/(catalog|profiles)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(routePath || '');
+    const match = /^\/(catalog|chat|profiles)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(routePath || '');
     if (!match) return null;
     const [, resource, rawId, action] = match;
     let id;
     try { id = rawId === undefined ? undefined : decodeURIComponent(rawId); } catch { return notFound(); }
 
     if (resource === 'catalog') return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS }) : null;
+    if (resource === 'chat') return verb === 'POST' && id === undefined ? chatCompletion(body) : null;
 
     if (id === undefined) {
       if (verb === 'GET') return ok(store.list());

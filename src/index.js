@@ -27,28 +27,48 @@ export function mountLLMManagement(app, {
   apiPath = '/api/llm',
   pagePath = '/llm',
   requireCsrf = true,
+  chatAccess = 'authenticated',
+  allowLocalHttp,
   testMessages,
   validateTestReply
 } = {}) {
   if (typeof requireAuth !== 'function') throw new Error('LLM yönetimi için requireAuth zorunludur.');
   if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
+  if (!['authenticated', 'admin', false].includes(chatAccess)) throw new Error('Geçersiz chatAccess ayarı.');
 
   const admin = (req, res, next) => req.user?.isAdmin === true ? next() : res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
   const securityHeaders = (_req, res, next) => {
     res.set(COMMON_HEADERS);
     next();
   };
-  const protect = [securityHeaders, requireAuth, admin];
+  const protectPage = [securityHeaders, requireAuth, admin];
 
   const { html, script } = createUiAssets({ apiPath, pagePath });
-  app.get(pagePath, ...protect, (_req, res) => {
+  app.get(pagePath, ...protectPage, (_req, res) => {
     res.set('Content-Security-Policy', PAGE_CSP).type('html').send(html);
   });
-  app.get(`${pagePath}/llm-ui.js`, ...protect, (_req, res) => res.type('text/javascript').send(script));
+  app.get(`${pagePath}/llm-ui.js`, ...protectPage, (_req, res) => res.type('text/javascript').send(script));
 
-  const manager = createLLMManager({ store, generate, testMessages, validateTestReply });
+  const manager = createLLMManager({
+    store,
+    generate,
+    testMessages,
+    validateTestReply,
+    ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
+  });
   const router = Router();
-  router.use(...protect);
+  router.use(securityHeaders, requireAuth);
+  router.use((req, res, next) => {
+    const isChatRoute = /^\/chat\/?$/.test(req.path || '');
+    if (isChatRoute) {
+      if (chatAccess === false) return next();
+      if (chatAccess === 'admin' && req.user?.isAdmin !== true) {
+        return res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
+      }
+      return next();
+    }
+    return admin(req, res, next);
+  });
   router.use((req, res, next) => {
     if (requireCsrf && !SAFE_METHODS.includes(req.method) && req.get(CSRF_HEADER) !== '1') {
       return res.status(403).json({ error: 'İstek doğrulama başlığı eksik.', code: 'CSRF_REQUIRED' });
