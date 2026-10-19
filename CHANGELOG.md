@@ -5,17 +5,13 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-10-19
-
-### Değişti
-- **Kırıcı:** Paket adı `llm-manager` oldu (GitHub repo adıyla uyumlu); import yolları `llm-manager` ve `llm-manager/setup` şeklindedir.
-
 ## [1.0.0] - 2026-10-19
 
 İlk bağımsız sürüm.
 
 ### Değişti
-- **Kırıcı:** Paket adı `llm-yonetimi`; CSRF başlığı `X-LLM-CSRF` (eski `X-XFactor-CSRF` kabul edilmez).
+- **Kırıcı:** Paket adı `llm-manager`; import yolları `llm-manager` ve `llm-manager/setup`.
+- **Kırıcı:** CSRF başlığı `X-LLM-CSRF` (eski `X-XFactor-CSRF` kabul edilmez).
 - Yönetim HTML/JS dosyaları mount sırasında önbelleğe alınır.
 - `setup.js` artık `.env.example` dosyasına bağımlı değildir.
 - Lisans MIT olarak belirlendi.
@@ -26,6 +22,5 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ### Kaldırıldı
 - Önceki host uygulamaya (XFactor) ait tüm adlandırma ve bağımlılıklar.
 
-[Unreleased]: https://github.com/sirrakadembasti/llm-manager/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/sirrakadembasti/llm-manager/compare/v1.0.0...v1.0.1
+[Unreleased]: https://github.com/sirrakadembasti/llm-manager/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/sirrakadembasti/llm-manager/releases/tag/v1.0.0

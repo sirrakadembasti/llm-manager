@@ -1,6 +1,6 @@
 {
   "name": "llm-manager",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Reusable authenticated LLM profile management and diagnostics",
   "type": "module",
   "main": "src/index.js",

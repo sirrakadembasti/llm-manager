@@ -1,4 +1,4 @@
-# LLM Yönetimi
+# LLM Manager
 
 Node.js 22.23.2+ ve Express için bağımsız sağlayıcı/profil yönetimi eklentisi.
 Herhangi bir host uygulamaya, Docker, frontend framework veya veritabanı gerektirmeden eklenir. Node/npm gerekir.
