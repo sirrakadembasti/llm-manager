@@ -22,11 +22,17 @@ export function classifyLLMError(error) {
   } else if (upstreamStatus === 429) {
     code = 'LLM_RATE_LIMIT'; message = 'Sağlayıcının hız veya kota sınırına ulaşıldı. Bir süre bekleyip kota durumunu kontrol edin.';
   } else if (upstreamStatus === 402) {
-    code='LLM_BILLING'; retryable=false; message='Sağlayıcı ödeme veya bakiye nedeniyle isteği reddetti. Bakiye ve aboneliği kontrol edin.';
+    code = 'LLM_BILLING';
+    retryable = false;
+    message = 'Sağlayıcı ödeme veya bakiye nedeniyle isteği reddetti. Bakiye ve aboneliği kontrol edin.';
   } else if (upstreamStatus === 403) {
-    code='LLM_FORBIDDEN'; retryable=false; message='Anahtarın model veya hizmet erişim izni yok.';
+    code = 'LLM_FORBIDDEN';
+    retryable = false;
+    message = 'Anahtarın model veya hizmet erişim izni yok.';
   } else if (error?.code === 'AI_CREDENTIAL_ENDPOINT_MISMATCH') {
-    code='AI_CREDENTIAL_ENDPOINT_MISMATCH'; retryable=false; message='Xiaomi anahtar türü ile PAYG / Token Plan adresi eşleşmiyor.';
+    code = 'AI_CREDENTIAL_ENDPOINT_MISMATCH';
+    retryable = false;
+    message = 'Xiaomi anahtar türü ile PAYG / Token Plan adresi eşleşmiyor.';
   } else if (upstreamStatus === 401) {
     code = 'LLM_AUTH'; retryable = false; message = 'Sağlayıcı API anahtarını veya model erişim yetkisini kabul etmedi. Profili kontrol edin.';
   } else if (upstreamStatus === 400 || upstreamStatus === 404) {
@@ -42,10 +48,19 @@ export function classifyLLMError(error) {
 }
 
 export function buildProviderRequest(profile, messages, options = {}) {
-  const problem=credentialEndpointProblem(profile.provider,profile.baseURL,profile.apiKey);
-  if(problem) throw Object.assign(new Error(problem),{code:'AI_CREDENTIAL_ENDPOINT_MISMATCH'});
-  const normalized=normalizeRuntimeOptions({...profile,...options});
-  const {timeoutMs,maxOutputTokens,thinking}=options.purpose==='quick' ? {...normalized,timeoutMs:Math.min(normalized.timeoutMs,20000),maxOutputTokens:Math.min(normalized.maxOutputTokens,512),thinking:profile.provider==='xiaomi_mimo'?'disabled':normalized.thinking}:normalized;
+  const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
+  if (problem) throw Object.assign(new Error(problem), { code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH' });
+
+  const normalized = normalizeRuntimeOptions({ ...profile, ...options });
+  const { timeoutMs, maxOutputTokens, thinking } = options.purpose === 'quick'
+    ? {
+        ...normalized,
+        timeoutMs: Math.min(normalized.timeoutMs, 20000),
+        maxOutputTokens: Math.min(normalized.maxOutputTokens, 512),
+        thinking: profile.provider === 'xiaomi_mimo' ? 'disabled' : normalized.thinking
+      }
+    : normalized;
+
   const base = validateProviderUrl(profile.baseURL, { allowLocalHttp: process.env.LLM_ALLOW_LOCAL_HTTP === 'true' })
     .replace(/\/+$/, '').replace(/\/(chat\/completions|messages|models)$/, '');
   const transport = profile.transport || 'openai';
@@ -53,16 +68,23 @@ export function buildProviderRequest(profile, messages, options = {}) {
   if (transport === 'google') {
     url = `${base}/models/${encodeURIComponent(profile.model)}:generateContent`;
     headers = { 'content-type': 'application/json', 'x-goog-api-key': profile.apiKey };
-    body = { generationConfig: { maxOutputTokens }, contents: messages.filter(m => m.role !== 'system')
-      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) };
+    body = {
+      generationConfig: { maxOutputTokens },
+      contents: messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+    };
     const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n');
     if (system) body.systemInstruction = { parts: [{ text: system }] };
   } else if (transport === 'anthropic') {
     url = `${base}/messages`;
     headers = { 'content-type': 'application/json', 'x-api-key': profile.apiKey, 'anthropic-version': '2023-06-01' };
-    body = { model: profile.model, max_tokens: maxOutputTokens,
+    body = {
+      model: profile.model,
+      max_tokens: maxOutputTokens,
       messages: messages.filter(m => m.role !== 'system'),
-      system: messages.filter(m => m.role === 'system').map(m => m.content).join('\n') };
+      system: messages.filter(m => m.role === 'system').map(m => m.content).join('\n')
+    };
   } else {
     url = `${base}/chat/completions`;
     headers = { 'content-type': 'application/json', Authorization: `Bearer ${profile.apiKey}` };
@@ -80,16 +102,22 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   const request = buildProviderRequest(profile, messages, options);
   const deadline = AbortSignal.timeout(request.timeoutMs);
   const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
-  const response = await providerFetch(request.url, { method: 'POST', headers: request.headers,
-    body: JSON.stringify(request.body), signal });
+  const response = await providerFetch(request.url, {
+    method: 'POST',
+    headers: request.headers,
+    body: JSON.stringify(request.body),
+    signal
+  });
   if (!response.ok) {
     const error = new Error(`Sağlayıcı HTTP ${response.status} döndürdü.`);
     error.upstreamStatus = response.status;
     throw error;
   }
   const payload = await response.json();
-  const content = profile.transport === 'google' ? payload.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n')
-    : profile.transport === 'anthropic' ? payload.content?.filter(p => p.type === 'text').map(p => p.text).join('\n')
+  const content = profile.transport === 'google'
+    ? payload.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n')
+    : profile.transport === 'anthropic'
+      ? payload.content?.filter(p => p.type === 'text').map(p => p.text).join('\n')
       : payload.choices?.[0]?.message?.content;
   const finishReason = payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason || payload.stop_reason;
   if (['length', 'MAX_TOKENS', 'max_tokens'].includes(finishReason)) {
@@ -97,7 +125,9 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   }
   if (!content) {
     const error = new Error('Sağlayıcı kullanılabilir model yanıtı üretmedi.');
-    error.code = ['length', 'MAX_TOKENS'].includes(payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason) ? 'LLM_TRUNCATED' : 'LLM_EMPTY_RESPONSE';
+    error.code = ['length', 'MAX_TOKENS'].includes(payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason)
+      ? 'LLM_TRUNCATED'
+      : 'LLM_EMPTY_RESPONSE';
     throw error;
   }
   return content;

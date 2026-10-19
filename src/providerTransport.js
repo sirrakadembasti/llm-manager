@@ -53,9 +53,34 @@ export async function providerFetch(url, options = {}) {
     throw new Error('Provider transport requires a public HTTPS hostname.');
   }
   // The validated DNS result is the socket lookup result, preventing DNS rebinding.
-  const response=await fetch(url,{...options,dispatcher:local?localAgent:publicAgent,redirect:'error',signal:options.signal||AbortSignal.timeout(30000)});
-  if(!response.body)return response;
-  const reader=response.body.getReader(),chunks=[];let size=0;
-  try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>2*1024*1024){await reader.cancel();throw new Error('EXTERNAL_RESPONSE_TOO_LARGE');}chunks.push(Buffer.from(value));}}finally{reader.releaseLock();}
-  return new Response(Buffer.concat(chunks),{status:response.status,statusText:response.statusText,headers:response.headers});
+  const response = await fetch(url, {
+    ...options,
+    dispatcher: local ? localAgent : publicAgent,
+    redirect: 'error',
+    signal: options.signal || AbortSignal.timeout(30000)
+  });
+  if (!response.body) return response;
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 2 * 1024 * 1024) {
+        await reader.cancel();
+        throw new Error('EXTERNAL_RESPONSE_TOO_LARGE');
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new Response(Buffer.concat(chunks), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
 }

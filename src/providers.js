@@ -19,7 +19,21 @@ export const PROVIDERS = Object.freeze([
   { id: 'baidu', name: 'Baidu Qianfan', region: 'Çin', transport: 'openai', baseURL: 'https://qianfan.baidubce.com/v2' },
   { id: 'doubao', name: 'ByteDance Doubao', region: 'Çin', transport: 'openai', baseURL: 'https://ark.cn-beijing.volces.com/api/v3' },
   { id: 'hunyuan', name: 'Tencent Hunyuan', region: 'Çin', transport: 'openai', baseURL: 'https://api.hunyuan.cloud.tencent.com/v1' },
-  { id: 'xiaomi_mimo', name: 'Xiaomi MiMo', region: 'Çin', transport: 'openai', baseURL: 'https://api.xiaomimimo.com/v1', endpoints: [{name:'PAYG',baseURL:'https://api.xiaomimimo.com/v1'},...['cn','sgp','ams'].map(region=>({name:'Token Plan '+region.toUpperCase(),baseURL:`https://token-plan-${region}.xiaomimimo.com/v1`}))], models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.5-pro', 'mimo-v2.5'] },
+  {
+    id: 'xiaomi_mimo',
+    name: 'Xiaomi MiMo',
+    region: 'Çin',
+    transport: 'openai',
+    baseURL: 'https://api.xiaomimimo.com/v1',
+    endpoints: [
+      { name: 'PAYG', baseURL: 'https://api.xiaomimimo.com/v1' },
+      ...['cn', 'sgp', 'ams'].map(region => ({
+        name: 'Token Plan ' + region.toUpperCase(),
+        baseURL: `https://token-plan-${region}.xiaomimimo.com/v1`
+      }))
+    ],
+    models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.5-pro', 'mimo-v2.5']
+  },
   { id: 'custom', name: 'Özel OpenAI uyumlu', region: 'Özel', transport: 'openai', baseURL: '' }
 ]);
 

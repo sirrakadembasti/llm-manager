@@ -87,12 +87,24 @@ function populateModels(models) {
 function updateThinking() { $('thinking-field').hidden = $('provider').value !== 'xiaomi_mimo'; }
 
 function serviceChoices() {
-  let select=document.getElementById('llm-service');
-  if(!select){select=document.createElement('select');select.id='llm-service';select.setAttribute('aria-label','Hizmet / bölge');$('base-url').after(select);select.addEventListener('change',()=>{$('base-url').value=select.value;});}
-  const endpoints=catalog.find(p=>p.id===$('provider').value)?.endpoints||[];
-  select.replaceChildren();select.hidden=!endpoints.length;
-  for(const item of [...endpoints,{name:'Özel adres / konsoldaki adres',baseURL:''}]){const option=document.createElement('option');option.value=item.baseURL;option.textContent=item.name;select.append(option);}
-  select.value=endpoints.some(e=>e.baseURL===$('base-url').value)?$('base-url').value:'';
+  let select = document.getElementById('llm-service');
+  if (!select) {
+    select = document.createElement('select');
+    select.id = 'llm-service';
+    select.setAttribute('aria-label', 'Hizmet / bölge');
+    $('base-url').after(select);
+    select.addEventListener('change', () => { $('base-url').value = select.value; });
+  }
+  const endpoints = catalog.find(p => p.id === $('provider').value)?.endpoints || [];
+  select.replaceChildren();
+  select.hidden = !endpoints.length;
+  for (const item of [...endpoints, { name: 'Özel adres / konsoldaki adres', baseURL: '' }]) {
+    const option = document.createElement('option');
+    option.value = item.baseURL;
+    option.textContent = item.name;
+    select.append(option);
+  }
+  select.value = endpoints.some(e => e.baseURL === $('base-url').value) ? $('base-url').value : '';
 }
 function providerDefaults() {
   const provider = catalog.find(item => item.id === $('provider').value);
