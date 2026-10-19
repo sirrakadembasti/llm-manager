@@ -53,7 +53,8 @@ anahtarını** birlikte yedekleyin. Anahtar kaybolursa mevcut şifreli profiller
 Bu klasörü uygulamanın yanına koyup uygulamanızda:
 
 ```sh
-npm install ../llm-yonetimi --install-links\r\n# veya GitHub reposundan: npm install github:sirrakadembasti/llm-manager
+npm install ../llm-manager --install-links
+# veya GitHub reposundan: npm install github:sirrakadembasti/llm-manager
 ```
 
 Paket kopyalanır ve bağımlılıkları host tarafından çözülür; geliştirme symlink'ine
@@ -63,8 +64,8 @@ bağımlı değildir. Sürüm değişince yeniden kurun. npm registry'ye yayınl
 import express from 'express';
 import path from 'node:path';
 import { createLLMProfileStore, mountLLMManagement, generateProfileResponse }
-  from 'llm-yonetimi';
-import { ensureLLMEncryptionKey } from 'llm-yonetimi/setup';
+  from 'llm-manager';
+import { ensureLLMEncryptionKey } from 'llm-manager/setup';
 
 const app = express();
 app.use(express.json({ limit: '32kb' }));

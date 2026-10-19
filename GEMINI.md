@@ -1,4 +1,4 @@
-# Proje Hafızası: llm-yonetimi
+# Proje Hafızası: llm-manager
 
 ## Ana hedef (kullanıcı kararı, 2026-10-19)
 - Bu uygulama **bağımsız bir API / eklenti** olacak. Önceden türetildiği uygulamanın (XFactor) tüm bağımlılıkları, adlandırmaları ve varsayımları koparılacak.
