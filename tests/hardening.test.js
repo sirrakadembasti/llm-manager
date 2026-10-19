@@ -229,3 +229,117 @@ test('ensureLLMEncryptionKey handles production keyPath, dev .env without copyin
   }
 });
 
+test('allowLocalHttp option propagates through store, buildProviderRequest, listModels, and testProfile without env var', async () => {
+  const prevEnv = process.env.LLM_ALLOW_LOCAL_HTTP;
+  delete process.env.LLM_ALLOW_LOCAL_HTTP;
+  const originalFetch = globalThis.fetch;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-local-http-'));
+  try {
+    const fetchCalls = [];
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ url: String(url), init });
+      if (String(url).endsWith('/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'local-model-1' }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'OK' } }] }), { status: 200 });
+    };
+
+    const store = createLLMProfileStore({
+      filePath: path.join(root, 'profiles.json'),
+      encryptionKey: 'ab'.repeat(32),
+      allowLocalHttp: true
+    });
+    const saved = store.save({
+      name: 'LocalHTTP',
+      provider: 'custom',
+      model: 'local-model-1',
+      baseURL: 'http://127.0.0.1:11434/v1',
+      apiKey: 'local-secret'
+    });
+    const fullProfile = store.get(saved.id);
+
+    const built = buildProviderRequest(fullProfile, [{ role: 'user', content: 'Hi' }], { allowLocalHttp: true });
+    assert.equal(built.url, 'http://127.0.0.1:11434/v1/chat/completions');
+
+    const manager = createLLMManager({ store, allowLocalHttp: true });
+    const modelsRes = await manager.handle({ method: 'GET', path: `/profiles/${saved.id}/models` });
+    assert.equal(modelsRes.status, 200);
+    assert.deepEqual(modelsRes.body.models, ['local-model-1']);
+
+    const testRes = await manager.handle({ method: 'POST', path: `/profiles/${saved.id}/test`, body: { mode: 'quick' } });
+    assert.equal(testRes.status, 200);
+    assert.equal(testRes.body.ok, true);
+    assert.equal(fetchCalls.length, 2);
+    assert.equal(fetchCalls[0].init.allowLocalHttp, undefined);
+    assert.equal(fetchCalls[1].init.allowLocalHttp, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (prevEnv === undefined) delete process.env.LLM_ALLOW_LOCAL_HTTP;
+    else process.env.LLM_ALLOW_LOCAL_HTTP = prevEnv;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('custom generate adapter receives thinking disabled for Xiaomi MiMo auto profile on conversation test', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-mimo-adapter-'));
+  try {
+    const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
+    const saved = store.save({
+      name: 'MiMoAuto',
+      provider: 'xiaomi_mimo',
+      model: 'mimo-v2.6-flash',
+      baseURL: 'https://api.xiaomimimo.com/v1',
+      apiKey: 'sk-synthetic',
+      thinking: 'auto'
+    });
+    let capturedOptions;
+    const manager = createLLMManager({
+      store,
+      generate: async (_messages, options) => {
+        capturedOptions = options;
+        return 'Mimari plan hazır.';
+      }
+    });
+    const res = await manager.handle({
+      method: 'POST',
+      path: `/profiles/${saved.id}/test`,
+      body: { mode: 'conversation' }
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(capturedOptions?.purpose, 'manager');
+    assert.equal(capturedOptions?.thinking, 'disabled');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Anthropic omits empty system field and Google strips leading models/ prefix', () => {
+  const anthropicProfile = {
+    provider: 'anthropic',
+    transport: 'anthropic',
+    model: 'claude-3-5-sonnet-latest',
+    baseURL: 'https://api.anthropic.com/v1',
+    apiKey: 'sk-ant-test'
+  };
+  const noSystemReq = buildProviderRequest(anthropicProfile, [{ role: 'user', content: 'Merhaba' }]);
+  assert.equal('system' in noSystemReq.body, false);
+
+  const withSystemReq = buildProviderRequest(anthropicProfile, [
+    { role: 'system', content: 'Sistem yönergesi' },
+    { role: 'user', content: 'Merhaba' }
+  ]);
+  assert.equal(withSystemReq.body.system, 'Sistem yönergesi');
+
+  const googleProfile = {
+    provider: 'google',
+    transport: 'google',
+    model: 'models/gemini-2.5-pro',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+    apiKey: 'goog-test'
+  };
+  const googleReq = buildProviderRequest(googleProfile, [{ role: 'user', content: 'Merhaba' }]);
+  assert.equal(googleReq.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent');
+});
+
+

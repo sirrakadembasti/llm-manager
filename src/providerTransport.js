@@ -44,8 +44,9 @@ const publicAgent = new Agent({ connect: { lookup: createPublicLookup() } });
 const localAgent = new Agent({ connect: { lookup: createPublicLookup({ allowLoopback: true }) } });
 
 export async function providerFetch(url, options = {}) {
+  const { allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true', ...fetchOptions } = options;
   const target = new URL(url);
-  const local = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
+  const local = allowLocalHttp
     && target.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
   // Numeric hosts bypass socket lookup, so reject them here unless explicit local development.
   if ((!local && target.protocol !== 'https:') || target.username || target.password
@@ -54,10 +55,10 @@ export async function providerFetch(url, options = {}) {
   }
   // The validated DNS result is the socket lookup result, preventing DNS rebinding.
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     dispatcher: local ? localAgent : publicAgent,
     redirect: 'error',
-    signal: options.signal || AbortSignal.timeout(30000)
+    signal: fetchOptions.signal || AbortSignal.timeout(30000)
   });
   if (!response.body) return response;
 

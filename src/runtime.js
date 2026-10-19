@@ -20,13 +20,18 @@ export function normalizeRuntimeOptions(input = {}) {
 
 export function resolveRuntimeOptions(profile, options = {}) {
   const normalized = normalizeRuntimeOptions({ ...profile, ...options });
-  if (options.purpose !== 'quick') return normalized;
-  return {
-    ...normalized,
-    timeoutMs: Math.min(normalized.timeoutMs, 20000),
-    maxOutputTokens: Math.min(normalized.maxOutputTokens, 512),
-    thinking: profile.provider === 'xiaomi_mimo' ? 'disabled' : normalized.thinking
-  };
+  if (options.purpose === 'quick') {
+    return {
+      ...normalized,
+      timeoutMs: Math.min(normalized.timeoutMs, 20000),
+      maxOutputTokens: Math.min(normalized.maxOutputTokens, 512),
+      thinking: profile.provider === 'xiaomi_mimo' ? 'disabled' : normalized.thinking
+    };
+  }
+  if (options.purpose === 'manager' && profile.provider === 'xiaomi_mimo' && normalized.thinking === 'auto') {
+    return { ...normalized, thinking: 'disabled' };
+  }
+  return normalized;
 }
 
 export function providerEndpoint(profile, suffix, allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true') {
@@ -107,7 +112,8 @@ export function buildProviderRequest(profile, messages, options = {}) {
   let url;
   let body;
   if (transport === 'google') {
-    url = providerEndpoint(profile, `models/${encodeURIComponent(profile.model)}:generateContent`);
+    const modelId = String(profile.model).replace(/^models\//, '');
+    url = providerEndpoint(profile, `models/${encodeURIComponent(modelId)}:generateContent`, options.allowLocalHttp);
     body = {
       generationConfig: { maxOutputTokens },
       contents: messages
@@ -116,20 +122,19 @@ export function buildProviderRequest(profile, messages, options = {}) {
     };
     if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
   } else if (transport === 'anthropic') {
-    url = providerEndpoint(profile, 'messages');
+    url = providerEndpoint(profile, 'messages', options.allowLocalHttp);
     body = {
       model: profile.model,
       max_tokens: maxOutputTokens,
-      messages: messages.filter(m => m.role !== 'system'),
-      system: systemText
+      messages: messages.filter(m => m.role !== 'system')
     };
+    if (systemText) body.system = systemText;
   } else {
-    url = providerEndpoint(profile, 'chat/completions');
+    url = providerEndpoint(profile, 'chat/completions', options.allowLocalHttp);
     const modern = ['openai', 'xiaomi_mimo'].includes(profile.provider);
     body = { model: profile.model, messages, [modern ? 'max_completion_tokens' : 'max_tokens']: maxOutputTokens };
     if (profile.provider === 'xiaomi_mimo') {
-      const effective = thinking === 'auto' && options.purpose === 'manager' ? 'disabled' : thinking;
-      if (effective !== 'auto') body.thinking = { type: effective };
+      if (thinking !== 'auto') body.thinking = { type: thinking };
     }
   }
   return { url, headers, body, timeoutMs };
@@ -143,7 +148,8 @@ export async function generateProfileResponse(messages, profile, options = {}) {
     method: 'POST',
     headers: request.headers,
     body: JSON.stringify(request.body),
-    signal
+    signal,
+    allowLocalHttp: options.allowLocalHttp
   });
   if (!response.ok) {
     const error = new Error(`Sağlayıcı HTTP ${response.status} döndürdü.`);
