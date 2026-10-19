@@ -20,11 +20,11 @@
 6. README'yi bağımsız kullanıma göre güncelle, testleri çalıştır.
 
 ## Durum (2026-10-19)
-- Düzeltme listesi 1-6 TAMAMLANDI. Sürüm: **v1.0.0** (etiket 3bfcaab+), paket adı `llm-manager`, lisans MIT.
+- Düzeltme listesi 1-6 ve ek geliştirmeler TAMAMLANDI. Sürüm: **v1.0.0** (etiket `33de7d7`), paket adı `llm-manager`, lisans MIT.
 - GitHub: https://github.com/sirrakadembasti/llm-manager (branch `main`, remote `origin`).
 - Sürümleme: SemVer + CHANGELOG.md (Keep a Changelog). Yayın: değişiklikleri `[Unreleased]` altına yaz, commit et, `npm run release:patch|minor|major`, `git push origin main --follow-tags`.
 - CSRF başlığı `X-LLM-CSRF: 1`. Git kimliği (yerel): llm-yonetimi <noreply@users.noreply.github.com>.
-- Klasör `llm-yonetimi` -> `llm-manager` olarak kullanıcı tarafından elle yeniden adlandırılacak.
+- Klasör adı `llm-yonetimi` -> `llm-manager` olarak güncellendi.
 
 ## Tamamlanan ek geliştirmeler (2026-10-19)
 - `index.js` / `profileStore.js` sıkıştırılmış kodun okunabilir hale getirilmesi.
