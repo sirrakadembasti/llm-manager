@@ -7,7 +7,7 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 ## Özellikler
 
 > Sürüm geçmişi için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın. Yazma isteklerinde CSRF başlığı
-> `X-LLM-CSRF: 1` olmalıdır; eski `X-XFactor-CSRF` başlığı artık kabul edilmez.
+> `X-LLM-CSRF: 1` olmalıdır.
 
 - Sağlayıcı kataloğu; elle API adresi/model; model listesini getirme.
 - Profil ekleme/düzenleme/silme ve tek etkin profil; mevcut API anahtarını koruma.
@@ -21,6 +21,18 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 - Çift gönderim/işlem kilidi, bekleme süresi, zaman aşımı ve korunmuş form durumu.
 
 ## Kurulum ve kendi başına çalıştırma
+
+### CLI (`npx llm-manager`)
+
+```sh
+LLM_ADMIN_USER=kullanici LLM_ADMIN_PASSWORD=guclu-parola npx github:sirrakadembasti/llm-manager --port 8010
+```
+
+Seçenekler: `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env`
+otomatik okunur; veriler `./data/` altında tutulur.
+
+### Kaynaktan
+
 
 ```sh
 npm ci
@@ -103,6 +115,23 @@ cookie'sini gönderir. `requireCsrf: false` yalnız host eşdeğer CSRF denetimi
 uyguluyorsa kullanılmalıdır. Aynı profil dosyasında tek yazıcı süreç çalıştırın;
 çok süreç/çok sunucu için host veritabanı deposu adaptörü kullanın.
 
+### Express dışı (framework-agnostik) kullanım
+
+Express kullanmayan projeler (Fastify, Koa, Next.js, Hono, CLI vb.) `llm-manager/core`
+alt modülünü doğrudan import edebilir:
+
+```js
+import { createLLMManager, createLLMProfileStore, createUiAssets } from 'llm-manager/core';
+
+const store = createLLMProfileStore({ filePath, encryptionKey });
+const manager = createLLMManager({ store });
+const { html, script } = createUiAssets({ apiPath: '/api/llm', pagePath: '/llm' });
+
+// Kimlik doğrulama, yönetici yetkisi ve CSRF denetimi host sorumluluğundadır.
+// Eşleşen yollarda { status, body }, eşleşmeyenlerde null döner:
+const result = await manager.handle({ method: 'GET', path: '/profiles', body: null });
+```
+
 ## API ve depo sözleşmesi
 
 Varsayılan kök `/api/llm`:
@@ -133,20 +162,22 @@ raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullan
 
 ## Dosya yapısı
 
-`src/`: sağlayıcı kataloğu, depo/şifreleme, ağ taşıyıcısı, model runtime'ı, Express
-API ve key setup. `public/`: bağımsız yönetim sayfası. `examples/`: güvenli yerel
-başlatma örneği. `tests/`: host projesini import etmeyen bağımsız kontroller.
+`src/`: sağlayıcı kataloğu, depo/şifreleme, ağ taşıyıcısı, model runtime'ı,
+framework-bağımsız çekirdek (`core.js`), Express adaptörü (`index.js`) ve key setup.
+`bin/`: CLI girişi (`npx llm-manager`). `public/`: bağımsız yönetim sayfası.
+`examples/`: güvenli yerel başlatma örneği. `tests/`: host projesini import etmeyen
+bağımsız kontroller.
 
 Eklenti dağıtımı kullanıcı verilerini/anahtarlarını içermez.
 
 
 ## Sağlayıcı uyumluluğu ve revizyon sözleşmesi
 
-PAYG / Token Plan hizmet seçimi eklendi; bilinen Xiaomi adreslerinde anahtar türü uyuşmazlığı reddedilir. 402 ödeme/bakiye, 403 erişim izni olarak ayrılır. Kısa test en çok 20 saniye ve 512 token kullanır. Her amaçta kesilmiş yanıt reddedilir; sağlayıcı yanıtı 2 MiB ile sınırlıdır.
+Xiaomi için PAYG / Token Plan hizmet seçimi vardır; bilinen Xiaomi adreslerinde anahtar türü uyuşmazlığı reddedilir. 402 ödeme/bakiye, 403 erişim izni olarak ayrılır. Kısa test en çok 20 saniye ve 512 token kullanır. Her amaçta kesilmiş yanıt reddedilir; sağlayıcı yanıtı 2 MiB ile sınırlıdır.
 
 Profil güncellemede `revision`, silme ve etkinleştirmede JSON gövdesindeki `revision` zorunludur. Doğrudan depo çağrıları `store.activate(id, revision)` ve `store.remove(id, revision)` biçimindedir. Revizyonsuz eski kayıtlarda listeden gelen açık `null` değeri ilk değişiklik için geçerlidir; eksik alan kabul edilmez. Profilin HTTPS adresi veya sağlayıcısı değişirse yeni anahtar girilmelidir. Yönetim arayüzü bu sözleşmeye uyar. Dosya deposu tek yazıcı/süreç içindir; çok süreçli CAS garantisi vermez.
 
-`mountLLMManagement` için isteğe bağlı `testMessages(mode, profile)` ve `validateTestReply(reply, {mode, profile})` parametreleri host uygulamasına özgü test sağlar. Varsayılan sohbet örneği değiştirilmediyse Manager örneği kalır. Sır içeren iç profili loglamayın. Anahtarlar otomatik olarak başka hizmete taşınmaz; mevcut veri dosyaları bu güncellemeyle değiştirilmez.
+`mountLLMManagement` için isteğe bağlı `testMessages(mode, profile)` ve `validateTestReply(reply, {mode, profile})` parametreleri host uygulamasına özgü test sağlar. Varsayılan sohbet örneği değiştirilmediyse Manager örneği kalır. Sır içeren iç profili loglamayın. Anahtarlar otomatik olarak başka hizmete taşınmaz.
 
 ## Lisans ve sürümleme
 

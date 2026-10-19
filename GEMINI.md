@@ -26,8 +26,9 @@
 - CSRF başlığı `X-LLM-CSRF: 1`. Git kimliği (yerel): llm-yonetimi <noreply@users.noreply.github.com>.
 - Klasör `llm-yonetimi` -> `llm-manager` olarak kullanıcı tarafından elle yeniden adlandırılacak.
 
-## Sıradaki olası işler (kullanıcı onayı bekler)
+## Tamamlanan ek geliştirmeler (2026-10-19)
 - `index.js` / `profileStore.js` sıkıştırılmış kodun okunabilir hale getirilmesi.
-- `bin` ile CLI başlatma (`npx llm-manager`).
-- Framework-agnostik çekirdek API (Express dışı kullanım).
+- `bin/llm-manager.js` ile CLI başlatma (`npx llm-manager`).
+- Framework-agnostik çekirdek API (`src/core.js`, `llm-manager/core` export'u; Express adaptörü `src/index.js` içinde).
 - README'de kalan eski (geçmişe dönük) notların sadeleştirilmesi.
+

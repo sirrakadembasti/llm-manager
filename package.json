@@ -4,13 +4,18 @@
   "description": "Reusable authenticated LLM profile management and diagnostics",
   "type": "module",
   "main": "src/index.js",
+  "bin": {
+    "llm-manager": "bin/llm-manager.js"
+  },
   "exports": {
     ".": "./src/index.js",
+    "./core": "./src/core.js",
     "./setup": "./src/setup.js",
     "./transport": "./src/providerTransport.js",
     "./runtime": "./src/runtime.js"
   },
   "files": [
+    "bin",
     "src",
     "public",
     "examples",

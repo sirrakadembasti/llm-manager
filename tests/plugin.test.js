@@ -90,3 +90,51 @@ test('custom mounted plugin enforces auth/CSRF and stores actual conversation di
     assert.ok(html.includes('data-api-base="/admin-api/models"'));
   } finally { await new Promise(resolve => server.close(resolve)); fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('framework-agnostic core handles CRUD, activation, testing and unknown routes without Express', async () => {
+  const { createLLMManager } = await import('../src/core.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-core-'));
+  try {
+    const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'cd'.repeat(32) });
+    const manager = createLLMManager({ store, generate: async () => 'OK' });
+
+    assert.equal(await manager.handle({ method: 'GET', path: '/unknown' }), null);
+
+    const created = await manager.handle({
+      method: 'POST',
+      path: '/profiles',
+      body: { name: 'Core', provider: 'custom', model: 'm1', baseURL: 'https://provider.example/v1', apiKey: 'secret-key' }
+    });
+    assert.equal(created.status, 201);
+    assert.ok(!JSON.stringify(created.body).includes('secret-key'));
+
+    const activated = await manager.handle({
+      method: 'POST',
+      path: `/profiles/${created.body.id}/activate`,
+      body: { revision: created.body.revision }
+    });
+    assert.equal(activated.status, 200);
+    assert.equal(activated.body.activeId, created.body.id);
+
+    const tested = await manager.handle({
+      method: 'POST',
+      path: `/profiles/${created.body.id}/test`,
+      body: { mode: 'quick' }
+    });
+    assert.equal(tested.status, 200);
+    assert.equal(tested.body.ok, true);
+
+    const listed = await manager.handle({ method: 'GET', path: '/profiles' });
+    const latestRev = listed.body.profiles[0].revision;
+    const removed = await manager.handle({
+      method: 'DELETE',
+      path: `/profiles/${created.body.id}`,
+      body: { revision: latestRev }
+    });
+    assert.equal(removed.status, 200);
+    assert.equal(removed.body.profiles.length, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
