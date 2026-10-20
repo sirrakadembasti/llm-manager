@@ -24,10 +24,14 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 ### CLI (`npx llm-manager`)
 
 ```sh
+# Etkileşimli kurulum sihirbazı (algılama -> otomatik kod ekleme -> iç doğrulama -> canlı /llm + tarayıcı açma)
+npx github:sirrakadembasti/llm-manager init --password guclu-parola
+
+# Doğrudan yönetim sunucusunu başlatma
 npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
 ```
 
-Seçenekler: `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
+Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | electron | python`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
 
 ### Kaynaktan
 
@@ -152,6 +156,7 @@ raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullan
 
 - `llm-manager` (`src/index.js`): Express adaptörü (`mountLLMManagement`) ve temel API'ler.
 - `llm-manager/core` (`src/core.js`): Framework-bağımsız çekirdek (`createLLMManager`, `createUiAssets`).
+- `llm-manager/init` (`src/init.js`): Etkileşimli kurulum sihirbazı, otomatik kod enjeksiyonu, iç doğrulama ve canlı `/llm` yoklaması (`runInteractiveInit`, `initLLMProject`, `detectProjectType`, `detectEntryFile`, `injectIntoEntryFile`, `verifyIntegration`, `formatVerificationReport`, `probeAndOpenBrowser`).
 - `llm-manager/setup` (`src/setup.js`): Şifreleme anahtarı üretimi ve doğrulaması (`ensureLLMEncryptionKey`).
 - `llm-manager/runtime` (`src/runtime.js`): Sağlayıcı istek oluşturma, model çağrısı ve hata sınıflandırma.
 - `llm-manager/transport` (`src/providerTransport.js`): SSRF ve DNS rebinding korumalı HTTPS taşıyıcısı (`providerFetch`, `createPublicLookup`).

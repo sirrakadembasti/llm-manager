@@ -9,7 +9,9 @@ import {
   detectEntryFile,
   injectIntoEntryFile,
   verifyIntegration,
-  formatVerificationReport
+  formatVerificationReport,
+  probeAndOpenBrowser,
+  runInteractiveInit
 } from './init.js';
 import {
   CSRF_HEADER,
@@ -26,7 +28,9 @@ export {
   detectEntryFile,
   injectIntoEntryFile,
   verifyIntegration,
-  formatVerificationReport
+  formatVerificationReport,
+  probeAndOpenBrowser,
+  runInteractiveInit
 };
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
 

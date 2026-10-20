@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { initLLMProject } from '../src/init.js';
+import { runInteractiveInit } from '../src/init.js';
 
 const HELP = `llm-manager - bağımsız LLM profil yönetimi sunucusu ve kurulum sihirbazı
 
 Kullanım:
-  npx llm-manager init [seçenekler]         Projenize hazır llm.js bağlantı dosyasını oluşturur
+  npx llm-manager init [seçenekler]         Etkileşimli kurulum sihirbazını çalıştırır ve /llm ekranını açar
   npx llm-manager --password <parola>       Yönetim sunucusunu (/llm) başlatır
 
 Seçenekler:
@@ -15,6 +15,8 @@ Seçenekler:
   -c, --cors <adres>    İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
   -p, --port <sayı>     Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
   -f, --force           Mevcut llm.js dosyasının üzerine yaz
+  -y, --yes             Kurulum sorularını otomatik onayla (etkileşimsiz mod)
+  --no-open             Kurulum sonunda varsayılan tarayıcıyı otomatik açma
   -h, --help            Bu yardımı göster
   -v, --version         Sürümü göster
 
@@ -30,6 +32,8 @@ const fail = message => { console.error(`Hata: ${message}\n\n${HELP}`); process.
 let isInit = false;
 let initType;
 let force = false;
+let yes = false;
+let openBrowser = true;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -44,6 +48,10 @@ for (let i = 0; i < args.length; i++) {
     initType = String(args[++i] || '');
   } else if (arg === '-f' || arg === '--force') {
     force = true;
+  } else if (arg === '-y' || arg === '--yes') {
+    yes = true;
+  } else if (arg === '--no-open') {
+    openBrowser = false;
   } else if (arg === '-p' || arg === '--port') {
     const port = Number(args[++i]);
     if (!Number.isInteger(port) || port < 1 || port > 65535) fail('Geçersiz port.');
@@ -58,33 +66,29 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (isInit) {
-  const result = initLLMProject({
+  const result = await runInteractiveInit({
     type: initType,
     password: process.env.LLM_ADMIN_PASSWORD || 'admin123',
-    force
+    port: Number(process.env.PORT) || 8010,
+    force,
+    yes,
+    openBrowser
   });
-  console.log(`\n✅ llm-manager kurulumu tamamlandı! (Algılanan proje tipi: ${result.type})`);
-  if (result.createdFiles.length) {
-    console.log(`📄 Oluşturulan dosyalar: ${result.createdFiles.join(', ')}`);
+  if (result.aborted) {
+    process.exit(0);
   }
-  if (result.type === 'express') {
-    console.log(result.esm
-      ? `\nAna sunucu dosyanıza (server.js / app.js) şu 2 satırı ekleyin:\n  import { setupLLM, askLLM } from './llm.js';\n  setupLLM(app);\n\nSoru sormak için:\n  const cevap = await askLLM('Merhaba!');`
-      : `\nAna sunucu dosyanıza (server.js / app.js) şu 2 satırı ekleyin:\n  const { setupLLM, askLLM } = require('./llm');\n  setupLLM(app);\n\nSoru sormak için:\n  const cevap = await askLLM('Merhaba!');`);
-  } else if (result.type === 'nextjs') {
-    console.log(`\nNext.js rotalarınız (/llm ve /api/llm) hazır! Soru sormak için:\n  import { askLLM } from './llm.js';\n  const cevap = await askLLM('Merhaba!');`);
-  } else if (result.type === 'spa') {
-    console.log(`\n1. Yönetim servisini başlatın: npm run llm\n2. Ön yüz kodunuzda soru sorun:\n  import { askLLM } from './${result.createdFiles[0] || 'llm.js'}';\n  const cevap = await askLLM('Merhaba!');`);
-  } else if (result.type === 'electron') {
-    console.log(`\n1. API anahtarınızı girmek için: npm run llm (http://127.0.0.1:8010/llm)\n2. Electron main.js dosyanızda:\n  import { askLLM, registerLLMIpc } from './llm.js';\n  registerLLMIpc(ipcMain);`);
-  } else if (result.type === 'python') {
-    console.log(`\n1. Yönetim servisini başlatın: npx llm-manager --password ${result.password}\n2. Python kodunuzda:\n  from llm_client import ask_llm\n  print(ask_llm("Merhaba!"))`);
+  if (!result.ok) {
+    process.exit(1);
   }
-  process.exit(0);
-}
+  if (result.probe?.startedServer) {
+    console.log('\n🚀 Yönetim sunucusu açık bırakıldı (durdurmak için Ctrl+C).');
+  } else {
+    process.exit(0);
+  }
+} else {
+  if (!process.env.LLM_ADMIN_PASSWORD) {
+    fail('Parola gerekli: --password <parola> verin veya LLM_ADMIN_PASSWORD ortam değişkenini ayarlayın.');
+  }
 
-if (!process.env.LLM_ADMIN_PASSWORD) {
-  fail('Parola gerekli: --password <parola> verin veya LLM_ADMIN_PASSWORD ortam değişkenini ayarlayın.');
+  await import('../examples/server.js');
 }
-
-await import('../examples/server.js');

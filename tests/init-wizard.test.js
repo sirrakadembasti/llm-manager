@@ -8,7 +8,9 @@ import {
   detectEntryFile,
   injectIntoEntryFile,
   verifyIntegration,
-  formatVerificationReport
+  formatVerificationReport,
+  probeAndOpenBrowser,
+  runInteractiveInit
 } from '../src/index.js';
 
 test('detectEntryFile ve injectIntoEntryFile: Express ESM senaryosu, idempotency ve rollback', () => {
@@ -324,3 +326,102 @@ test('verifyIntegration: Next.js, SPA (JSX), Electron ve Python senaryoları', (
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('runInteractiveInit: onay verildiğinde 4 aşamalı uçtan uca kurulum, canlı /llm yoklaması ve tarayıcı açma', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-interactive-ok-'));
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ type: 'module', dependencies: { express: '^4.19.2' } })
+    );
+    const originalServer = [
+      "import express from 'express';",
+      'const app = express();',
+      'app.use(express.json());',
+      'app.listen(3000);',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, 'server.js'), originalServer, 'utf8');
+
+    const answers = ['e', 'e'];
+    const prompts = [];
+    const logs = [];
+    const openedUrls = [];
+
+    const result = await runInteractiveInit({
+      cwd,
+      password: 'testPass123',
+      port: 0,
+      autoCloseServer: true,
+      askQuestion: async promptText => {
+        prompts.push(promptText);
+        return answers.shift() || 'e';
+      },
+      logger: msg => logs.push(String(msg)),
+      browserOpener: url => {
+        openedUrls.push(url);
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.type, 'express');
+    assert.equal(result.entryFile, 'server.js');
+    assert.ok(result.initRes.createdFiles.includes('llm.js'));
+    assert.equal(result.injectRes.modified, true);
+    assert.equal(result.verification.ok, true);
+    assert.equal(result.probe.ok, true);
+    assert.equal(result.probe.status, 200);
+    assert.equal(result.probe.startedServer, true);
+    assert.equal(result.probe.openedBrowser, true);
+    assert.match(result.probe.url, /^http:\/\/127\.0\.0\.1:\d+\/llm$/);
+    assert.deepEqual(openedUrls, [result.probe.url]);
+    assert.equal(prompts.length, 2);
+    assert.ok(prompts[0].includes('Onaylıyor musunuz? (E/h): '));
+    assert.ok(prompts[1].includes('Yapılan eklemeleri kontrol ettiniz mi, iç doğrulama adımına geçilsin mi? (E/h): '));
+
+    const updatedServer = fs.readFileSync(path.join(cwd, 'server.js'), 'utf8');
+    assert.ok(updatedServer.includes("import { setupLLM, askLLM } from './llm.js';"));
+    assert.ok(updatedServer.includes('setupLLM(app);'));
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('runInteractiveInit: 2. aşamada kullanıcı hayır dediğinde rollback çalışır ve ana dosya eski haline döner', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-interactive-rb-'));
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ type: 'module', dependencies: { express: '^4.19.2' } })
+    );
+    const originalServer = [
+      "import express from 'express';",
+      'const app = express();',
+      'app.use(express.json());',
+      'app.listen(3000);',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, 'server.js'), originalServer, 'utf8');
+
+    const answers = ['e', 'h'];
+    const openedUrls = [];
+
+    const result = await runInteractiveInit({
+      cwd,
+      port: 0,
+      autoCloseServer: true,
+      askQuestion: async () => answers.shift(),
+      logger: () => {},
+      browserOpener: url => openedUrls.push(url)
+    });
+
+    assert.equal(result.aborted, true);
+    assert.equal(result.rolledBack, true);
+    assert.equal(result.step, 'inject');
+    assert.equal(openedUrls.length, 0);
+    assert.equal(fs.readFileSync(path.join(cwd, 'server.js'), 'utf8'), originalServer);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+

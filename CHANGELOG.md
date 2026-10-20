@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Etkileşimli 4 aşamalı kurulum sihirbazı (`npx llm-manager init`, `runInteractiveInit`), hedef ana dosyayı bulup güvenli/geri alınabilir (`rollback`) kod ekleme (`detectEntryFile`, `injectIntoEntryFile`), Türkçe çözümlü otomatik iç doğrulama motoru (`verifyIntegration`, `formatVerificationReport`) ve canlı `/llm` yoklaması ile varsayılan tarayıcıyı otomatik açma (`probeAndOpenBrowser`, `-y/--yes`, `--no-open`) özellikleri eklendi (`src/init.js`, `bin/llm-manager.js`).
 - Sıfır konfigürasyonlu entegrasyon yardımcıları eklendi: `dataDir` ile otomatik şifreleme anahtarı (`llm-encryption.key`), tek satırlık `await llm.ask(prompt)`, Web standart `await llm.fetch(request)` adaptörü (Next.js, SvelteKit, Nuxt, Astro, Hono), Express için yerleşik `adminPassword` seçeneği ve CLI için `--password` / `--cors` bayrakları.
 - SPA, masaüstü ve Node.js dışı uygulamaların API anahtarını görmeden model çağrısı yapabilmesi için `POST /chat` çalışma zamanı uç noktası (`{ prompt }` veya `{ messages }`), `mountLLMManagement` için `chatAccess` (`'authenticated' | 'admin' | false`) yetkilendirme seçeneği (`src/index.js`) ve bağımsız sunucu için `LLM_ALLOWED_ORIGINS` CORS beyaz listesi (`examples/server.js`) eklendi.
 - Farklı mimariler (Express, SPA/Statik, Next.js/Full-Stack, Python/Go Sidecar, Electron/Tauri Masaüstü) için sadeleştirilmiş entegrasyon kılavuzu (`docs/ENTEGRASYON.md`) eklendi.

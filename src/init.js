@@ -1,6 +1,8 @@
-import { execFileSync } from 'node:child_process';
+import { exec, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline/promises';
+import express from 'express';
 
 export function detectProjectType(cwd = process.cwd()) {
   const pkgPath = path.join(cwd, 'package.json');
@@ -764,4 +766,226 @@ export function formatVerificationReport(report) {
     }
   }
   return lines.join('\n');
+}
+
+function listenOnLocalhost(app, targetPort) {
+  return new Promise((resolve, reject) => {
+    const srv = app.listen(targetPort, '127.0.0.1', () => resolve(srv));
+    srv.once('error', err => reject(err));
+  });
+}
+
+function openDefaultBrowser(url) {
+  try {
+    const command =
+      process.platform === 'win32'
+        ? `cmd /c start "" "${url}"`
+        : process.platform === 'darwin'
+          ? `open "${url}"`
+          : `xdg-open "${url}"`;
+    const child = exec(command, () => {});
+    if (child && typeof child.unref === 'function') {
+      child.unref();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function probeAndOpenBrowser({
+  cwd = process.cwd(),
+  port = 8010,
+  password = 'admin123',
+  startServerIfNeeded = true,
+  openBrowser = true,
+  autoCloseStartedServer = false,
+  browserOpener
+} = {}) {
+  let url = `http://127.0.0.1:${port}/llm`;
+  const auth = 'Basic ' + Buffer.from('admin:' + password).toString('base64');
+  let ok = false;
+  let status = 0;
+  let startedServer = false;
+  let openedBrowser = false;
+  let server;
+
+  if (port > 0) {
+    try {
+      const res = await fetch(url, { headers: { Authorization: auth } });
+      status = res.status;
+      if (res.status === 200) {
+        ok = true;
+      }
+    } catch {
+      ok = false;
+    }
+  }
+
+  if (!ok && startServerIfNeeded === true) {
+    const { mountLLMManagement } = await import('./index.js');
+    const app = express();
+    app.use(express.json({ limit: '32kb' }));
+    mountLLMManagement(app, {
+      dataDir: path.join(cwd, 'data'),
+      adminPassword: password
+    });
+
+    try {
+      server = await listenOnLocalhost(app, port);
+    } catch {
+      server = await listenOnLocalhost(app, 0);
+    }
+    startedServer = true;
+
+    const actualPort = server.address().port;
+    url = `http://127.0.0.1:${actualPort}/llm`;
+    const catalogUrl = `http://127.0.0.1:${actualPort}/api/llm/catalog`;
+
+    try {
+      const [pageRes, catRes] = await Promise.all([
+        fetch(url, { headers: { Authorization: auth } }),
+        fetch(catalogUrl, { headers: { Authorization: auth } })
+      ]);
+      status = pageRes.status;
+      ok = pageRes.status === 200 && catRes.status === 200;
+    } catch {
+      ok = false;
+    }
+  }
+
+  if (ok && openBrowser === true) {
+    if (typeof browserOpener === 'function') {
+      try {
+        await browserOpener(url);
+        openedBrowser = true;
+      } catch {
+        openedBrowser = false;
+      }
+    } else {
+      openedBrowser = openDefaultBrowser(url);
+    }
+  }
+
+  if (autoCloseStartedServer === true && server) {
+    await new Promise(resolve => server.close(() => resolve()));
+  }
+
+  return {
+    ok,
+    url,
+    status,
+    startedServer,
+    openedBrowser,
+    ...(server ? { server } : {})
+  };
+}
+
+function isDeclined(answer) {
+  const normalized = String(answer ?? '').trim().toLowerCase();
+  return normalized === 'h' || normalized === 'hayır' || normalized === 'hayir';
+}
+
+export async function runInteractiveInit({
+  cwd = process.cwd(),
+  type,
+  password = 'admin123',
+  port = 8010,
+  force = false,
+  yes = false,
+  openBrowser = true,
+  autoCloseServer = false,
+  askQuestion,
+  logger = console.log,
+  browserOpener
+} = {}) {
+  let rl = null;
+  const promptUser = async promptText => {
+    if (yes === true) return 'e';
+    if (typeof askQuestion === 'function') {
+      return askQuestion(promptText);
+    }
+    if (!rl) {
+      rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    }
+    return rl.question(promptText);
+  };
+
+  try {
+    // Adım 1: Algılama ve Onay
+    const detectedType = type || detectProjectType(cwd);
+    const entryFile = detectEntryFile(cwd, detectedType);
+    logger(
+      `\n[Adım 1/4] Algılanan senaryo: ${detectedType} | Hedef dosya: ${entryFile || '(otomatik bağlantı dosyası bulunamadı)'}`
+    );
+    const step1Answer = await promptUser('Onaylıyor musunuz? (E/h): ');
+    if (isDeclined(step1Answer)) {
+      logger('Kurulum kullanıcı tarafından iptal edildi.');
+      return { aborted: true, step: 'detect' };
+    }
+
+    // Adım 2: Dosya Oluşturma, Otomatik Kod Ekleme ve Kontrol Onayı
+    const initRes = initLLMProject({ cwd, type: detectedType, password, force });
+    const injectRes = injectIntoEntryFile({ cwd, type: detectedType, entryFile, esm: initRes.esm });
+
+    logger('\n[Adım 2/4] Oluşturulan dosyalar ve kod eklemeleri:');
+    if (initRes.createdFiles.length > 0) {
+      logger(`📄 Oluşturulan dosyalar: ${initRes.createdFiles.join(', ')}`);
+    } else {
+      logger('📄 Yardımcı bağlantı dosyaları zaten mevcut.');
+    }
+    if (injectRes.diffPreview) {
+      logger(`📝 ${injectRes.entryFile} dosyasına eklenen satırlar:\n${injectRes.diffPreview}`);
+    } else if (injectRes.alreadyIntegrated) {
+      logger(`📝 ${injectRes.entryFile} dosyası zaten entegre edilmiş.`);
+    }
+
+    const step2Answer = await promptUser(
+      'Yapılan eklemeleri kontrol ettiniz mi, iç doğrulama adımına geçilsin mi? (E/h): '
+    );
+    if (isDeclined(step2Answer)) {
+      injectRes.rollback();
+      logger('Değişiklikler geri alındı (rollback).');
+      return { aborted: true, rolledBack: true, step: 'inject' };
+    }
+
+    // Adım 3: Otomatik İç Kontrol
+    const verification = verifyIntegration({ cwd, type: detectedType, entryFile });
+    const reportText = formatVerificationReport(verification);
+    logger(`\n[Adım 3/4] Otomatik İç Kontrol Raporu:\n${reportText}`);
+    if (!verification.ok) {
+      logger('\n❌ İç doğrulama başarısız oldu. Lütfen yukarıdaki çözüm önerilerini uygulayın.');
+      return { ok: false, step: 'verify', verification };
+    }
+
+    // Adım 4: Canlı /llm Yoklaması ve Tarayıcı Açma
+    const probe = await probeAndOpenBrowser({
+      cwd,
+      port,
+      password,
+      openBrowser,
+      autoCloseStartedServer: autoCloseServer,
+      browserOpener
+    });
+
+    if (probe.ok) {
+      logger(`\n[Adım 4/4] ✅ Canlı /llm yönetim ekranı doğrulandı!`);
+      logger(`🌐 Yönetim Adresi: ${probe.url}`);
+      logger(`🔑 Giriş Bilgileri -> Kullanıcı: admin | Parola: ${password}`);
+    }
+
+    return {
+      ok: true,
+      type: detectedType,
+      entryFile,
+      initRes,
+      injectRes,
+      verification,
+      probe
+    };
+  } finally {
+    if (rl) {
+      rl.close();
+    }
+  }
 }

@@ -2,7 +2,11 @@
 
 Kaynak koduna sahip olduğunuz herhangi bir projeye `llm-manager` eklemek için **import yollarını veya ayarları ezberlemenize gerek yoktur.**
 
-Kurulum sihirbazı (`npx llm-manager init`) projenizin tipini otomatik algılar ve projenizin içine hazır `llm.js` (veya Python için `llm_client.py`) dosyasını kendisi oluşturur. Size sadece kendi dosyanızda `askLLM('soru')` fonksiyonunu çağırmak kalır.
+Etkileşimli kurulum sihirbazı (`npx llm-manager init`) 4 adımda kurulumu uçtan uca tamamlar:
+1. **Algılama ve Onay:** Projenizin tipini (`express`, `spa`, `nextjs`, `electron`, `python`) ve ana giriş dosyasını (`server.js`, `src/App.jsx`, `main.py` vb.) otomatik tespit edip onayınızı alır.
+2. **Otomatik Kod Ekleme ve Geri Alma (Rollback) Güvenliği:** Hazır `llm.js` (veya `llm_client.py`) dosyasını oluşturur, ana dosyanıza gerekli `import` ve bağlantı satırlarını otomatik ekler ve eklenen satırları ekranda gösterir. Onay vermezseniz (`h`) ana dosyanızı tek tuşla eski haline döndürür.
+3. **Otomatik İç Kontrol:** Veri klasörü iznini, yardımcı dosyaları, ana dosya bağlantılarını ve sözdizimini (syntax) otomatik denetler; hata varsa Türkçe nedenini ve çözüm komutunu yazar.
+4. **Canlı `/llm` Yoklaması ve Tarayıcı Açma:** Yönetim sunucusunu canlı yoklar (çalışmıyorsa otomatik başlatır) ve varsayılan tarayıcınızda `http://127.0.0.1:8010/llm` yönetim ekranını otomatik açar.
 
 ---
 
@@ -14,7 +18,7 @@ Kendi projenizin klasöründe terminali açın ve şu 2 komutu çalıştırın:
 # 1. Paketi projenize kurun
 npm install github:sirrakadembasti/llm-manager
 
-# 2. Otomatik kurulum sihirbazını çalıştırın (projenize llm.js dosyasını oluşturur)
+# 2. Etkileşimli kurulum sihirbazını çalıştırın (tüm soruları otomatik onaylamak için -y ekleyebilirsiniz)
 npx llm-manager init --password 12345
 ```
 
