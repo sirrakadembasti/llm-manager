@@ -1,0 +1,184 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  initLLMProject,
+  detectEntryFile,
+  injectIntoEntryFile
+} from '../src/index.js';
+
+test('detectEntryFile ve injectIntoEntryFile: Express ESM senaryosu, idempotency ve rollback', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-exp-esm-'));
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ type: 'module', dependencies: { express: '^4.19.2' } })
+    );
+    const originalServer = [
+      "import express from 'express';",
+      '',
+      'const app = express();',
+      'app.use(express.json());',
+      '',
+      'app.listen(3000);',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, 'server.js'), originalServer, 'utf8');
+
+    initLLMProject({ cwd });
+    assert.equal(detectEntryFile(cwd, 'express'), 'server.js');
+
+    const res1 = injectIntoEntryFile({ cwd, type: 'express' });
+    assert.equal(res1.modified, true);
+    assert.equal(res1.entryFile, 'server.js');
+    assert.ok(res1.addedLines.includes("import { setupLLM, askLLM } from './llm.js';"));
+    assert.ok(res1.addedLines.includes('setupLLM(app);'));
+    assert.ok(res1.diffPreview.includes("+ import { setupLLM, askLLM } from './llm.js';"));
+    assert.ok(res1.diffPreview.includes('+ setupLLM(app);'));
+
+    const updatedContent = fs.readFileSync(path.join(cwd, 'server.js'), 'utf8');
+    assert.ok(updatedContent.includes("import { setupLLM, askLLM } from './llm.js';"));
+    assert.ok(updatedContent.includes('setupLLM(app);'));
+
+    // Mükerrer çağrı (idempotent)
+    const res2 = injectIntoEntryFile({ cwd, type: 'express' });
+    assert.equal(res2.modified, false);
+    assert.equal(res2.alreadyIntegrated, true);
+
+    // Rollback
+    res1.rollback();
+    assert.equal(fs.readFileSync(path.join(cwd, 'server.js'), 'utf8'), originalServer);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('detectEntryFile ve injectIntoEntryFile: Express CommonJS ve alt dizin (src/app.js) senaryosu', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-exp-cjs-'));
+  try {
+    fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ dependencies: { express: '^4.19.2' } })
+    );
+    const originalApp = [
+      "const express = require('express');",
+      'const app = express();',
+      'app.listen(3000);'
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, 'src', 'app.js'), originalApp, 'utf8');
+
+    initLLMProject({ cwd });
+    assert.equal(detectEntryFile(cwd, 'express'), 'src/app.js');
+
+    const res = injectIntoEntryFile({ cwd, type: 'express', esm: false });
+    assert.equal(res.modified, true);
+    assert.equal(res.entryFile, 'src/app.js');
+    assert.ok(res.addedLines.includes("const { setupLLM, askLLM } = require('../llm');"));
+    assert.ok(res.addedLines.includes('setupLLM(app);'));
+
+    res.rollback();
+    assert.equal(fs.readFileSync(path.join(cwd, 'src', 'app.js'), 'utf8'), originalApp);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('detectEntryFile ve injectIntoEntryFile: SPA, Next.js, Python ve Electron senaryoları', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-all-'));
+  try {
+    // SPA
+    const spaDir = path.join(root, 'spa');
+    fs.mkdirSync(path.join(spaDir, 'src'), { recursive: true });
+    const origSpa = "import React from 'react';\nexport default function App() { return null; }\n";
+    fs.writeFileSync(path.join(spaDir, 'src', 'App.jsx'), origSpa, 'utf8');
+    initLLMProject({ cwd: spaDir, type: 'spa' });
+    assert.equal(detectEntryFile(spaDir, 'spa'), 'src/App.jsx');
+    const spaRes = injectIntoEntryFile({ cwd: spaDir, type: 'spa' });
+    assert.equal(spaRes.modified, true);
+    assert.ok(spaRes.addedLines.includes("import { askLLM } from './llm.js';"));
+    assert.equal(injectIntoEntryFile({ cwd: spaDir, type: 'spa' }).alreadyIntegrated, true);
+    spaRes.rollback();
+    assert.equal(fs.readFileSync(path.join(spaDir, 'src', 'App.jsx'), 'utf8'), origSpa);
+
+    // Next.js
+    const nextDir = path.join(root, 'next');
+    fs.mkdirSync(path.join(nextDir, 'src', 'app'), { recursive: true });
+    const origNext = "'use client';\n\nexport default function Page() { return null; }\n";
+    fs.writeFileSync(path.join(nextDir, 'src', 'app', 'page.tsx'), origNext, 'utf8');
+    initLLMProject({ cwd: nextDir, type: 'nextjs' });
+    assert.equal(detectEntryFile(nextDir, 'nextjs'), 'src/app/page.tsx');
+    const nextRes = injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' });
+    assert.equal(nextRes.modified, true);
+    assert.ok(nextRes.addedLines.includes("import { askLLM } from '../llm.js';"));
+    assert.equal(injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' }).alreadyIntegrated, true);
+    nextRes.rollback();
+    assert.equal(fs.readFileSync(path.join(nextDir, 'src', 'app', 'page.tsx'), 'utf8'), origNext);
+
+    // Python
+    const pyDir = path.join(root, 'python');
+    fs.mkdirSync(pyDir, { recursive: true });
+    const origPy = "import os\n\nprint('merhaba')\n";
+    fs.writeFileSync(path.join(pyDir, 'main.py'), origPy, 'utf8');
+    initLLMProject({ cwd: pyDir, type: 'python' });
+    assert.equal(detectEntryFile(pyDir, 'python'), 'main.py');
+    const pyRes = injectIntoEntryFile({ cwd: pyDir, type: 'python' });
+    assert.equal(pyRes.modified, true);
+    assert.ok(pyRes.addedLines.includes('from llm_client import ask_llm'));
+    assert.equal(injectIntoEntryFile({ cwd: pyDir, type: 'python' }).alreadyIntegrated, true);
+    pyRes.rollback();
+    assert.equal(fs.readFileSync(path.join(pyDir, 'main.py'), 'utf8'), origPy);
+
+    // Electron (ESM)
+    const elDir = path.join(root, 'electron');
+    fs.mkdirSync(elDir, { recursive: true });
+    fs.writeFileSync(path.join(elDir, 'package.json'), JSON.stringify({ type: 'module', main: 'main.js' }));
+    const origEl = [
+      "import { app, BrowserWindow } from 'electron';",
+      '',
+      'app.whenReady().then(() => {',
+      '  new BrowserWindow();',
+      '});',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(elDir, 'main.js'), origEl, 'utf8');
+    initLLMProject({ cwd: elDir, type: 'electron' });
+    assert.equal(detectEntryFile(elDir, 'electron'), 'main.js');
+    const elRes = injectIntoEntryFile({ cwd: elDir, type: 'electron', esm: true });
+    assert.equal(elRes.modified, true);
+    assert.ok(elRes.addedLines.includes("import { registerLLMIpc, askLLM } from './llm.js';"));
+    assert.ok(elRes.addedLines.some(line => line.includes('registerLLMIpc(ipcMain);')));
+    const elContent = fs.readFileSync(path.join(elDir, 'main.js'), 'utf8');
+    assert.ok(elContent.includes('ipcMain'));
+    assert.equal(injectIntoEntryFile({ cwd: elDir, type: 'electron', esm: true }).alreadyIntegrated, true);
+    elRes.rollback();
+    assert.equal(fs.readFileSync(path.join(elDir, 'main.js'), 'utf8'), origEl);
+
+    // Electron (CommonJS)
+    const elCjsDir = path.join(root, 'electron-cjs');
+    fs.mkdirSync(elCjsDir, { recursive: true });
+    fs.writeFileSync(path.join(elCjsDir, 'package.json'), JSON.stringify({ main: 'llm.js' }));
+    const origElCjs = "const { app } = require('electron');\n";
+    fs.writeFileSync(path.join(elCjsDir, 'main.js'), origElCjs, 'utf8');
+    initLLMProject({ cwd: elCjsDir, type: 'electron' });
+    assert.equal(detectEntryFile(elCjsDir, 'electron'), 'main.js');
+    const elCjsRes = injectIntoEntryFile({ cwd: elCjsDir, type: 'electron', esm: false });
+    assert.equal(elCjsRes.modified, true);
+    assert.ok(elCjsRes.addedLines.includes("const { registerLLMIpc, askLLM } = require('./llm');"));
+    assert.ok(elCjsRes.addedLines.includes('registerLLMIpc(ipcMain);'));
+    elCjsRes.rollback();
+    assert.equal(fs.readFileSync(path.join(elCjsDir, 'main.js'), 'utf8'), origElCjs);
+
+    // Hedef dosya yoksa güvenli dönüş
+    const emptyDir = path.join(root, 'empty');
+    fs.mkdirSync(emptyDir, { recursive: true });
+    assert.equal(detectEntryFile(emptyDir, 'express'), null);
+    const missingRes = injectIntoEntryFile({ cwd: emptyDir, type: 'express' });
+    assert.equal(missingRes.modified, false);
+    assert.equal(missingRes.entryFile, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

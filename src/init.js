@@ -68,6 +68,248 @@ function ensureNpmScript(cwd, password) {
   return false;
 }
 
+function readPkgMain(cwd) {
+  const pkgPath = path.join(cwd, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    if (typeof pkg.main === 'string' && pkg.main.trim()) {
+      const normalized = pkg.main.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+      if (normalized && path.posix.basename(normalized) !== 'llm.js') {
+        return normalized;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cwd)) {
+  const candidates = [];
+  if (type === 'express') {
+    const pkgMain = readPkgMain(cwd);
+    if (pkgMain) candidates.push(pkgMain);
+    candidates.push('server.js', 'app.js', 'index.js', 'src/server.js', 'src/app.js', 'src/index.js');
+  } else if (type === 'spa') {
+    candidates.push('src/App.jsx', 'src/App.tsx', 'src/App.js', 'src/main.jsx', 'src/main.js', 'main.js', 'index.js');
+  } else if (type === 'nextjs') {
+    candidates.push('src/app/page.js', 'src/app/page.tsx', 'src/app/page.jsx', 'app/page.js', 'app/page.tsx', 'app/page.jsx');
+  } else if (type === 'python') {
+    candidates.push('main.py', 'app.py', 'server.py', 'run.py', 'manage.py');
+  } else if (type === 'electron') {
+    const pkgMain = readPkgMain(cwd);
+    if (pkgMain) candidates.push(pkgMain);
+    candidates.push('main.js', 'electron/main.js', 'src/main.js', 'index.js');
+  }
+
+  for (const rel of candidates) {
+    const full = path.join(cwd, rel);
+    if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+      return rel;
+    }
+  }
+  return null;
+}
+
+function findJsImportInsertIndex(lines, useEsm) {
+  if (useEsm) {
+    let lastImport = -1;
+    let directiveIdx = -1;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (/^\s*import\b/.test(lines[i])) {
+        lastImport = i;
+      } else if (directiveIdx < 0 && /^\s*['"]use (?:client|server)['"];?\s*$/.test(lines[i])) {
+        directiveIdx = i;
+      }
+    }
+    if (lastImport >= 0) return lastImport + 1;
+    if (directiveIdx >= 0) return directiveIdx + 1;
+    return 0;
+  }
+
+  let lastRequire = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/\brequire\s*\(/.test(lines[i])) {
+      lastRequire = i;
+    }
+  }
+  return lastRequire >= 0 ? lastRequire + 1 : 0;
+}
+
+function resolveLlmRelPath(cwd, type) {
+  if (type === 'spa') {
+    if (fs.existsSync(path.join(cwd, 'src', 'llm.js'))) return 'src/llm.js';
+    if (fs.existsSync(path.join(cwd, 'llm.js'))) return 'llm.js';
+    return fs.existsSync(path.join(cwd, 'src')) ? 'src/llm.js' : 'llm.js';
+  }
+  if (type === 'nextjs') {
+    if (fs.existsSync(path.join(cwd, 'src', 'llm.js'))) return 'src/llm.js';
+    if (fs.existsSync(path.join(cwd, 'llm.js'))) return 'llm.js';
+    return fs.existsSync(path.join(cwd, 'src', 'app')) ? 'src/llm.js' : 'llm.js';
+  }
+  return 'llm.js';
+}
+
+export function injectIntoEntryFile({
+  cwd = process.cwd(),
+  type = detectProjectType(cwd),
+  entryFile = detectEntryFile(cwd, type),
+  esm
+} = {}) {
+  if (!entryFile) {
+    return { modified: false, entryFile: null, addedLines: [], diffPreview: '', rollback: () => {} };
+  }
+  const relEntry = entryFile.replace(/\\/g, '/').replace(/^\.\//, '');
+  const fullPath = path.join(cwd, relEntry);
+  if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+    return { modified: false, entryFile: null, addedLines: [], diffPreview: '', rollback: () => {} };
+  }
+
+  const originalContent = fs.readFileSync(fullPath, 'utf8');
+  const rollback = () => {
+    fs.writeFileSync(fullPath, originalContent, 'utf8');
+  };
+
+  if (/\b(?:setupLLM|askLLM|registerLLMIpc|ask_llm)\b/.test(originalContent)) {
+    return {
+      modified: false,
+      alreadyIntegrated: true,
+      entryFile: relEntry,
+      addedLines: [],
+      diffPreview: '',
+      rollback
+    };
+  }
+
+  const useEsm = esm !== undefined ? Boolean(esm) : isEsmProject(cwd, type);
+  const eol = originalContent.includes('\r\n') ? '\r\n' : '\n';
+  const lines = originalContent.split(/\r?\n/);
+  const addedLines = [];
+
+  if (type === 'python') {
+    let lastPyImport = -1;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (/^\s*(?:import\s+\S+|from\s+\S+\s+import\s+)/.test(lines[i])) {
+        lastPyImport = i;
+      }
+    }
+    const pyLine = 'from llm_client import ask_llm';
+    lines.splice(lastPyImport >= 0 ? lastPyImport + 1 : 0, 0, pyLine);
+    addedLines.push(pyLine);
+  } else {
+    const llmRel = resolveLlmRelPath(cwd, type);
+    const entryDir = path.posix.dirname(relEntry);
+    let relImport = path.posix.relative(entryDir, llmRel);
+    if (!relImport.startsWith('.')) {
+      relImport = `./${relImport}`;
+    }
+
+    if (type === 'express') {
+      const importLine = useEsm
+        ? `import { setupLLM, askLLM } from '${relImport}';`
+        : `const { setupLLM, askLLM } = require('${relImport.replace(/\.js$/, '')}');`;
+      const insertIdx = findJsImportInsertIndex(lines, useEsm);
+      lines.splice(insertIdx, 0, importLine);
+      addedLines.push(importLine);
+
+      let setupTargetIdx = -1;
+      for (let i = 0; i < lines.length; i += 1) {
+        if (/\bapp\.use\s*\(\s*express\.json\s*\(\s*\)\s*\)/.test(lines[i])) {
+          setupTargetIdx = i + 1;
+          break;
+        }
+      }
+      if (setupTargetIdx < 0) {
+        for (let i = 0; i < lines.length; i += 1) {
+          if (/^\s*(?:const|let|var)\s+app\s*=\s*express\s*\(/.test(lines[i])) {
+            setupTargetIdx = i + 1;
+            break;
+          }
+        }
+      }
+      if (setupTargetIdx < 0) {
+        setupTargetIdx = insertIdx + 1;
+      }
+      const setupLine = 'setupLLM(app);';
+      lines.splice(setupTargetIdx, 0, setupLine);
+      addedLines.push(setupLine);
+    } else if (type === 'spa' || type === 'nextjs') {
+      const importLine = `import { askLLM } from '${relImport}';`;
+      const insertIdx = findJsImportInsertIndex(lines, true);
+      lines.splice(insertIdx, 0, importLine);
+      addedLines.push(importLine);
+    } else if (type === 'electron') {
+      if (!/\bipcMain\b/.test(originalContent)) {
+        let updatedExisting = false;
+        for (let i = 0; i < lines.length; i += 1) {
+          if (useEsm && /^\s*import\s*\{([^}]*)\}\s*from\s*(['"]electron['"].*)$/.test(lines[i])) {
+            lines[i] = lines[i].replace(
+              /^\s*import\s*\{([^}]*)\}\s*from\s*(['"]electron['"].*)$/,
+              (_m, imports, rest) => `import { ${imports.trim()}, ipcMain } from ${rest}`
+            );
+            updatedExisting = true;
+            break;
+          }
+          if (!useEsm && /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]electron['"]\s*\)/.test(lines[i])) {
+            lines[i] = lines[i].replace(
+              /\{([^}]*)\}/,
+              (_m, imports) => `{ ${imports.trim()}, ipcMain }`
+            );
+            updatedExisting = true;
+            break;
+          }
+        }
+        if (!updatedExisting) {
+          const ipcImport = useEsm
+            ? "import { ipcMain } from 'electron';"
+            : "const { ipcMain } = require('electron');";
+          lines.splice(findJsImportInsertIndex(lines, useEsm), 0, ipcImport);
+          addedLines.push(ipcImport);
+        }
+      }
+
+      const importLine = useEsm
+        ? `import { registerLLMIpc, askLLM } from '${relImport}';`
+        : `const { registerLLMIpc, askLLM } = require('${relImport.replace(/\.js$/, '')}');`;
+      const insertIdx = findJsImportInsertIndex(lines, useEsm);
+      lines.splice(insertIdx, 0, importLine);
+      addedLines.push(importLine);
+
+      let readyIdx = -1;
+      for (let i = 0; i < lines.length; i += 1) {
+        if (/app\.whenReady\s*\(\s*\)\.then\s*\(/.test(lines[i])) {
+          readyIdx = i;
+          break;
+        }
+      }
+      const registerLine = 'registerLLMIpc(ipcMain);';
+      if (readyIdx >= 0) {
+        lines.splice(readyIdx + 1, 0, `  ${registerLine}`);
+      } else {
+        if (lines.length > 0 && lines[lines.length - 1] === '') {
+          lines.splice(lines.length - 1, 0, registerLine);
+        } else {
+          lines.push(registerLine);
+        }
+      }
+      addedLines.push(registerLine);
+    }
+  }
+
+  const newContent = lines.join(eol);
+  fs.writeFileSync(fullPath, newContent, 'utf8');
+  const diffPreview = addedLines.map(line => `+ ${line}`).join('\n');
+
+  return {
+    modified: true,
+    entryFile: relEntry,
+    addedLines,
+    diffPreview,
+    rollback
+  };
+}
+
 export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
