@@ -379,3 +379,59 @@ test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, admi
 });
 
 
+import { initLLMProject, detectProjectType } from '../src/init.js';
+
+test('initLLMProject auto-detects project type and scaffolds ready-to-use files across all 5 scenarios', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-init-'));
+  try {
+    // 1. Express (CommonJS)
+    const expDir = path.join(root, 'express-app');
+    fs.mkdirSync(expDir, { recursive: true });
+    fs.writeFileSync(path.join(expDir, 'package.json'), JSON.stringify({ dependencies: { express: '^4.19.2' } }));
+    assert.equal(detectProjectType(expDir), 'express');
+    const expRes = initLLMProject({ cwd: expDir, password: 'sifre' });
+    assert.equal(expRes.type, 'express');
+    assert.equal(expRes.esm, false);
+    assert.ok(fs.readFileSync(path.join(expDir, 'llm.js'), 'utf8').includes('module.exports = { setupLLM, askLLM }'));
+    assert.ok(JSON.parse(fs.readFileSync(path.join(expDir, 'package.json'), 'utf8')).scripts.llm.includes('sifre'));
+
+    // 2. SPA (Vite / React)
+    const spaDir = path.join(root, 'spa-app');
+    fs.mkdirSync(path.join(spaDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(spaDir, 'package.json'), JSON.stringify({ devDependencies: { vite: '^5.0.0' } }));
+    assert.equal(detectProjectType(spaDir), 'spa');
+    const spaRes = initLLMProject({ cwd: spaDir });
+    assert.deepEqual(spaRes.createdFiles, ['src/llm.js']);
+
+    // 3. Next.js
+    const nextDir = path.join(root, 'next-app');
+    fs.mkdirSync(path.join(nextDir, 'src', 'app'), { recursive: true });
+    fs.writeFileSync(path.join(nextDir, 'package.json'), JSON.stringify({ dependencies: { next: '15.0.0' } }));
+    assert.equal(detectProjectType(nextDir), 'nextjs');
+    const nextRes = initLLMProject({ cwd: nextDir });
+    assert.equal(nextRes.createdFiles.length, 3);
+    assert.ok(fs.existsSync(path.join(nextDir, 'src/llm.js')));
+    assert.ok(fs.existsSync(path.join(nextDir, 'src/app/api/llm/[...slug]/route.js')));
+    assert.ok(fs.existsSync(path.join(nextDir, 'src/app/llm/[[...slug]]/route.js')));
+
+    // 4. Python
+    const pyDir = path.join(root, 'py-app');
+    fs.mkdirSync(pyDir, { recursive: true });
+    fs.writeFileSync(path.join(pyDir, 'requirements.txt'), 'flask\n');
+    assert.equal(detectProjectType(pyDir), 'python');
+    const pyRes = initLLMProject({ cwd: pyDir });
+    assert.deepEqual(pyRes.createdFiles, ['llm_client.py']);
+    assert.ok(fs.readFileSync(path.join(pyDir, 'llm_client.py'), 'utf8').includes('def ask_llm'));
+
+    // 5. Electron
+    const elDir = path.join(root, 'electron-app');
+    fs.mkdirSync(elDir, { recursive: true });
+    fs.writeFileSync(path.join(elDir, 'package.json'), JSON.stringify({ type: 'module', devDependencies: { electron: '^30.0.0' } }));
+    assert.equal(detectProjectType(elDir), 'electron');
+    const elRes = initLLMProject({ cwd: elDir });
+    assert.equal(elRes.esm, true);
+    assert.ok(fs.readFileSync(path.join(elDir, 'llm.js'), 'utf8').includes('export function registerLLMIpc'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.js",
     "./core": "./src/core.js",
+    "./init": "./src/init.js",
     "./setup": "./src/setup.js",
     "./transport": "./src/providerTransport.js",
     "./runtime": "./src/runtime.js"

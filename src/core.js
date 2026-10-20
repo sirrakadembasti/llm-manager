@@ -207,6 +207,7 @@ export function createLLMManager({
       return ok({
         ok: true,
         content,
+        text: content,
         profileId: profile.id,
         profileName: profile.name,
         provider: profile.provider,
