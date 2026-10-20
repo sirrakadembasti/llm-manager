@@ -4,6 +4,15 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import express from 'express';
 
+function hasFilesWithExt(cwd, extList) {
+  try {
+    const entries = fs.readdirSync(cwd);
+    return entries.some(name => extList.some(ext => name.toLowerCase().endsWith(ext)));
+  } catch {
+    return false;
+  }
+}
+
 export function detectProjectType(cwd = process.cwd()) {
   const pkgPath = path.join(cwd, 'package.json');
   if (fs.existsSync(pkgPath)) {
@@ -12,12 +21,30 @@ export function detectProjectType(cwd = process.cwd()) {
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
       if (deps.electron || deps['@tauri-apps/api'] || deps['@tauri-apps/cli']) return 'electron';
       if (deps.next) return 'nextjs';
+      if (deps.nuxt) return 'nuxt';
+      if (deps['@sveltejs/kit']) return 'sveltekit';
       if (deps.express) return 'express';
       if (deps.vite || deps.react || deps.vue || deps.svelte || deps['@angular/core']) return 'spa';
       return 'express';
     } catch {
       return 'express';
     }
+  }
+  if (
+    fs.existsSync(path.join(cwd, 'nuxt.config.ts')) ||
+    fs.existsSync(path.join(cwd, 'nuxt.config.js'))
+  ) {
+    return 'nuxt';
+  }
+  if (
+    hasFilesWithExt(cwd, ['.csproj', '.sln']) ||
+    fs.existsSync(path.join(cwd, 'Program.cs')) ||
+    fs.existsSync(path.join(cwd, 'Startup.cs')) ||
+    fs.existsSync(path.join(cwd, 'Global.asax.cs')) ||
+    fs.existsSync(path.join(cwd, 'Form1.cs')) ||
+    fs.existsSync(path.join(cwd, 'Web.config'))
+  ) {
+    return 'dotnet';
   }
   if (
     fs.existsSync(path.join(cwd, 'requirements.txt')) ||
@@ -34,7 +61,7 @@ export function detectProjectType(cwd = process.cwd()) {
 }
 
 function isEsmProject(cwd, type) {
-  if (type === 'nextjs' || type === 'spa') return true;
+  if (type === 'nextjs' || type === 'nuxt' || type === 'sveltekit' || type === 'spa') return true;
   const pkgPath = path.join(cwd, 'package.json');
   if (!fs.existsSync(pkgPath)) return true;
   try {
@@ -95,9 +122,35 @@ export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cw
     if (pkgMain) candidates.push(pkgMain);
     candidates.push('server.js', 'app.js', 'index.js', 'src/server.js', 'src/app.js', 'src/index.js');
   } else if (type === 'spa') {
-    candidates.push('src/App.jsx', 'src/App.tsx', 'src/App.js', 'src/main.jsx', 'src/main.js', 'main.js', 'index.js');
+    candidates.push(
+      'src/App.vue',
+      'App.vue',
+      'src/App.svelte',
+      'src/App.jsx',
+      'src/App.tsx',
+      'src/App.js',
+      'src/main.ts',
+      'src/main.jsx',
+      'src/main.js',
+      'main.js',
+      'index.js'
+    );
   } else if (type === 'nextjs') {
     candidates.push('src/app/page.js', 'src/app/page.tsx', 'src/app/page.jsx', 'app/page.js', 'app/page.tsx', 'app/page.jsx');
+  } else if (type === 'nuxt') {
+    candidates.push('app.vue', 'pages/index.vue', 'src/app.vue', 'src/pages/index.vue');
+  } else if (type === 'sveltekit') {
+    candidates.push('src/routes/+page.svelte', 'src/App.svelte');
+  } else if (type === 'dotnet') {
+    candidates.push(
+      'Program.cs',
+      'Startup.cs',
+      'Controllers/HomeController.cs',
+      'Presenters/MainPresenter.cs',
+      'Form1.cs',
+      'MainWindow.xaml.cs',
+      'Global.asax.cs'
+    );
   } else if (type === 'python') {
     candidates.push('main.py', 'app.py', 'server.py', 'run.py', 'manage.py');
   } else if (type === 'electron') {
@@ -113,6 +166,15 @@ export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cw
     }
   }
   return null;
+}
+
+function findSfcScriptInsertIndex(lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^\s*<script\b[^>]*>/i.test(lines[i])) {
+      return i + 1;
+    }
+  }
+  return -1;
 }
 
 function findJsImportInsertIndex(lines, useEsm) {
@@ -151,6 +213,9 @@ function resolveLlmRelPath(cwd, type) {
     if (fs.existsSync(path.join(cwd, 'llm.js'))) return 'llm.js';
     return fs.existsSync(path.join(cwd, 'src', 'app')) ? 'src/llm.js' : 'llm.js';
   }
+  if (type === 'sveltekit') {
+    return 'src/lib/llm.js';
+  }
   return 'llm.js';
 }
 
@@ -174,7 +239,7 @@ export function injectIntoEntryFile({
     fs.writeFileSync(fullPath, originalContent, 'utf8');
   };
 
-  if (/\b(?:setupLLM|askLLM|registerLLMIpc|ask_llm)\b/.test(originalContent)) {
+  if (/\b(?:setupLLM|askLLM|registerLLMIpc|ask_llm|LlmClient|LlmManager)\b/.test(originalContent)) {
     return {
       modified: false,
       alreadyIntegrated: true,
@@ -200,6 +265,16 @@ export function injectIntoEntryFile({
     const pyLine = 'from llm_client import ask_llm';
     lines.splice(lastPyImport >= 0 ? lastPyImport + 1 : 0, 0, pyLine);
     addedLines.push(pyLine);
+  } else if (type === 'dotnet') {
+    let lastUsing = -1;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (/^\s*using\s+[A-Za-z0-9_.]+\s*;/.test(lines[i])) {
+        lastUsing = i;
+      }
+    }
+    const csLine = 'using LlmManager;';
+    lines.splice(lastUsing >= 0 ? lastUsing + 1 : 0, 0, csLine);
+    addedLines.push(csLine);
   } else {
     const llmRel = resolveLlmRelPath(cwd, type);
     const entryDir = path.posix.dirname(relEntry);
@@ -237,11 +312,23 @@ export function injectIntoEntryFile({
       const setupLine = 'setupLLM(app);';
       lines.splice(setupTargetIdx, 0, setupLine);
       addedLines.push(setupLine);
-    } else if (type === 'spa' || type === 'nextjs') {
+    } else if (type === 'spa' || type === 'nextjs' || type === 'nuxt' || type === 'sveltekit') {
       const importLine = `import { askLLM } from '${relImport}';`;
-      const insertIdx = findJsImportInsertIndex(lines, true);
-      lines.splice(insertIdx, 0, importLine);
-      addedLines.push(importLine);
+      if (/\.(?:vue|svelte)$/i.test(relEntry)) {
+        const scriptIdx = findSfcScriptInsertIndex(lines);
+        if (scriptIdx >= 0) {
+          lines.splice(scriptIdx, 0, importLine);
+          addedLines.push(importLine);
+        } else {
+          const block = ['<script setup>', importLine, '</script>'];
+          lines.splice(0, 0, ...block);
+          addedLines.push(...block);
+        }
+      } else {
+        const insertIdx = findJsImportInsertIndex(lines, true);
+        lines.splice(insertIdx, 0, importLine);
+        addedLines.push(importLine);
+      }
     } else if (type === 'electron') {
       if (!/\bipcMain\b/.test(originalContent)) {
         let updatedExisting = false;
@@ -428,6 +515,96 @@ export const DELETE = (req) => llm.fetch(req);
     if (writeFileIfMissing(path.join(cwd, llmRel), llmContent, force)) createdFiles.push(llmRel);
     if (writeFileIfMissing(path.join(cwd, apiRouteRel), routeContent(importPath), force)) createdFiles.push(apiRouteRel);
     if (writeFileIfMissing(path.join(cwd, pageRouteRel), routeContent(pageImportPath), force)) createdFiles.push(pageRouteRel);
+  } else if (type === 'nuxt') {
+    const llmContent = `import { createLLMManager } from 'llm-manager/core';
+
+export const llm = createLLMManager({ dataDir: './data' });
+
+export async function askLLM(prompt, options = {}) {
+  return llm.ask(prompt, options);
+}
+`;
+    const nuxtHandler = `import { defineEventHandler, toWebRequest } from 'h3';
+import { llm } from '../../../llm.js';
+
+export default defineEventHandler((event) => llm.fetch(toWebRequest(event)));
+`;
+    if (writeFileIfMissing(path.join(cwd, 'llm.js'), llmContent, force)) createdFiles.push('llm.js');
+    if (writeFileIfMissing(path.join(cwd, 'server/api/llm/[...slug].js'), nuxtHandler, force)) {
+      createdFiles.push('server/api/llm/[...slug].js');
+    }
+    if (writeFileIfMissing(path.join(cwd, 'server/routes/llm/[...slug].js'), nuxtHandler, force)) {
+      createdFiles.push('server/routes/llm/[...slug].js');
+    }
+  } else if (type === 'sveltekit') {
+    const llmContent = `import { createLLMManager } from 'llm-manager/core';
+
+export const llm = createLLMManager({ dataDir: './data' });
+
+export async function askLLM(prompt, options = {}) {
+  return llm.ask(prompt, options);
+}
+`;
+    const svelteRoute = `import { llm } from '../../../../lib/llm.js';
+
+export const GET = ({ request }) => llm.fetch(request);
+export const POST = ({ request }) => llm.fetch(request);
+export const PUT = ({ request }) => llm.fetch(request);
+export const DELETE = ({ request }) => llm.fetch(request);
+`;
+    const sveltePageRoute = `import { llm } from '../../../lib/llm.js';
+
+export const GET = ({ request }) => llm.fetch(request);
+`;
+    if (writeFileIfMissing(path.join(cwd, 'src/lib/llm.js'), llmContent, force)) createdFiles.push('src/lib/llm.js');
+    if (writeFileIfMissing(path.join(cwd, 'src/routes/api/llm/[...slug]/+server.js'), svelteRoute, force)) {
+      createdFiles.push('src/routes/api/llm/[...slug]/+server.js');
+    }
+    if (writeFileIfMissing(path.join(cwd, 'src/routes/llm/[...slug]/+server.js'), sveltePageRoute, force)) {
+      createdFiles.push('src/routes/llm/[...slug]/+server.js');
+    }
+  } else if (type === 'dotnet') {
+    const target = path.join(cwd, 'LlmClient.cs');
+    const content = `using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+namespace LlmManager
+{
+    public static class LlmClient
+    {
+        private static readonly HttpClient Http = new HttpClient();
+        private const string LlmUrl = "http://127.0.0.1:8010/api/llm/chat";
+        private const string LlmUser = "admin";
+        private const string LlmPass = "${password}";
+
+        // C# / .NET Core / ASP.NET MVC / MVP / WinForms / WPF icinden tek satirla cagri:
+        // string cevap = await LlmClient.AskAsync("Merhaba!");
+        public static async Task<string> AskAsync(string prompt, string system = "")
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, LlmUrl);
+            var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{LlmUser}:{LlmPass}"));
+            req.Headers.Authorization = new AuthenticationHeaderValue("Basic", token);
+            req.Headers.Add("X-LLM-CSRF", "1");
+            var payload = JsonSerializer.Serialize(new { prompt, system });
+            req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            using var res = await Http.SendAsync(req);
+            var body = await res.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            if (!res.IsSuccessStatusCode)
+            {
+                var err = doc.RootElement.TryGetProperty("error", out var e) ? e.GetString() : "LLM istegi basarisiz oldu.";
+                throw new InvalidOperationException(err);
+            }
+            return doc.RootElement.GetProperty("text").GetString() ?? "";
+        }
+    }
+}
+`;
+    if (writeFileIfMissing(target, content, force)) createdFiles.push('LlmClient.cs');
   } else if (type === 'electron') {
     const target = path.join(cwd, 'llm.js');
     const content = esm
@@ -504,6 +681,7 @@ def ask_llm(prompt: str, system: str = "") -> str:
 
 function getExpectedHelperFiles(cwd, type) {
   if (type === 'python') return ['llm_client.py'];
+  if (type === 'dotnet') return ['LlmClient.cs'];
   if (type === 'spa') return [resolveLlmRelPath(cwd, 'spa')];
   if (type === 'nextjs') {
     const hasSrcApp = fs.existsSync(path.join(cwd, 'src', 'app'));
@@ -512,6 +690,12 @@ function getExpectedHelperFiles(cwd, type) {
     const apiRouteRel = `${baseDir ? `${baseDir}/` : ''}app/api/llm/[...slug]/route.js`;
     const pageRouteRel = `${baseDir ? `${baseDir}/` : ''}app/llm/[[...slug]]/route.js`;
     return [llmRel, apiRouteRel, pageRouteRel];
+  }
+  if (type === 'nuxt') {
+    return ['llm.js', 'server/api/llm/[...slug].js', 'server/routes/llm/[...slug].js'];
+  }
+  if (type === 'sveltekit') {
+    return ['src/lib/llm.js', 'src/routes/api/llm/[...slug]/+server.js', 'src/routes/llm/[...slug]/+server.js'];
   }
   return ['llm.js'];
 }
@@ -675,12 +859,14 @@ export function verifyIntegration({
     let hasBinding = false;
     if (type === 'express') {
       hasBinding = /\b(?:setupLLM|askLLM)\b/.test(content);
-    } else if (type === 'spa' || type === 'nextjs') {
+    } else if (type === 'spa' || type === 'nextjs' || type === 'nuxt' || type === 'sveltekit') {
       hasBinding = /\baskLLM\b/.test(content);
     } else if (type === 'electron') {
       hasBinding = /\b(?:registerLLMIpc|askLLM)\b/.test(content);
     } else if (type === 'python') {
       hasBinding = /\bask_llm\b/.test(content);
+    } else if (type === 'dotnet') {
+      hasBinding = /\b(?:LlmManager|LlmClient)\b/.test(content);
     } else {
       hasBinding = true;
     }
@@ -703,11 +889,13 @@ export function verifyIntegration({
   // 4. syntax_check kontrolü
   const syntaxTitle = 'Sözdizimi / Derleme Kontrolü';
   const filesToSyntaxCheck = [];
-  if (type !== 'python') {
+  if (type !== 'python' && type !== 'dotnet') {
     const helperRel = resolveLlmRelPath(cwd, type);
     if (fs.existsSync(path.join(cwd, helperRel))) {
       filesToSyntaxCheck.push(helperRel);
     }
+  } else if (type === 'dotnet' && fs.existsSync(path.join(cwd, 'LlmClient.cs'))) {
+    filesToSyntaxCheck.push('LlmClient.cs');
   }
   if (normalizedEntry && fs.existsSync(path.join(cwd, normalizedEntry)) && !filesToSyntaxCheck.includes(normalizedEntry)) {
     filesToSyntaxCheck.push(normalizedEntry);
@@ -723,7 +911,7 @@ export function verifyIntegration({
         syntaxFailure = { file: rel, detail };
         break;
       }
-    } else if (['.jsx', '.tsx'].includes(ext)) {
+    } else if (['.jsx', '.tsx', '.ts', '.vue', '.svelte', '.cs'].includes(ext)) {
       const content = fs.readFileSync(full, 'utf8');
       const detail = checkJsxBasicSyntax(content);
       if (detail) {

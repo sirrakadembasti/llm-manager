@@ -9,7 +9,7 @@ Kullanım:
   npx llm-manager --password <parola>       Yönetim sunucusunu (/llm) başlatır
 
 Seçenekler:
-  -t, --type <tip>      Proje tipi: express | spa | nextjs | electron | python (varsayılan: otomatik algılar)
+  -t, --type <tip>      Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python (varsayılan: otomatik algılar)
   -w, --password <sır>  Yönetim arayüzü parolası (LLM_ADMIN_PASSWORD ile de verilebilir)
   -u, --user <ad>       Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
   -c, --cors <adres>    İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   initLLMProject,
+  detectProjectType,
   detectEntryFile,
   injectIntoEntryFile,
   verifyIntegration,
@@ -425,3 +426,70 @@ test('runInteractiveInit: 2. aşamada kullanıcı hayır dediğinde rollback ça
   }
 });
 
+
+test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core / MVC / MVP), Vue, Nuxt ve SvelteKit senaryoları', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-dotnet-vue-nuxt-'));
+  try {
+    // 1. C# / .NET Core / ASP.NET MVC / MVP (Program.cs + .csproj)
+    const dotnetDir = path.join(root, 'dotnet-app');
+    fs.mkdirSync(dotnetDir, { recursive: true });
+    fs.writeFileSync(path.join(dotnetDir, 'MyWebApp.csproj'), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n');
+    const origProgramCs = 'using System;\nusing Microsoft.AspNetCore.Builder;\n\nvar builder = WebApplication.CreateBuilder(args);\n';
+    fs.writeFileSync(path.join(dotnetDir, 'Program.cs'), origProgramCs);
+
+    assert.equal(detectProjectType(dotnetDir), 'dotnet');
+    assert.equal(detectEntryFile(dotnetDir, 'dotnet'), 'Program.cs');
+    const dotnetInit = initLLMProject({ cwd: dotnetDir, password: 'sifre' });
+    assert.deepEqual(dotnetInit.createdFiles, ['LlmClient.cs']);
+    assert.ok(fs.readFileSync(path.join(dotnetDir, 'LlmClient.cs'), 'utf8').includes('public static async Task<string> AskAsync'));
+    const dotnetInject = injectIntoEntryFile({ cwd: dotnetDir, type: 'dotnet' });
+    assert.equal(dotnetInject.modified, true);
+    assert.ok(fs.readFileSync(path.join(dotnetDir, 'Program.cs'), 'utf8').includes('using LlmManager;'));
+    const dotnetVerify = verifyIntegration({ cwd: dotnetDir, type: 'dotnet' });
+    assert.equal(dotnetVerify.ok, true);
+    dotnetInject.rollback();
+    assert.equal(fs.readFileSync(path.join(dotnetDir, 'Program.cs'), 'utf8'), origProgramCs);
+
+    // 2. Vue 3 (src/App.vue SFC)
+    const vueDir = path.join(root, 'vue-app');
+    fs.mkdirSync(path.join(vueDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(vueDir, 'package.json'), JSON.stringify({ dependencies: { vue: '^3.4.0' } }));
+    const origVue = '<script setup>\nimport { ref } from "vue";\n</script>\n<template><div>Merhaba</div></template>\n';
+    fs.writeFileSync(path.join(vueDir, 'src/App.vue'), origVue);
+
+    assert.equal(detectProjectType(vueDir), 'spa');
+    assert.equal(detectEntryFile(vueDir, 'spa'), 'src/App.vue');
+    initLLMProject({ cwd: vueDir });
+    const vueInject = injectIntoEntryFile({ cwd: vueDir, type: 'spa' });
+    assert.equal(vueInject.modified, true);
+    assert.ok(fs.readFileSync(path.join(vueDir, 'src/App.vue'), 'utf8').includes("<script setup>\nimport { askLLM } from './llm.js';"));
+    assert.equal(verifyIntegration({ cwd: vueDir, type: 'spa' }).ok, true);
+
+    // 3. Nuxt 3 (app.vue + server/api/llm/[...slug].js)
+    const nuxtDir = path.join(root, 'nuxt-app');
+    fs.mkdirSync(nuxtDir, { recursive: true });
+    fs.writeFileSync(path.join(nuxtDir, 'package.json'), JSON.stringify({ devDependencies: { nuxt: '^3.12.0' } }));
+    fs.writeFileSync(path.join(nuxtDir, 'app.vue'), '<script setup>\n</script>\n<template><NuxtPage /></template>\n');
+
+    assert.equal(detectProjectType(nuxtDir), 'nuxt');
+    assert.equal(detectEntryFile(nuxtDir, 'nuxt'), 'app.vue');
+    const nuxtInit = initLLMProject({ cwd: nuxtDir });
+    assert.equal(nuxtInit.createdFiles.length, 3);
+    assert.equal(injectIntoEntryFile({ cwd: nuxtDir, type: 'nuxt' }).modified, true);
+    assert.equal(verifyIntegration({ cwd: nuxtDir, type: 'nuxt' }).ok, true);
+
+    // 4. SvelteKit (src/routes/+page.svelte)
+    const svelteDir = path.join(root, 'svelte-app');
+    fs.mkdirSync(path.join(svelteDir, 'src/routes'), { recursive: true });
+    fs.writeFileSync(path.join(svelteDir, 'package.json'), JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0' } }));
+    fs.writeFileSync(path.join(svelteDir, 'src/routes/+page.svelte'), '<script>\n</script>\n<h1>SvelteKit</h1>\n');
+
+    assert.equal(detectProjectType(svelteDir), 'sveltekit');
+    assert.equal(detectEntryFile(svelteDir, 'sveltekit'), 'src/routes/+page.svelte');
+    initLLMProject({ cwd: svelteDir });
+    assert.equal(injectIntoEntryFile({ cwd: svelteDir, type: 'sveltekit' }).modified, true);
+    assert.equal(verifyIntegration({ cwd: svelteDir, type: 'sveltekit' }).ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

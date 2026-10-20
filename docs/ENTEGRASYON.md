@@ -76,42 +76,45 @@ async function butonaTiklandi() {
 
 ---
 
-## Senaryo 3: Full-Stack Uygulamalar (Next.js)
+## Senaryo 3: Full-Stack Uygulamalar (Next.js, Nuxt 3, SvelteKit)
 
-`npx llm-manager init` komutu Next.js projenizde **3 dosyayı kendi otomatik oluşturur**:
-1. `llm.js` (veya `src/llm.js`)
-2. `app/llm/[[...slug]]/route.js` (Yönetim ekranı: `/llm`)
-3. `app/api/llm/[...slug]/route.js` (API rotaları: `/api/llm/*`)
+`npx llm-manager init` komutu Next.js, Nuxt veya SvelteKit projenizi otomatik tanır ve **3 dosyayı kendi otomatik oluşturur**:
+* **Next.js:** `llm.js`, `app/llm/[[...slug]]/route.js`, `app/api/llm/[...slug]/route.js`
+* **Nuxt 3:** `llm.js`, `server/routes/llm/[...slug].js`, `server/api/llm/[...slug].js` (ve `app.vue` / `pages/index.vue` içine `<script setup>` altına `import { askLLM }` ekler)
+* **SvelteKit:** `src/lib/llm.js`, `src/routes/llm/[...slug]/+server.js`, `src/routes/api/llm/[...slug]/+server.js` (ve `src/routes/+page.svelte` içine `import { askLLM }` ekler)
 
 ### Hangi dosyaya ne yapıştıracağım?
-Rotalar hazır olduğu için hiçbir ayar dosyasına dokunmanıza gerek yoktur! Kendi sayfa veya API dosyanızda (ör. **`app/page.js`** veya bir Server Action içinde) sadece şunu yazın:
+Rotalar ve ana sayfa import'u otomatik eklendiği için sadece kullanmak istediğiniz yerde şunu yazın:
 
 ```js
-import { askLLM } from './llm.js'; // (src klasörü varsa '@/llm')
-
 const cevap = await askLLM('Bu siparişi özetle');
 ```
-* **API Anahtarı Nereden Girilir?** Next.js çalışırken `http://localhost:3000/llm` adresine girip profilinizi kaydedin.
+* **API Anahtarı Nereden Girilir?** Uygulamanız çalışırken `http://localhost:3000/llm` adresine girip profilinizi kaydedin.
 
 ---
 
-## Senaryo 4: Python, Go, C# veya PHP Uygulamaları
+## Senaryo 4: C# (.NET Core / ASP.NET MVC / .NET MVP / WinForms / WPF) ve Python Uygulamaları
 
-Python projenizin klasöründe `npx github:sirrakadembasti/llm-manager init` çalıştırdığınızda **`llm_client.py`** dosyası otomatik oluşturulur.
+### A) C# / .NET Core / ASP.NET MVC / .NET MVP Projeleri
+C# projenizin (`.csproj`, `.sln`, `Program.cs`, `Startup.cs`, `Form1.cs`) bulunduğu klasörde `npx github:sirrakadembasti/llm-manager init` çalıştırdığınızda:
+1. **`LlmClient.cs`** dosyasını otomatik oluşturur (ekstra NuGet paketi gerektirmez, standart `HttpClient` kullanır).
+2. **`Program.cs`** (veya `Startup.cs` / `Controllers/HomeController.cs` / `Form1.cs`) dosyanıza `using LlmManager;` satırını otomatik ekler.
+3. Yönetim servisini ayağa kaldırıp tarayıcıda `/llm` sayfasını açar.
 
-### Nasıl çalıştırılır ve hangi dosyaya yapıştırılır?
+**C# kodunuzda (Controller, Presenter, Form veya Service içinde) tek satırla kullanım:**
+```csharp
+using LlmManager;
 
-**Adım 1:** Terminalde yerel LLM servisini başlatın:
-```bash
-npx github:sirrakadembasti/llm-manager --password 12345
+string cevap = await LlmClient.AskAsync("Merhaba, bu metni özetle!");
 ```
-*(Tarayıcıdan `http://127.0.0.1:8010/llm` adresine girip API anahtarınızı kaydedin.)*
 
-**Adım 2:** Kendi Python dosyanızı (**`main.py`** veya **`app.py`**) açın:
+### B) Python (Flask, FastAPI, Django) Projeleri
+Python projenizin klasöründe `npx github:sirrakadembasti/llm-manager init` çalıştırdığınızda **`llm_client.py`** dosyası otomatik oluşturulur ve **`main.py` / `app.py`** dosyanıza `from llm_client import ask_llm` otomatik eklenir:
+
 ```python
-from llm_client import ask_llm  # <-- 1. BUNU EKLEYİN
+from llm_client import ask_llm
 
-cevap = ask_llm("Merhaba, nasılsın?")  # <-- 2. TEK SATIRLA ÇAĞIRIN
+cevap = ask_llm("Merhaba, nasılsın?")
 print(cevap)
 ```
 
