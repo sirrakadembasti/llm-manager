@@ -31,7 +31,7 @@ npx github:sirrakadembasti/llm-manager init --password guclu-parola
 npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
 ```
 
-Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | electron | python`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
+Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
 
 ### Kaynaktan
 
@@ -93,15 +93,20 @@ Eklenti kendi yönetim sayfası ve API yanıtlarında `Cache-Control: no-store`,
 depo/yönlendirici hatalarını `next(err)` ile host hata katmanına iletir. Eklenti kendi
 yazma API'lerinde `X-LLM-CSRF: 1` başlığını ister.
 
-### Express dışı (Next.js, SPA, Python, Masaüstü) entegrasyonlar
+### Express dışı (Next.js, Nuxt, SvelteKit, Vue/React SPA, C#/.NET, Python, Masaüstü) entegrasyonlar
 
-| Uygulama Türü | Kurulum / Bağlama | Nasıl Soru Sorulur? |
-| --- | --- | --- |
-| **Express.js Sunucu** | `const llm = mountLLMManagement(app, { adminPassword })` | `await llm.ask('Merhaba')` |
-| **SPA / Statik Web (React, Vue, Vite)** | `npx llm-manager --password 123 --cors *` | `POST /api/llm/chat` (`{ prompt: 'Merhaba' }`) |
-| **Full-Stack (Next.js, Nuxt, SvelteKit)** | `const llm = createLLMManager()` + `llm.fetch(request)` | `await llm.ask('Merhaba')` |
-| **Diğer Diller (Python, Go, C#, PHP)** | `npx llm-manager --password 123` | `POST http://127.0.0.1:8010/api/llm/chat` |
-| **Masaüstü (Electron / Tauri)** | `createLLMManager({ dataDir: app.getPath('userData') })` | `ipcMain.handle('sor', (_, s) => llm.ask(s))` |
+Projenizin klasöründe `npx llm-manager init --password 12345` komutunu çalıştırdığınızda sihirbaz projenizin mimarisini ve ana dosyasını otomatik algılar, onayınızla bağlantı kodlarını ilgili dosyalara yazar, iç doğrulama (syntax & bağlantı kontrolü) yapar ve `/llm` yönetim ekranını tarayıcıda otomatik açar:
+
+| Uygulama Türü | Algılama (`--type`) | Otomatik Oluşturulan Dosya | Otomatik Eklendiği Ana Dosya | Nasıl Soru Sorulur? |
+| --- | --- | --- | --- | --- |
+| **Express.js Sunucu** (ESM & CommonJS) | `express` | `llm.js` | `server.js` / `app.js` / `index.js` | `await askLLM('Merhaba')` |
+| **SPA / Statik Web** (React, Vue `.vue`, Vite) | `spa` | `src/llm.js` | `src/App.vue` / `src/App.jsx` / `src/main.ts` | `await askLLM('Merhaba')` |
+| **Next.js** (App Router) | `nextjs` | `llm.js` + `app/llm` & `app/api/llm` | `app/page.js` / `src/app/page.tsx` | `await askLLM('Merhaba')` |
+| **Nuxt 3** | `nuxt` | `llm.js` + `server/api/llm` & `server/routes/llm` | `app.vue` / `pages/index.vue` | `await askLLM('Merhaba')` |
+| **SvelteKit** | `sveltekit` | `src/lib/llm.js` + `+server.js` rotaları | `src/routes/+page.svelte` | `await askLLM('Merhaba')` |
+| **C# (.NET Core / MVC / MVP / Desktop)** | `dotnet` | `LlmClient.cs` | `Program.cs` / `Startup.cs` / `HomeController.cs` / `Form1.cs` | `await LlmClient.AskAsync("Merhaba")` |
+| **Python** (Flask, FastAPI, Django) | `python` | `llm_client.py` | `main.py` / `app.py` / `manage.py` | `ask_llm("Merhaba")` |
+| **Masaüstü (Electron / Tauri)** | `electron` | `llm.js` | `main.js` / `electron/main.js` | `await askLLM('Merhaba')` / `ipcRenderer.invoke('llm:ask', ...)` |
 
 Tüm senaryoların sade ve adım adım açıklamaları için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 
