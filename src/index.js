@@ -3,7 +3,14 @@ import { Router } from 'express';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
-import { initLLMProject, detectProjectType, detectEntryFile, injectIntoEntryFile } from './init.js';
+import {
+  initLLMProject,
+  detectProjectType,
+  detectEntryFile,
+  injectIntoEntryFile,
+  verifyIntegration,
+  formatVerificationReport
+} from './init.js';
 import {
   CSRF_HEADER,
   SAFE_METHODS,
@@ -13,7 +20,14 @@ import {
 } from './core.js';
 
 export { generateProfileResponse, classifyLLMError, PROVIDERS, validateProviderUrl, createLLMProfileStore };
-export { initLLMProject, detectProjectType, detectEntryFile, injectIntoEntryFile };
+export {
+  initLLMProject,
+  detectProjectType,
+  detectEntryFile,
+  injectIntoEntryFile,
+  verifyIntegration,
+  formatVerificationReport
+};
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
 
 const COMMON_HEADERS = {

@@ -6,7 +6,9 @@ import path from 'node:path';
 import {
   initLLMProject,
   detectEntryFile,
-  injectIntoEntryFile
+  injectIntoEntryFile,
+  verifyIntegration,
+  formatVerificationReport
 } from '../src/index.js';
 
 test('detectEntryFile ve injectIntoEntryFile: Express ESM senaryosu, idempotency ve rollback', () => {
@@ -178,6 +180,146 @@ test('detectEntryFile ve injectIntoEntryFile: SPA, Next.js, Python ve Electron s
     const missingRes = injectIntoEntryFile({ cwd: emptyDir, type: 'express' });
     assert.equal(missingRes.modified, false);
     assert.equal(missingRes.entryFile, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('verifyIntegration ve formatVerificationReport: başarılı kurulum, eksik yardımcı dosya, eksik import ve syntax hatası kontrolleri', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-verify-'));
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ type: 'module', dependencies: { express: '^4.19.2' } })
+    );
+    const serverCode = [
+      "import express from 'express';",
+      'const app = express();',
+      'app.use(express.json());',
+      'app.listen(3000);',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, 'server.js'), serverCode, 'utf8');
+
+    // 1. Başarılı kurulum ve enjeksiyon sonrası ok: true
+    initLLMProject({ cwd, type: 'express' });
+    injectIntoEntryFile({ cwd, type: 'express' });
+
+    const okReport = verifyIntegration({ cwd, type: 'express' });
+    assert.equal(okReport.ok, true);
+    assert.equal(okReport.type, 'express');
+    assert.equal(okReport.entryFile, 'server.js');
+    assert.equal(okReport.checks.length, 4);
+    assert.ok(okReport.checks.every(c => c.ok));
+
+    const formattedOk = formatVerificationReport(okReport);
+    assert.ok(formattedOk.includes('✔ Veri ve Şifreleme Klasörü Kontrolü'));
+    assert.ok(formattedOk.includes('✔ Yardımcı Bağlantı Dosyaları Kontrolü'));
+    assert.ok(formattedOk.includes('✔ Ana Dosya Import / Bağlantı Kontrolü'));
+    assert.ok(formattedOk.includes('✔ Sözdizimi / Derleme Kontrolü'));
+
+    // 2. Eksik llm.js durumunda helper_files ok: false ve Türkçe çözüm önerisi
+    fs.unlinkSync(path.join(cwd, 'llm.js'));
+    const missingHelperReport = verifyIntegration({ cwd, type: 'express' });
+    assert.equal(missingHelperReport.ok, false);
+    const helperCheck = missingHelperReport.checks.find(c => c.id === 'helper_files');
+    assert.equal(helperCheck.ok, false);
+    assert.equal(helperCheck.error, 'Eksik bağlantı dosyası tespit edildi: llm.js');
+    assert.equal(
+      helperCheck.solution,
+      'Eksik dosyaları yeniden oluşturmak için terminalde "npx llm-manager init --force" komutunu çalıştırın.'
+    );
+
+    const formattedMissing = formatVerificationReport(missingHelperReport);
+    assert.ok(formattedMissing.includes('✖ Yardımcı Bağlantı Dosyaları Kontrolü'));
+    assert.ok(formattedMissing.includes('  Neden: Eksik bağlantı dosyası tespit edildi: llm.js'));
+    assert.ok(
+      formattedMissing.includes(
+        '  Çözüm: Eksik dosyaları yeniden oluşturmak için terminalde "npx llm-manager init --force" komutunu çalıştırın.'
+      )
+    );
+
+    // llm.js'yi geri yükle
+    initLLMProject({ cwd, type: 'express', force: true });
+
+    // 3. entryFile içinde import silindiğinde entry_binding ok: false ve Türkçe çözüm önerisi
+    fs.writeFileSync(path.join(cwd, 'server.js'), serverCode, 'utf8');
+    const missingBindingReport = verifyIntegration({ cwd, type: 'express' });
+    assert.equal(missingBindingReport.ok, false);
+    const bindingCheck = missingBindingReport.checks.find(c => c.id === 'entry_binding');
+    assert.equal(bindingCheck.ok, false);
+    assert.equal(
+      bindingCheck.error,
+      'server.js dosyasında llm-manager bağlantısı (import/setup) bulunamadı.'
+    );
+    assert.equal(
+      bindingCheck.solution,
+      'server.js dosyasına ilgili import satırını ekleyin veya "npx llm-manager init" komutunu tekrar çalıştırıp otomatik eklemeyi onaylayın.'
+    );
+
+    // 4. entryFile içine bozuk JS (const a = ;) yazıldığında syntax_check ok: false ve Türkçe hata/çözüm metni
+    fs.writeFileSync(
+      path.join(cwd, 'server.js'),
+      "import { setupLLM } from './llm.js';\nconst a = ;\n",
+      'utf8'
+    );
+    const syntaxReport = verifyIntegration({ cwd, type: 'express' });
+    assert.equal(syntaxReport.ok, false);
+    const syntaxCheck = syntaxReport.checks.find(c => c.id === 'syntax_check');
+    assert.equal(syntaxCheck.ok, false);
+    assert.ok(
+      syntaxCheck.error.startsWith(
+        'server.js içinde sözdizimi (syntax) hatası tespit edildi: '
+      )
+    );
+    assert.equal(
+      syntaxCheck.solution,
+      'server.js dosyasındaki hatalı satırı düzeltin veya yedeğe dönüp "npx llm-manager init --force" çalıştırın.'
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('verifyIntegration: Next.js, SPA (JSX), Electron ve Python senaryoları', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-verify-multi-'));
+  try {
+    // Next.js
+    const nextDir = path.join(root, 'next');
+    fs.mkdirSync(path.join(nextDir, 'src', 'app'), { recursive: true });
+    fs.writeFileSync(
+      path.join(nextDir, 'src', 'app', 'page.tsx'),
+      "'use client';\nexport default function Page() { return <div />; }\n",
+      'utf8'
+    );
+    initLLMProject({ cwd: nextDir, type: 'nextjs' });
+    injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' });
+    const nextRep = verifyIntegration({ cwd: nextDir, type: 'nextjs' });
+    assert.equal(nextRep.ok, true);
+
+    // JSX bozuk parantez kontrolü
+    const spaDir = path.join(root, 'spa');
+    fs.mkdirSync(path.join(spaDir, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(spaDir, 'src', 'App.jsx'),
+      "import { askLLM } from './llm.js';\nexport default function App() { return (<div>; }\n",
+      'utf8'
+    );
+    initLLMProject({ cwd: spaDir, type: 'spa' });
+    const spaRep = verifyIntegration({ cwd: spaDir, type: 'spa' });
+    assert.equal(spaRep.ok, false);
+    const spaSyntax = spaRep.checks.find(c => c.id === 'syntax_check');
+    assert.equal(spaSyntax.ok, false);
+    assert.ok(spaSyntax.error.startsWith('src/App.jsx içinde sözdizimi (syntax) hatası tespit edildi:'));
+
+    // Python
+    const pyDir = path.join(root, 'py');
+    fs.mkdirSync(pyDir, { recursive: true });
+    fs.writeFileSync(path.join(pyDir, 'main.py'), "print('ok')\n", 'utf8');
+    initLLMProject({ cwd: pyDir, type: 'python' });
+    injectIntoEntryFile({ cwd: pyDir, type: 'python' });
+    const pyRep = verifyIntegration({ cwd: pyDir, type: 'python' });
+    assert.equal(pyRep.ok, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

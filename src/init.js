@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -497,4 +498,270 @@ def ask_llm(prompt: str, system: str = "") -> str:
 
   const scriptAdded = ensureNpmScript(cwd, password);
   return { type, esm, createdFiles, scriptAdded, password };
+}
+
+function getExpectedHelperFiles(cwd, type) {
+  if (type === 'python') return ['llm_client.py'];
+  if (type === 'spa') return [resolveLlmRelPath(cwd, 'spa')];
+  if (type === 'nextjs') {
+    const hasSrcApp = fs.existsSync(path.join(cwd, 'src', 'app'));
+    const baseDir = hasSrcApp ? 'src' : '';
+    const llmRel = baseDir ? `${baseDir}/llm.js` : 'llm.js';
+    const apiRouteRel = `${baseDir ? `${baseDir}/` : ''}app/api/llm/[...slug]/route.js`;
+    const pageRouteRel = `${baseDir ? `${baseDir}/` : ''}app/llm/[[...slug]]/route.js`;
+    return [llmRel, apiRouteRel, pageRouteRel];
+  }
+  return ['llm.js'];
+}
+
+function checkJsxBasicSyntax(content) {
+  if (/=\s*;/.test(content)) {
+    return "SyntaxError: Unexpected token ';'";
+  }
+  const pairs = { '(': ')', '{': '}', '[': ']' };
+  const closing = new Set([')', '}', ']']);
+  const stack = [];
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content[i];
+    const next = content[i + 1];
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (inSingle) {
+      if (ch === '\\') i += 1;
+      else if (ch === "'" || ch === '\n') inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '\\') i += 1;
+      else if (ch === '"' || ch === '\n') inDouble = false;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '\\') i += 1;
+      else if (ch === '`') inTemplate = false;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      continue;
+    }
+
+    if (pairs[ch]) {
+      stack.push(pairs[ch]);
+    } else if (closing.has(ch)) {
+      const expected = stack.pop();
+      if (expected !== ch) {
+        return `Eşleşmeyen parantez veya blok yapısı ('${ch}')`;
+      }
+    }
+  }
+
+  if (stack.length > 0) {
+    return `Kapatılmamış parantez veya blok yapısı ('${stack[stack.length - 1]}' bekleniyordu)`;
+  }
+  return null;
+}
+
+function runNodeSyntaxCheck(fullPath) {
+  try {
+    execFileSync(process.execPath, ['--check', fullPath], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    return null;
+  } catch (err) {
+    const stderr = String(err.stderr || err.message || '');
+    const syntaxLine = stderr
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .find(l => l.startsWith('SyntaxError:'));
+    const fallbackLine = stderr
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .find(Boolean);
+    return syntaxLine || fallbackLine || 'Geçersiz JavaScript sözdizimi';
+  }
+}
+
+export function verifyIntegration({
+  cwd = process.cwd(),
+  type = detectProjectType(cwd),
+  entryFile = detectEntryFile(cwd, type)
+} = {}) {
+  const normalizedEntry = entryFile ? entryFile.replace(/\\/g, '/').replace(/^\.\//, '') : null;
+  const checks = [];
+
+  // 1. data_dir kontrolü
+  const dataDirTitle = 'Veri ve Şifreleme Klasörü Kontrolü';
+  const dataDir = path.join(cwd, 'data');
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.accessSync(dataDir, fs.constants.W_OK);
+    checks.push({ id: 'data_dir', title: dataDirTitle, ok: true });
+  } catch {
+    checks.push({
+      id: 'data_dir',
+      title: dataDirTitle,
+      ok: false,
+      error: 'Veri klasörüne (./data) yazma izni yok.',
+      solution: 'Proje klasörünün yazma izinlerini kontrol edin veya uygulamayı yazma izni olan bir klasörde çalıştırın.'
+    });
+  }
+
+  // 2. helper_files kontrolü
+  const helperTitle = 'Yardımcı Bağlantı Dosyaları Kontrolü';
+  const expectedHelpers = getExpectedHelperFiles(cwd, type);
+  let missingHelper = null;
+  for (const rel of expectedHelpers) {
+    const full = path.join(cwd, rel);
+    if (!fs.existsSync(full) || !fs.statSync(full).isFile() || fs.readFileSync(full, 'utf8').trim().length === 0) {
+      missingHelper = rel;
+      break;
+    }
+  }
+  if (missingHelper) {
+    checks.push({
+      id: 'helper_files',
+      title: helperTitle,
+      ok: false,
+      error: `Eksik bağlantı dosyası tespit edildi: ${missingHelper}`,
+      solution: 'Eksik dosyaları yeniden oluşturmak için terminalde "npx llm-manager init --force" komutunu çalıştırın.'
+    });
+  } else {
+    checks.push({ id: 'helper_files', title: helperTitle, ok: true });
+  }
+
+  // 3. entry_binding kontrolü
+  const bindingTitle = 'Ana Dosya Import / Bağlantı Kontrolü';
+  if (normalizedEntry && fs.existsSync(path.join(cwd, normalizedEntry)) && fs.statSync(path.join(cwd, normalizedEntry)).isFile()) {
+    const content = fs.readFileSync(path.join(cwd, normalizedEntry), 'utf8');
+    let hasBinding = false;
+    if (type === 'express') {
+      hasBinding = /\b(?:setupLLM|askLLM)\b/.test(content);
+    } else if (type === 'spa' || type === 'nextjs') {
+      hasBinding = /\baskLLM\b/.test(content);
+    } else if (type === 'electron') {
+      hasBinding = /\b(?:registerLLMIpc|askLLM)\b/.test(content);
+    } else if (type === 'python') {
+      hasBinding = /\bask_llm\b/.test(content);
+    } else {
+      hasBinding = true;
+    }
+
+    if (!hasBinding) {
+      checks.push({
+        id: 'entry_binding',
+        title: bindingTitle,
+        ok: false,
+        error: `${normalizedEntry} dosyasında llm-manager bağlantısı (import/setup) bulunamadı.`,
+        solution: `${normalizedEntry} dosyasına ilgili import satırını ekleyin veya "npx llm-manager init" komutunu tekrar çalıştırıp otomatik eklemeyi onaylayın.`
+      });
+    } else {
+      checks.push({ id: 'entry_binding', title: bindingTitle, ok: true });
+    }
+  } else {
+    checks.push({ id: 'entry_binding', title: bindingTitle, ok: true });
+  }
+
+  // 4. syntax_check kontrolü
+  const syntaxTitle = 'Sözdizimi / Derleme Kontrolü';
+  const filesToSyntaxCheck = [];
+  if (type !== 'python') {
+    const helperRel = resolveLlmRelPath(cwd, type);
+    if (fs.existsSync(path.join(cwd, helperRel))) {
+      filesToSyntaxCheck.push(helperRel);
+    }
+  }
+  if (normalizedEntry && fs.existsSync(path.join(cwd, normalizedEntry)) && !filesToSyntaxCheck.includes(normalizedEntry)) {
+    filesToSyntaxCheck.push(normalizedEntry);
+  }
+
+  let syntaxFailure = null;
+  for (const rel of filesToSyntaxCheck) {
+    const ext = path.extname(rel).toLowerCase();
+    const full = path.join(cwd, rel);
+    if (['.js', '.mjs', '.cjs'].includes(ext)) {
+      const detail = runNodeSyntaxCheck(full);
+      if (detail) {
+        syntaxFailure = { file: rel, detail };
+        break;
+      }
+    } else if (['.jsx', '.tsx'].includes(ext)) {
+      const content = fs.readFileSync(full, 'utf8');
+      const detail = checkJsxBasicSyntax(content);
+      if (detail) {
+        syntaxFailure = { file: rel, detail };
+        break;
+      }
+    }
+  }
+
+  if (syntaxFailure) {
+    checks.push({
+      id: 'syntax_check',
+      title: syntaxTitle,
+      ok: false,
+      error: `${syntaxFailure.file} içinde sözdizimi (syntax) hatası tespit edildi: ${syntaxFailure.detail}`,
+      solution: `${syntaxFailure.file} dosyasındaki hatalı satırı düzeltin veya yedeğe dönüp "npx llm-manager init --force" çalıştırın.`
+    });
+  } else {
+    checks.push({ id: 'syntax_check', title: syntaxTitle, ok: true });
+  }
+
+  return {
+    ok: checks.every(c => c.ok),
+    type,
+    entryFile: normalizedEntry,
+    checks
+  };
+}
+
+export function formatVerificationReport(report) {
+  if (!report || !Array.isArray(report.checks)) return '';
+  const lines = [];
+  for (const check of report.checks) {
+    if (check.ok) {
+      lines.push(`✔ ${check.title}`);
+    } else {
+      lines.push(`✖ ${check.title}`);
+      if (check.error) lines.push(`  Neden: ${check.error}`);
+      if (check.solution) lines.push(`  Çözüm: ${check.solution}`);
+    }
+  }
+  return lines.join('\n');
 }
