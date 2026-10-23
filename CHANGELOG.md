@@ -11,6 +11,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - Geliştirme ve CI altyapısı eklendi: ESLint flat config (`eslint.config.js`), Prettier yapılandırması (`.prettierrc`, `.prettierignore`), `.editorconfig`, `.gitattributes` ve GitHub Actions çoklu işletim sistemi / Node matrisi iş akışı (`.github/workflows/ci.yml`). `npm run lint` ve `npm run format:check` komutları tanımlandı (YH1-F1).
 
 ### Değişti
+- `src/profileStore.js` içine dosya stat kontrolü (`mtimeMs`, `size`) tabanlı okuma önbelleği ve closure tabanlı şifreleme anahtarı önbelleği eklendi; dönen nesneler `structuredClone` ile izole edilerek çağrıcı mutasyonlarının önbelleği bozması engellendi (YH1-B1).
 - Hata sınıflandırması ve yönetimi metin regex kontrolü yerine birincil olarak `error.code` tablosuna bağlandı; kullanıcı abort (`LLM_ABORTED`) ile zaman aşımı (`LLM_TIMEOUT`) ayrıştırıldı; sağlayıcı 5xx yanıtları `LLM_UPSTREAM_UNAVAILABLE`, içerik filtreleri `LLM_CONTENT_FILTERED`, aşırı büyük yanıtlar `LLM_RESPONSE_TOO_LARGE` kodlarıyla tiplendirildi (YH1-A4).
 - `src/profileStore.js` doğrulama ve durum hataları ile `src/runtime.js` seçenek denetimleri `LLMError` fırlatacak şekilde güncellendi (YH1-A4).
 - `src/index.js` içinden `init.js` statik bağımlılığı kaldırıldı; `src/init.js` içerisindeki statik `express` bağımlılığı temizlendi. `src/index.js` üzerinden `init` fonksiyonlarına erişim asenkron lazy sarmalayıcılarla geriye dönük uyumlu tutuldu (`@deprecated`, YH1-A1).

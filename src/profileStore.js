@@ -108,11 +108,28 @@ export function createLLMProfileStore({
   encryptionKey,
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
 } = {}) {
+  let cachedKeyBytes = null;
   const getKeyBytes = () =>
-    parseEncryptionKey(encryptionKey !== undefined ? encryptionKey : resolveAutoEncryptionKey(filePath));
+    (cachedKeyBytes ??= parseEncryptionKey(
+      encryptionKey !== undefined ? encryptionKey : resolveAutoEncryptionKey(filePath)
+    ));
 
-  const read = () =>
-    fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : { profiles: [], activeId: null };
+  let cache = null; // { mtimeMs, size, data }
+
+  const read = () => {
+    if (!fs.existsSync(filePath)) {
+      cache = null;
+      return { profiles: [], activeId: null };
+    }
+    const stat = fs.statSync(filePath);
+    if (cache && cache.mtimeMs === stat.mtimeMs && cache.size === stat.size) {
+      return structuredClone(cache.data);
+    }
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(raw);
+    cache = { mtimeMs: stat.mtimeMs, size: stat.size, data };
+    return structuredClone(data);
+  };
 
   const write = value => {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -123,6 +140,12 @@ export function createLLMProfileStore({
     } catch (error) {
       fs.rmSync(temporary, { force: true });
       throw error;
+    }
+    try {
+      const stat = fs.statSync(filePath);
+      cache = { mtimeMs: stat.mtimeMs, size: stat.size, data: structuredClone(value) };
+    } catch {
+      cache = null;
     }
   };
 
