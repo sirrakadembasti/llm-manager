@@ -10,7 +10,6 @@ import {
   injectIntoEntryFile,
   verifyIntegration,
   formatVerificationReport,
-  probeAndOpenBrowser,
   runInteractiveInit
 } from '../src/index.js';
 
@@ -64,15 +63,10 @@ test('detectEntryFile ve injectIntoEntryFile: Express CommonJS ve alt dizin (src
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-exp-cjs-'));
   try {
     fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
-    fs.writeFileSync(
-      path.join(cwd, 'package.json'),
-      JSON.stringify({ dependencies: { express: '^4.19.2' } })
+    fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ dependencies: { express: '^4.19.2' } }));
+    const originalApp = ["const express = require('express');", 'const app = express();', 'app.listen(3000);'].join(
+      '\n'
     );
-    const originalApp = [
-      "const express = require('express');",
-      'const app = express();',
-      'app.listen(3000);'
-    ].join('\n');
     fs.writeFileSync(path.join(cwd, 'src', 'app.js'), originalApp, 'utf8');
 
     initLLMProject({ cwd });
@@ -251,30 +245,19 @@ test('verifyIntegration ve formatVerificationReport: başarılı kurulum, eksik 
     assert.equal(missingBindingReport.ok, false);
     const bindingCheck = missingBindingReport.checks.find(c => c.id === 'entry_binding');
     assert.equal(bindingCheck.ok, false);
-    assert.equal(
-      bindingCheck.error,
-      'server.js dosyasında llm-manager bağlantısı (import/setup) bulunamadı.'
-    );
+    assert.equal(bindingCheck.error, 'server.js dosyasında llm-manager bağlantısı (import/setup) bulunamadı.');
     assert.equal(
       bindingCheck.solution,
       'server.js dosyasına ilgili import satırını ekleyin veya "npx llm-manager init" komutunu tekrar çalıştırıp otomatik eklemeyi onaylayın.'
     );
 
     // 4. entryFile içine bozuk JS (const a = ;) yazıldığında syntax_check ok: false ve Türkçe hata/çözüm metni
-    fs.writeFileSync(
-      path.join(cwd, 'server.js'),
-      "import { setupLLM } from './llm.js';\nconst a = ;\n",
-      'utf8'
-    );
+    fs.writeFileSync(path.join(cwd, 'server.js'), "import { setupLLM } from './llm.js';\nconst a = ;\n", 'utf8');
     const syntaxReport = verifyIntegration({ cwd, type: 'express' });
     assert.equal(syntaxReport.ok, false);
     const syntaxCheck = syntaxReport.checks.find(c => c.id === 'syntax_check');
     assert.equal(syntaxCheck.ok, false);
-    assert.ok(
-      syntaxCheck.error.startsWith(
-        'server.js içinde sözdizimi (syntax) hatası tespit edildi: '
-      )
-    );
+    assert.ok(syntaxCheck.error.startsWith('server.js içinde sözdizimi (syntax) hatası tespit edildi: '));
     assert.equal(
       syntaxCheck.solution,
       'server.js dosyasındaki hatalı satırı düzeltin veya yedeğe dönüp "npx llm-manager init --force" çalıştırın.'
@@ -426,7 +409,6 @@ test('runInteractiveInit: 2. aşamada kullanıcı hayır dediğinde rollback ça
   }
 });
 
-
 test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core / MVC / MVP), Vue, Nuxt ve SvelteKit senaryoları', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-dotnet-vue-nuxt-'));
   try {
@@ -434,14 +416,19 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     const dotnetDir = path.join(root, 'dotnet-app');
     fs.mkdirSync(dotnetDir, { recursive: true });
     fs.writeFileSync(path.join(dotnetDir, 'MyWebApp.csproj'), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n');
-    const origProgramCs = 'using System;\nusing Microsoft.AspNetCore.Builder;\n\nvar builder = WebApplication.CreateBuilder(args);\n';
+    const origProgramCs =
+      'using System;\nusing Microsoft.AspNetCore.Builder;\n\nvar builder = WebApplication.CreateBuilder(args);\n';
     fs.writeFileSync(path.join(dotnetDir, 'Program.cs'), origProgramCs);
 
     assert.equal(detectProjectType(dotnetDir), 'dotnet');
     assert.equal(detectEntryFile(dotnetDir, 'dotnet'), 'Program.cs');
     const dotnetInit = initLLMProject({ cwd: dotnetDir, password: 'sifre' });
     assert.deepEqual(dotnetInit.createdFiles, ['LlmClient.cs']);
-    assert.ok(fs.readFileSync(path.join(dotnetDir, 'LlmClient.cs'), 'utf8').includes('public static async Task<string> AskAsync'));
+    assert.ok(
+      fs
+        .readFileSync(path.join(dotnetDir, 'LlmClient.cs'), 'utf8')
+        .includes('public static async Task<string> AskAsync')
+    );
     const dotnetInject = injectIntoEntryFile({ cwd: dotnetDir, type: 'dotnet' });
     assert.equal(dotnetInject.modified, true);
     assert.ok(fs.readFileSync(path.join(dotnetDir, 'Program.cs'), 'utf8').includes('using LlmManager;'));
@@ -462,7 +449,11 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     initLLMProject({ cwd: vueDir });
     const vueInject = injectIntoEntryFile({ cwd: vueDir, type: 'spa' });
     assert.equal(vueInject.modified, true);
-    assert.ok(fs.readFileSync(path.join(vueDir, 'src/App.vue'), 'utf8').includes("<script setup>\nimport { askLLM } from './llm.js';"));
+    assert.ok(
+      fs
+        .readFileSync(path.join(vueDir, 'src/App.vue'), 'utf8')
+        .includes("<script setup>\nimport { askLLM } from './llm.js';")
+    );
     assert.equal(verifyIntegration({ cwd: vueDir, type: 'spa' }).ok, true);
 
     // 3. Nuxt 3 (app.vue + server/api/llm/[...slug].js)
@@ -481,7 +472,10 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     // 4. SvelteKit (src/routes/+page.svelte)
     const svelteDir = path.join(root, 'svelte-app');
     fs.mkdirSync(path.join(svelteDir, 'src/routes'), { recursive: true });
-    fs.writeFileSync(path.join(svelteDir, 'package.json'), JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0' } }));
+    fs.writeFileSync(
+      path.join(svelteDir, 'package.json'),
+      JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0' } })
+    );
     fs.writeFileSync(path.join(svelteDir, 'src/routes/+page.svelte'), '<script>\n</script>\n<h1>SvelteKit</h1>\n');
 
     assert.equal(detectProjectType(svelteDir), 'sveltekit');

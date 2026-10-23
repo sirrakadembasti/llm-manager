@@ -14,7 +14,12 @@ export const PROVIDERS = Object.freeze([
     region: 'ABD',
     transport: 'anthropic',
     baseURL: 'https://api.anthropic.com/v1',
-    models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-latest', 'claude-3-5-haiku-latest']
+    models: [
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-haiku-latest'
+    ]
   },
   {
     id: 'google',
@@ -70,7 +75,11 @@ export const PROVIDERS = Object.freeze([
     region: 'ABD',
     transport: 'openai',
     baseURL: 'https://api.fireworks.ai/inference/v1',
-    models: ['accounts/fireworks/models/deepseek-v3', 'accounts/fireworks/models/deepseek-r1', 'accounts/fireworks/models/llama-v3p3-70b-instruct']
+    models: [
+      'accounts/fireworks/models/deepseek-v3',
+      'accounts/fireworks/models/deepseek-r1',
+      'accounts/fireworks/models/llama-v3p3-70b-instruct'
+    ]
   },
   {
     id: 'cohere',
@@ -99,7 +108,10 @@ export const PROVIDERS = Object.freeze([
     transport: 'openai',
     baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     endpoints: [
-      { name: 'Uluslararası / Singapur (dashscope-intl)', baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' },
+      {
+        name: 'Uluslararası / Singapur (dashscope-intl)',
+        baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+      },
       { name: 'ABD / Virginia (dashscope-us)', baseURL: 'https://dashscope-us.aliyuncs.com/compatible-mode/v1' },
       { name: 'Çin / Pekin (dashscope)', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1' }
     ],
@@ -205,7 +217,11 @@ export const PROVIDERS = Object.freeze([
 const disallowedHost = /(^|\.)(localhost|local|internal)$/i;
 export function validateProviderUrl(value, { allowLocalHttp = false } = {}) {
   let url;
-  try { url = new URL(String(value || '')); } catch { throw new Error('Geçerli bir API adresi girin.'); }
+  try {
+    url = new URL(String(value || ''));
+  } catch {
+    throw new Error('Geçerli bir API adresi girin.');
+  }
   if (url.username || url.password) throw new Error('API adresinde kimlik bilgisi bulunamaz.');
   if (url.search || url.hash) throw new Error('API adresinde sorgu veya parça bulunamaz.');
   const host = url.hostname.replace(/^\[|\]$/g, '');
@@ -213,6 +229,7 @@ export function validateProviderUrl(value, { allowLocalHttp = false } = {}) {
   const ip = net.isIP(host);
   if (local && !(allowLocalHttp && url.protocol === 'http:')) throw new Error('Yerel API adresi kapalıdır.');
   if (ip && !allowLocalHttp) throw new Error('IP adresine doğrudan bağlantı kapalıdır.');
-  if (url.protocol !== 'https:' && !(allowLocalHttp && local && url.protocol === 'http:')) throw new Error('API adresi HTTPS kullanmalıdır.');
+  if (url.protocol !== 'https:' && !(allowLocalHttp && local && url.protocol === 'http:'))
+    throw new Error('API adresi HTTPS kullanmalıdır.');
   return url.toString().replace(/\/$/, '');
 }

@@ -9,23 +9,31 @@ import { buildProviderRequest, classifyLLMError, generateProfileResponse } from 
 
 test('conversation runtime rejects nonempty truncated answers for every transport', async () => {
   const original = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    choices: [{ finish_reason: 'length', message: { content: 'partial' } }],
-    candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'partial' }] } }],
-    stop_reason: 'max_tokens',
-    content: [{ type: 'text', text: 'partial' }]
-  }));
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [{ finish_reason: 'length', message: { content: 'partial' } }],
+        candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'partial' }] } }],
+        stop_reason: 'max_tokens',
+        content: [{ type: 'text', text: 'partial' }]
+      })
+    );
   try {
     for (const purpose of [undefined, 'manager']) {
       for (const transport of ['openai', 'google', 'anthropic']) {
         await assert.rejects(
-          () => generateProfileResponse([], {
-            provider: 'custom',
-            transport,
-            model: 'model',
-            baseURL: 'https://provider.example/v1',
-            apiKey: 'fixture'
-          }, { purpose }),
+          () =>
+            generateProfileResponse(
+              [],
+              {
+                provider: 'custom',
+                transport,
+                model: 'model',
+                baseURL: 'https://provider.example/v1',
+                apiKey: 'fixture'
+              },
+              { purpose }
+            ),
           error => error.code === 'LLM_TRUNCATED'
         );
       }
@@ -57,7 +65,11 @@ test('runtime controls, credentials and revision fencing survive reload', () => 
     const edited = store.save({ ...profile, name: 'Changed', apiKey: '' });
     assert.equal(store.recordTest(profile.id, 'passed', profile.revision), null);
     store.recordTest(profile.id, 'passed', edited.revision, { mode: 'quick', durationMs: 10 });
-    store.recordTest(profile.id, 'failed', edited.revision, { mode: 'conversation', durationMs: 90000, code: 'LLM_TIMEOUT' });
+    store.recordTest(profile.id, 'failed', edited.revision, {
+      mode: 'conversation',
+      durationMs: 90000,
+      code: 'LLM_TIMEOUT'
+    });
     const latest = store.list().profiles[0];
     assert.equal(latest.lastTests.quick.status, 'passed');
     assert.equal(latest.lastTests.conversation.code, 'LLM_TIMEOUT');
@@ -79,8 +91,14 @@ test('MiMo Manager speed policy leaves production reasoning and other providers 
   assert.deepEqual(manager.body.thinking, { type: 'disabled' });
   assert.equal(manager.body.max_completion_tokens, 8192);
   assert.equal(buildProviderRequest(profile, [], {}).body.thinking, undefined);
-  assert.deepEqual(buildProviderRequest({ ...profile, thinking: 'enabled' }, [], { purpose: 'manager' }).body.thinking, { type: 'enabled' });
-  assert.equal(buildProviderRequest({ ...profile, provider: 'custom' }, [], { purpose: 'manager' }).body.thinking, undefined);
+  assert.deepEqual(
+    buildProviderRequest({ ...profile, thinking: 'enabled' }, [], { purpose: 'manager' }).body.thinking,
+    { type: 'enabled' }
+  );
+  assert.equal(
+    buildProviderRequest({ ...profile, provider: 'custom' }, [], { purpose: 'manager' }).body.thinking,
+    undefined
+  );
 });
 
 test('provider failure classification never returns upstream text or credentials', () => {
@@ -99,7 +117,13 @@ test('provider failure classification never returns upstream text or credentials
 test('custom mounted plugin enforces auth/CSRF and stores actual conversation diagnostics', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-plugin-http-'));
   const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'bc'.repeat(32) });
-  const profile = store.save({ name: 'Test', provider: 'custom', model: 'test', baseURL: 'https://provider.example/v1', apiKey: 'secret' });
+  const profile = store.save({
+    name: 'Test',
+    provider: 'custom',
+    model: 'test',
+    baseURL: 'https://provider.example/v1',
+    apiKey: 'secret'
+  });
   const app = express();
   app.use(express.json());
   const calls = [];
@@ -200,7 +224,13 @@ test('framework-agnostic core handles CRUD, activation, testing and unknown rout
     const created = await manager.handle({
       method: 'POST',
       path: '/profiles',
-      body: { name: 'Core', provider: 'custom', model: 'm1', baseURL: 'https://provider.example/v1', apiKey: 'secret-key' }
+      body: {
+        name: 'Core',
+        provider: 'custom',
+        model: 'm1',
+        baseURL: 'https://provider.example/v1',
+        apiKey: 'secret-key'
+      }
     });
     assert.equal(created.status, 201);
     assert.ok(!JSON.stringify(created.body).includes('secret-key'));
@@ -238,8 +268,20 @@ test('framework-agnostic core handles CRUD, activation, testing and unknown rout
 test('POST /chat endpoint supports active and explicit profileId, enforces chatAccess, and never leaks apiKey', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-chat-'));
   const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'de'.repeat(32) });
-  const p1 = store.save({ name: 'Aktif Model', provider: 'openai', model: 'gpt-4.1', baseURL: 'https://api.openai.com/v1', apiKey: 'sk-secret-1' });
-  const p2 = store.save({ name: 'Yedek Model', provider: 'anthropic', model: 'claude-sonnet-4-20250514', baseURL: 'https://api.anthropic.com/v1', apiKey: 'sk-secret-2' });
+  const p1 = store.save({
+    name: 'Aktif Model',
+    provider: 'openai',
+    model: 'gpt-4.1',
+    baseURL: 'https://api.openai.com/v1',
+    apiKey: 'sk-secret-1'
+  });
+  const p2 = store.save({
+    name: 'Yedek Model',
+    provider: 'anthropic',
+    model: 'claude-sonnet-4-20250514',
+    baseURL: 'https://api.anthropic.com/v1',
+    apiKey: 'sk-secret-2'
+  });
 
   const app = express();
   app.use(express.json());
@@ -347,11 +389,13 @@ test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, admi
     assert.equal(webPageRes.status, 200);
     assert.ok((await webPageRes.text()).includes('LLM Yönetimi'));
 
-    const webChatRes = await llm.fetch(new Request('http://localhost/api/llm/chat', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
-      body: JSON.stringify({ prompt: 'Web standart cagri' })
-    }));
+    const webChatRes = await llm.fetch(
+      new Request('http://localhost/api/llm/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
+        body: JSON.stringify({ prompt: 'Web standart cagri' })
+      })
+    );
     assert.equal(webChatRes.status, 200);
     assert.equal((await webChatRes.json()).content, 'Cevap:gpt-4.1-mini:Web standart cagri');
 
@@ -377,7 +421,6 @@ test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, admi
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-
 
 import { initLLMProject, detectProjectType } from '../src/init.js';
 
@@ -426,7 +469,10 @@ test('initLLMProject auto-detects project type and scaffolds ready-to-use files 
     // 5. Electron
     const elDir = path.join(root, 'electron-app');
     fs.mkdirSync(elDir, { recursive: true });
-    fs.writeFileSync(path.join(elDir, 'package.json'), JSON.stringify({ type: 'module', devDependencies: { electron: '^30.0.0' } }));
+    fs.writeFileSync(
+      path.join(elDir, 'package.json'),
+      JSON.stringify({ type: 'module', devDependencies: { electron: '^30.0.0' } })
+    );
     assert.equal(detectProjectType(elDir), 'electron');
     const elRes = initLLMProject({ cwd: elDir });
     assert.equal(elRes.esm, true);

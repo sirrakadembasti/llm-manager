@@ -44,15 +44,22 @@ function extractModelIds(body, profile) {
     .filter(item => !isGoogle || item.supportedGenerationMethods?.includes('generateContent'))
     .map(item => item.id || item.name)
     .filter(Boolean)
-    .map(id => isGoogle ? String(id).replace(/^models\//, '') : String(id));
+    .map(id => (isGoogle ? String(id).replace(/^models\//, '') : String(id)));
   return [...new Set(ids)].filter(id => id.length <= 160).slice(0, 500);
 }
 
 function defaultTestMessages(mode) {
   if (mode === 'quick') return [{ role: 'user', content: 'Yalnızca OK yaz.' }];
   return [
-    { role: 'system', content: 'Bir yazılım projesinin Manager ajanısın. Türkçe yanıt ver; yapılmamış işlemi yapılmış gibi gösterme.' },
-    { role: 'user', content: 'Otel yönetimi uygulaması için oda, rezervasyon, kullanıcı rolleri ve veri güvenliğini kapsayan kısa bir mimari plan öner.' }
+    {
+      role: 'system',
+      content: 'Bir yazılım projesinin Manager ajanısın. Türkçe yanıt ver; yapılmamış işlemi yapılmış gibi gösterme.'
+    },
+    {
+      role: 'user',
+      content:
+        'Otel yönetimi uygulaması için oda, rezervasyon, kullanıcı rolleri ve veri güvenliğini kapsayan kısa bir mimari plan öner.'
+    }
   ];
 }
 
@@ -78,7 +85,11 @@ export function createLLMManager({
   let cachedUi = null;
 
   const guarded = (fn, status = 200) => {
-    try { return ok(fn(), status); } catch (error) { return profileError(error); }
+    try {
+      return ok(fn(), status);
+    } catch (error) {
+      return profileError(error);
+    }
   };
 
   function normalizeMessagesInput(bodyOrInput, systemPrompt) {
@@ -93,7 +104,9 @@ export function createLLMManager({
       if (Array.isArray(bodyOrInput.messages)) return bodyOrInput.messages;
       if (typeof bodyOrInput.prompt === 'string' && bodyOrInput.prompt.trim()) {
         return [
-          ...(typeof bodyOrInput.system === 'string' && bodyOrInput.system.trim() ? [{ role: 'system', content: bodyOrInput.system }] : []),
+          ...(typeof bodyOrInput.system === 'string' && bodyOrInput.system.trim()
+            ? [{ role: 'system', content: bodyOrInput.system }]
+            : []),
           { role: 'user', content: bodyOrInput.prompt }
         ];
       }
@@ -103,7 +116,8 @@ export function createLLMManager({
 
   async function testProfile(id, body) {
     const mode = body?.mode || 'quick';
-    if (!['quick', 'conversation'].includes(mode)) return ok({ error: 'Geçersiz test türü.', code: 'TEST_MODE_INVALID' }, 400);
+    if (!['quick', 'conversation'].includes(mode))
+      return ok({ error: 'Geçersiz test türü.', code: 'TEST_MODE_INVALID' }, 400);
     if (pendingTests.has(id)) return ok({ error: 'Bu profil için test devam ediyor.', code: 'TEST_IN_PROGRESS' }, 409);
     pendingTests.add(id);
     const start = Date.now();
@@ -122,7 +136,9 @@ export function createLLMManager({
         useManagedProfile: false,
         allowMockFallback: false
       };
-      const reply = generate ? await generate(messages, options) : await generateProfileResponse(messages, profile, options);
+      const reply = generate
+        ? await generate(messages, options)
+        : await generateProfileResponse(messages, profile, options);
       if (!reply) {
         const error = new Error('Model kullanılabilir cevap üretmedi.');
         error.code = 'LLM_EMPTY_RESPONSE';
@@ -134,7 +150,9 @@ export function createLLMManager({
         return ok({ error: 'Profil test sırasında değişti; yeniden sınayın.', code: 'PROFILE_CONFLICT' }, 409);
       }
       return ok({
-        ok: true, mode, durationMs,
+        ok: true,
+        mode,
+        durationMs,
         message: quick
           ? 'Kısa bağlantı ve model yanıtı doğrulandı.'
           : 'Sohbet tarzı model yanıtı doğrulandı. Bu test üretim kabul testi değildir.'
@@ -142,7 +160,13 @@ export function createLLMManager({
     } catch (error) {
       const classified = classifyLLMError(error);
       if (profile) {
-        try { store.recordTest(profile.id, 'failed', profile.revision, { mode, durationMs: Date.now() - start, code: classified.code }); } catch {}
+        try {
+          store.recordTest(profile.id, 'failed', profile.revision, {
+            mode,
+            durationMs: Date.now() - start,
+            code: classified.code
+          });
+        } catch {}
       }
       return ok({ ...classified, mode, durationMs: Date.now() - start }, classified.status);
     } finally {
@@ -157,8 +181,16 @@ export function createLLMManager({
       const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
       if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem }, 400);
       const url = providerEndpoint(profile, 'models', allowLocalHttp);
-      const response = await providerFetch(url, { headers: providerAuthHeaders(profile), signal: AbortSignal.timeout(10000), allowLocalHttp });
-      if (!response.ok) return ok({ error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.` }, 502);
+      const response = await providerFetch(url, {
+        headers: providerAuthHeaders(profile),
+        signal: AbortSignal.timeout(10000),
+        allowLocalHttp
+      });
+      if (!response.ok)
+        return ok(
+          { error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.` },
+          502
+        );
       return ok({ models: extractModelIds(await response.json(), profile) });
     } catch {
       return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.' }, 502);
@@ -168,11 +200,14 @@ export function createLLMManager({
   async function chatCompletion(body) {
     const messages = normalizeMessagesInput(body);
     if (
-      !Array.isArray(messages)
-      || !messages.length
-      || !messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string' && m.content.trim())
+      !Array.isArray(messages) ||
+      !messages.length ||
+      !messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string' && m.content.trim())
     ) {
-      return ok({ error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', code: 'MESSAGES_INVALID' }, 400);
+      return ok(
+        { error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', code: 'MESSAGES_INVALID' },
+        400
+      );
     }
     const purpose = body?.purpose;
     if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
@@ -200,7 +235,9 @@ export function createLLMManager({
         useManagedProfile: false,
         allowMockFallback: false
       };
-      const content = generate ? await generate(messages, options) : await generateProfileResponse(messages, profile, options);
+      const content = generate
+        ? await generate(messages, options)
+        : await generateProfileResponse(messages, profile, options);
       if (!content) {
         throw Object.assign(new Error('Model kullanılabilir cevap üretmedi.'), { code: 'LLM_EMPTY_RESPONSE' });
       }
@@ -215,7 +252,12 @@ export function createLLMManager({
         durationMs: Date.now() - start
       });
     } catch (error) {
-      if (error && !error.upstreamStatus && !error.code && /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error.message)) {
+      if (
+        error &&
+        !error.upstreamStatus &&
+        !error.code &&
+        /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error.message)
+      ) {
         return ok({ error: error.message, code: 'RUNTIME_OPTIONS_INVALID' }, 400);
       }
       const classified = classifyLLMError(error);
@@ -227,7 +269,9 @@ export function createLLMManager({
   async function ask(promptOrMessages, options = {}) {
     const messages = normalizeMessagesInput(promptOrMessages, options.system);
     if (!Array.isArray(messages) || !messages.length) {
-      throw Object.assign(new Error('Geçerli bir mesaj listesi (messages) veya prompt zorunludur.'), { code: 'MESSAGES_INVALID' });
+      throw Object.assign(new Error('Geçerli bir mesaj listesi (messages) veya prompt zorunludur.'), {
+        code: 'MESSAGES_INVALID'
+      });
     }
     const result = await chatCompletion({ ...options, messages });
     if (result.status !== 200) {
@@ -246,7 +290,11 @@ export function createLLMManager({
     if (!match) return null;
     const [, resource, rawId, action] = match;
     let id;
-    try { id = rawId === undefined ? undefined : decodeURIComponent(rawId); } catch { return notFound(); }
+    try {
+      id = rawId === undefined ? undefined : decodeURIComponent(rawId);
+    } catch {
+      return notFound();
+    }
 
     if (resource === 'catalog') return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS }) : null;
     if (resource === 'chat') return verb === 'POST' && id === undefined ? chatCompletion(body) : null;
@@ -286,7 +334,8 @@ export function createLLMManager({
         headers: {
           ...commonHeaders,
           'Content-Type': 'text/html; charset=utf-8',
-          'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          'Content-Security-Policy':
+            "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         }
       });
     }
@@ -304,9 +353,7 @@ export function createLLMManager({
         );
       }
       const subPath = pathname.slice(apiPath.length) || '/';
-      const body = !SAFE_METHODS.includes(request.method)
-        ? await request.json().catch(() => ({}))
-        : null;
+      const body = !SAFE_METHODS.includes(request.method) ? await request.json().catch(() => ({})) : null;
       const result = await handle({ method: request.method, path: subPath, body });
       if (!result) return new Response(null, { status: 404, headers: commonHeaders });
       if (result.body === undefined) return new Response(null, { status: result.status, headers: commonHeaders });

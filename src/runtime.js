@@ -52,7 +52,8 @@ export function providerAuthHeaders(profile) {
 }
 
 export function classifyLLMError(error) {
-  const upstreamStatus = Number(error?.upstreamStatus || /(?:HTTP|Hatası[: (]*)\s*(\d{3})/i.exec(error?.message || '')?.[1]) || null;
+  const upstreamStatus =
+    Number(error?.upstreamStatus || /(?:HTTP|Hatası[: (]*)\s*(\d{3})/i.exec(error?.message || '')?.[1]) || null;
   const name = error?.name || '';
   const text = String(error?.message || '');
   let code = 'LLM_PROVIDER_ERROR';
@@ -107,7 +108,10 @@ export function buildProviderRequest(profile, messages, options = {}) {
   const { timeoutMs, maxOutputTokens, thinking } = resolveRuntimeOptions(profile, options);
   const transport = profile.transport || 'openai';
   const headers = { 'content-type': 'application/json', ...providerAuthHeaders({ ...profile, transport }) };
-  const systemText = messages.filter(m => m.role === 'system').map(m => m.content).join('\n');
+  const systemText = messages
+    .filter(m => m.role === 'system')
+    .map(m => m.content)
+    .join('\n');
 
   let url;
   let body;
@@ -157,12 +161,20 @@ export async function generateProfileResponse(messages, profile, options = {}) {
     throw error;
   }
   const payload = await response.json();
-  const content = profile.transport === 'google'
-    ? payload.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n')
-    : profile.transport === 'anthropic'
-      ? payload.content?.filter(p => p.type === 'text').map(p => p.text).join('\n')
-      : payload.choices?.[0]?.message?.content;
-  const finishReason = payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason || payload.stop_reason;
+  const content =
+    profile.transport === 'google'
+      ? payload.candidates?.[0]?.content?.parts
+          ?.filter(p => p.text)
+          .map(p => p.text)
+          .join('\n')
+      : profile.transport === 'anthropic'
+        ? payload.content
+            ?.filter(p => p.type === 'text')
+            .map(p => p.text)
+            .join('\n')
+        : payload.choices?.[0]?.message?.content;
+  const finishReason =
+    payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason || payload.stop_reason;
   if (['length', 'MAX_TOKENS', 'max_tokens'].includes(finishReason)) {
     throw Object.assign(new Error('Model yanıtı token sınırında kesildi.'), { code: 'LLM_TRUNCATED' });
   }

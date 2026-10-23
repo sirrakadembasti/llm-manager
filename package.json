@@ -28,14 +28,17 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
     "start": "node examples/server.js",
     "release:patch": "npm test && npm version patch -m \"chore(release): %s\"",
     "release:minor": "npm test && npm version minor -m \"chore(release): %s\"",
     "release:major": "npm test && npm version major -m \"chore(release): %s\""
   },
   "dependencies": {
-    "express": "^4.19.2",
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "undici": "^7.30.0"
   },
   "engines": {
@@ -49,5 +52,11 @@
   "bugs": {
     "url": "https://github.com/sirrakadembasti/llm-manager/issues"
   },
-  "homepage": "https://github.com/sirrakadembasti/llm-manager#readme"
+  "homepage": "https://github.com/sirrakadembasti/llm-manager#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
+  }
 }

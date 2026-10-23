@@ -13,13 +13,7 @@ import {
   probeAndOpenBrowser,
   runInteractiveInit
 } from './init.js';
-import {
-  CSRF_HEADER,
-  SAFE_METHODS,
-  isValidMountPath,
-  createUiAssets,
-  createLLMManager
-} from './core.js';
+import { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager } from './core.js';
 
 export { generateProfileResponse, classifyLLMError, PROVIDERS, validateProviderUrl, createLLMProfileStore };
 export {
@@ -39,7 +33,8 @@ const COMMON_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY'
 };
-const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+const PAGE_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 const safeEqual = (left, right) => {
   const a = crypto.createHash('sha256').update(String(left)).digest();
@@ -51,9 +46,7 @@ export function createBasicAuth({ user = 'admin', password } = {}) {
   if (!password) throw new Error('Basic Auth için parola (adminPassword) zorunludur.');
   return (req, res, next) => {
     const authorization = req.get('Authorization') || '';
-    const decoded = authorization.startsWith('Basic ')
-      ? Buffer.from(authorization.slice(6), 'base64').toString()
-      : '';
+    const decoded = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString() : '';
     const colon = decoded.indexOf(':');
     const candidateUser = colon < 0 ? '' : decoded.slice(0, colon);
     const candidatePass = colon < 0 ? '' : decoded.slice(colon + 1);
@@ -68,33 +61,38 @@ export function createBasicAuth({ user = 'admin', password } = {}) {
   };
 }
 
-export function mountLLMManagement(app, {
-  dataDir,
-  filePath,
-  encryptionKey,
-  allowLocalHttp,
-  store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
-  requireAuth,
-  adminPassword,
-  adminUser = 'admin',
-  generate,
-  apiPath = '/api/llm',
-  pagePath = '/llm',
-  requireCsrf = true,
-  chatAccess = 'authenticated',
-  testMessages,
-  validateTestReply
-} = {}) {
-  const authMiddleware = typeof requireAuth === 'function'
-    ? requireAuth
-    : adminPassword
-      ? createBasicAuth({ user: adminUser, password: adminPassword })
-      : null;
+export function mountLLMManagement(
+  app,
+  {
+    dataDir,
+    filePath,
+    encryptionKey,
+    allowLocalHttp,
+    store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
+    requireAuth,
+    adminPassword,
+    adminUser = 'admin',
+    generate,
+    apiPath = '/api/llm',
+    pagePath = '/llm',
+    requireCsrf = true,
+    chatAccess = 'authenticated',
+    testMessages,
+    validateTestReply
+  } = {}
+) {
+  const authMiddleware =
+    typeof requireAuth === 'function'
+      ? requireAuth
+      : adminPassword
+        ? createBasicAuth({ user: adminUser, password: adminPassword })
+        : null;
   if (!authMiddleware) throw new Error('LLM yönetimi için requireAuth veya adminPassword zorunludur.');
   if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
   if (!['authenticated', 'admin', false].includes(chatAccess)) throw new Error('Geçersiz chatAccess ayarı.');
 
-  const admin = (req, res, next) => req.user?.isAdmin === true ? next() : res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
+  const admin = (req, res, next) =>
+    req.user?.isAdmin === true ? next() : res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
   const securityHeaders = (_req, res, next) => {
     res.set(COMMON_HEADERS);
     next();

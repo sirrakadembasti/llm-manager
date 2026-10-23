@@ -27,7 +27,10 @@ Sunucu yalnız 127.0.0.1 üzerinde dinler; sayfa /llm adresindedir.
 await import('dotenv').then(({ default: dotenv }) => dotenv.config());
 
 const args = process.argv.slice(2);
-const fail = message => { console.error(`Hata: ${message}\n\n${HELP}`); process.exit(1); };
+const fail = message => {
+  console.error(`Hata: ${message}\n\n${HELP}`);
+  process.exit(1);
+};
 
 let isInit = false;
 let initType;
@@ -37,8 +40,14 @@ let openBrowser = true;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
-  if (arg === 'init') { isInit = true; continue; }
-  if (arg === '-h' || arg === '--help') { console.log(HELP); process.exit(0); }
+  if (arg === 'init') {
+    isInit = true;
+    continue;
+  }
+  if (arg === '-h' || arg === '--help') {
+    console.log(HELP);
+    process.exit(0);
+  }
   if (arg === '-v' || arg === '--version') {
     const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
     console.log(pkg.version);

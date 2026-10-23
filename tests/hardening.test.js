@@ -19,11 +19,26 @@ test('mutations require revisions and a changed endpoint requires a fresh key', 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-hardening-'));
   try {
     const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({ name: 'Fixture', provider: 'custom', model: 'm', baseURL: 'https://first.example/v1', apiKey: 'fixture-secret' });
-    assert.throws(() => store.save({ ...p, revision: undefined }), e => e.code === 'PROFILE_CONFLICT');
+    const p = store.save({
+      name: 'Fixture',
+      provider: 'custom',
+      model: 'm',
+      baseURL: 'https://first.example/v1',
+      apiKey: 'fixture-secret'
+    });
+    assert.throws(
+      () => store.save({ ...p, revision: undefined }),
+      e => e.code === 'PROFILE_CONFLICT'
+    );
     assert.throws(() => store.save({ ...p, baseURL: 'https://second.example/v1' }), /anahtar/);
-    assert.throws(() => store.remove(p.id), e => e.code === 'PROFILE_CONFLICT');
-    assert.throws(() => store.activate(p.id), e => e.code === 'PROFILE_CONFLICT');
+    assert.throws(
+      () => store.remove(p.id),
+      e => e.code === 'PROFILE_CONFLICT'
+    );
+    assert.throws(
+      () => store.activate(p.id),
+      e => e.code === 'PROFILE_CONFLICT'
+    );
     store.activate(p.id, p.revision);
     assert.equal(store.getActive().apiKey, 'fixture-secret');
   } finally {
@@ -64,13 +79,22 @@ test('legacy profiles with explicit null revision can be upgraded without losing
   try {
     const file = path.join(root, 'profiles.json');
     const store = createLLMProfileStore({ filePath: file, encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({ name: 'Legacy', provider: 'custom', model: 'm', baseURL: 'https://first.example/v1', apiKey: 'fixture-secret' });
+    const p = store.save({
+      name: 'Legacy',
+      provider: 'custom',
+      model: 'm',
+      baseURL: 'https://first.example/v1',
+      apiKey: 'fixture-secret'
+    });
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     delete data.profiles[0].revision;
     fs.writeFileSync(file, JSON.stringify(data));
     const legacy = store.list().profiles[0];
     assert.equal(legacy.revision, null);
-    assert.throws(() => store.activate(p.id), e => e.code === 'PROFILE_CONFLICT');
+    assert.throws(
+      () => store.activate(p.id),
+      e => e.code === 'PROFILE_CONFLICT'
+    );
     store.activate(p.id, null);
     const next = store.save({ ...legacy, name: 'Upgraded' });
     assert.ok(next.revision);
@@ -85,7 +109,13 @@ test('decrypt rejects malformed secrets or truncated GCM auth tags', () => {
   try {
     const file = path.join(root, 'profiles.json');
     const store = createLLMProfileStore({ filePath: file, encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({ name: 'GCM', provider: 'custom', model: 'm', baseURL: 'https://first.example/v1', apiKey: 'fixture-secret' });
+    const p = store.save({
+      name: 'GCM',
+      provider: 'custom',
+      model: 'm',
+      baseURL: 'https://first.example/v1',
+      apiKey: 'fixture-secret'
+    });
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     const [ivB64, tagB64, dataB64] = raw.profiles[0].secret.split('.');
 
@@ -108,7 +138,13 @@ test('save preserves lastTests and lastTest on non-credential edits and resets o
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-lasttests-'));
   try {
     const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({ name: 'TestProfile', provider: 'custom', model: 'm1', baseURL: 'https://first.example/v1', apiKey: 'secret-1' });
+    const p = store.save({
+      name: 'TestProfile',
+      provider: 'custom',
+      model: 'm1',
+      baseURL: 'https://first.example/v1',
+      apiKey: 'secret-1'
+    });
     const tested = store.recordTest(p.id, 'passed', p.revision, { mode: 'quick', durationMs: 42 });
     assert.equal(tested.lastTest.status, 'passed');
     assert.equal(tested.lastTests.quick.status, 'passed');
@@ -121,7 +157,10 @@ test('save preserves lastTests and lastTest on non-credential edits and resets o
     assert.equal(modelChanged.lastTest, null);
     assert.deepEqual(modelChanged.lastTests, {});
 
-    const retested = store.recordTest(modelChanged.id, 'passed', modelChanged.revision, { mode: 'conversation', durationMs: 55 });
+    const retested = store.recordTest(modelChanged.id, 'passed', modelChanged.revision, {
+      mode: 'conversation',
+      durationMs: 55
+    });
     assert.equal(retested.lastTests.conversation.status, 'passed');
 
     const keyChanged = store.save({ ...retested, apiKey: 'secret-2' });
@@ -141,7 +180,14 @@ test('unknown profile id returns 404 PROFILE_NOT_FOUND for PUT, DELETE, and POST
     const putRes = await manager.handle({
       method: 'PUT',
       path: '/profiles/missing-id',
-      body: { name: 'A', provider: 'custom', model: 'm', baseURL: 'https://first.example/v1', apiKey: 'k', revision: 'r1' }
+      body: {
+        name: 'A',
+        provider: 'custom',
+        model: 'm',
+        baseURL: 'https://first.example/v1',
+        apiKey: 'k',
+        revision: 'r1'
+      }
     });
     assert.equal(putRes.status, 404);
     assert.equal(putRes.body.code, 'PROFILE_NOT_FOUND');
@@ -219,11 +265,12 @@ test('ensureLLMEncryptionKey handles production keyPath, dev .env without copyin
     fs.mkdirSync(path.dirname(guardedProfilePath), { recursive: true });
     fs.writeFileSync(guardedProfilePath, JSON.stringify({ profiles: [{ id: '1', secret: 'abc.def.ghi' }] }));
     assert.throws(
-      () => ensureLLMEncryptionKey({
-        envPath: path.join(root, 'guarded', '.env'),
-        profilePath: guardedProfilePath,
-        environment: {}
-      }),
+      () =>
+        ensureLLMEncryptionKey({
+          envPath: path.join(root, 'guarded', '.env'),
+          profilePath: guardedProfilePath,
+          environment: {}
+        }),
       /Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok/
     );
   } finally {
@@ -243,7 +290,9 @@ test('allowLocalHttp option propagates through store, buildProviderRequest, list
       if (String(url).endsWith('/models')) {
         return new Response(JSON.stringify({ data: [{ id: 'local-model-1' }] }), { status: 200 });
       }
-      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'OK' } }] }), { status: 200 });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'OK' } }] }), {
+        status: 200
+      });
     };
 
     const store = createLLMProfileStore({
@@ -268,7 +317,11 @@ test('allowLocalHttp option propagates through store, buildProviderRequest, list
     assert.equal(modelsRes.status, 200);
     assert.deepEqual(modelsRes.body.models, ['local-model-1']);
 
-    const testRes = await manager.handle({ method: 'POST', path: `/profiles/${saved.id}/test`, body: { mode: 'quick' } });
+    const testRes = await manager.handle({
+      method: 'POST',
+      path: `/profiles/${saved.id}/test`,
+      body: { mode: 'quick' }
+    });
     assert.equal(testRes.status, 200);
     assert.equal(testRes.body.ok, true);
     assert.equal(fetchCalls.length, 2);
@@ -346,9 +399,10 @@ test('Anthropic omits empty system field and Google strips leading models/ prefi
 
 test('createPublicLookup filters private/loopback IPv4/IPv6, accepts public addresses, and scopes allowLoopback', async () => {
   const resolveWith = entries => (_hostname, _opts, cb) => cb(null, entries);
-  const runLookup = (lookup, hostname, options = {}) => new Promise((resolve, reject) => {
-    lookup(hostname, options, (err, address, family) => (err ? reject(err) : resolve({ address, family })));
-  });
+  const runLookup = (lookup, hostname, options = {}) =>
+    new Promise((resolve, reject) => {
+      lookup(hostname, options, (err, address, family) => (err ? reject(err) : resolve({ address, family })));
+    });
 
   for (const ip of ['10.0.0.1', '127.0.0.1', '169.254.169.254', '172.16.0.1', '192.168.1.1', '100.64.0.1']) {
     const lookup = createPublicLookup({ resolver: resolveWith([{ address: ip, family: 4 }]) });
@@ -424,12 +478,15 @@ test('GET /profiles/:id/models parses OpenAI and Google model lists and returns 
         return new Response(JSON.stringify({ data: [{ id: 'gpt-4.1' }, { id: 'gpt-4o' }] }), { status: 200 });
       }
       if (String(url).includes('generativelanguage.googleapis.com')) {
-        return new Response(JSON.stringify({
-          models: [
-            { name: 'models/gemini-2.5-pro', supportedGenerationMethods: ['generateContent'] },
-            { name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] }
-          ]
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            models: [
+              { name: 'models/gemini-2.5-pro', supportedGenerationMethods: ['generateContent'] },
+              { name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] }
+            ]
+          }),
+          { status: 200 }
+        );
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
@@ -555,9 +612,7 @@ test('UI Modelleri getir action preserves in-progress form edits and keeps exist
     let data;
     if (u.endsWith('/catalog')) {
       data = {
-        providers: [
-          { id: 'openai', name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'] }
-        ]
+        providers: [{ id: 'openai', name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'] }]
       };
     } else if (u.endsWith('/profiles')) {
       data = { activeId: 'prof-1', profiles: [profileFixture] };

@@ -11,9 +11,10 @@ export function ensureLLMEncryptionKey({
   keyPath = environment.LLM_CONFIG_KEY_PATH || path.join(path.dirname(profilePath), 'llm-encryption.key')
 } = {}) {
   const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : null;
-  const configured = environment.LLM_CONFIG_ENCRYPTION_KEY
-    || (envContent && dotenv.parse(envContent).LLM_CONFIG_ENCRYPTION_KEY)
-    || (fs.existsSync(keyPath) && fs.readFileSync(keyPath, 'utf8').trim());
+  const configured =
+    environment.LLM_CONFIG_ENCRYPTION_KEY ||
+    (envContent && dotenv.parse(envContent).LLM_CONFIG_ENCRYPTION_KEY) ||
+    (fs.existsSync(keyPath) && fs.readFileSync(keyPath, 'utf8').trim());
   if (configured) {
     parseEncryptionKey(configured);
     environment.LLM_CONFIG_ENCRYPTION_KEY = configured;
@@ -23,7 +24,9 @@ export function ensureLLMEncryptionKey({
   if (fs.existsSync(profilePath)) {
     const data = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
     if (data.profiles?.some(profile => profile.secret)) {
-      throw new Error('Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok. Önce eski LLM_CONFIG_ENCRYPTION_KEY değerini yedekten kurtarın.');
+      throw new Error(
+        'Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok. Önce eski LLM_CONFIG_ENCRYPTION_KEY değerini yedekten kurtarın.'
+      );
     }
   }
 

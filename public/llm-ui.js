@@ -1,7 +1,11 @@
 const $ = id => document.getElementById(id);
 const apiBase = (document.body.dataset.apiBase || '/api/llm').replace(/\/$/, '');
-let catalog = [], profiles = [], activeId = null;
-let pending = false, loadSequence = 0, stateVersion = 0;
+let catalog = [],
+  profiles = [],
+  activeId = null;
+let pending = false,
+  loadSequence = 0,
+  stateVersion = 0;
 let editingRevision;
 let editingProfile = null;
 const disabledBefore = new Map();
@@ -17,26 +21,52 @@ async function request(path, options = {}) {
   const controller = new AbortController();
   let timer;
   const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => { controller.abort(); reject(new Error('İstek zaman aşımına uğradı. Profil zaman sınırını ve bağlantıyı kontrol edin.')); }, Math.min(330000, Math.max(1000, Number(timeoutMs) || 330000)));
+    timer = setTimeout(
+      () => {
+        controller.abort();
+        reject(new Error('İstek zaman aşımına uğradı. Profil zaman sınırını ve bağlantıyı kontrol edin.'));
+      },
+      Math.min(330000, Math.max(1000, Number(timeoutMs) || 330000))
+    );
   });
   try {
-    return await Promise.race([deadline, (async () => {
-      const response = await fetch(`${apiBase}${path}`, {
-        credentials: 'same-origin', ...fetchOptions, signal: controller.signal,
-        headers: { 'content-type': 'application/json', ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? { 'X-LLM-CSRF': '1' } : {}), ...fetchOptions.headers }
-      });
-      let body;
-      try { body = await response.json(); } catch { body = null; }
-      const supportId = body?.requestId || response.headers?.get?.('x-request-id');
-      if (!response.ok) {
-        const fallback = response.status === 401 ? 'Oturum sona erdi. Yeniden giriş yapın.' : `Sunucu isteği başarısız (HTTP ${response.status}).`;
-        const detail = typeof body?.error === 'string' ? body.error : fallback;
-        throw new Error(`${detail}${body?.code ? ` · Kod: ${body.code}` : ''}${supportId ? ` · Destek kimliği: ${supportId}` : ''}`);
-      }
-      if (!body || typeof body !== 'object') throw new Error('Sunucu geçerli JSON yanıtı döndürmedi.');
-      return body;
-    })()]);
-  } finally { clearTimeout(timer); }
+    return await Promise.race([
+      deadline,
+      (async () => {
+        const response = await fetch(`${apiBase}${path}`, {
+          credentials: 'same-origin',
+          ...fetchOptions,
+          signal: controller.signal,
+          headers: {
+            'content-type': 'application/json',
+            ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? { 'X-LLM-CSRF': '1' } : {}),
+            ...fetchOptions.headers
+          }
+        });
+        let body;
+        try {
+          body = await response.json();
+        } catch {
+          body = null;
+        }
+        const supportId = body?.requestId || response.headers?.get?.('x-request-id');
+        if (!response.ok) {
+          const fallback =
+            response.status === 401
+              ? 'Oturum sona erdi. Yeniden giriş yapın.'
+              : `Sunucu isteği başarısız (HTTP ${response.status}).`;
+          const detail = typeof body?.error === 'string' ? body.error : fallback;
+          throw new Error(
+            `${detail}${body?.code ? ` · Kod: ${body.code}` : ''}${supportId ? ` · Destek kimliği: ${supportId}` : ''}`
+          );
+        }
+        if (!body || typeof body !== 'object') throw new Error('Sunucu geçerli JSON yanıtı döndürmedi.');
+        return body;
+      })()
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function lockControls() {
@@ -49,7 +79,9 @@ function lockControls() {
 
 async function operation(label, action) {
   if (pending) return;
-  pending = true; stateVersion++; lockControls();
+  pending = true;
+  stateVersion++;
+  lockControls();
   const started = Date.now();
   const progress = () => message(`${label}… ${((Date.now() - started) / 1000).toFixed(1)} sn`);
   progress();
@@ -63,19 +95,28 @@ async function operation(label, action) {
     clearInterval(timer);
     message(`${error.message} · Süre: ${((Date.now() - started) / 1000).toFixed(1)} sn`, true);
   } finally {
-    clearInterval(timer); pending = false;
+    clearInterval(timer);
+    pending = false;
     for (const [control, disabled] of disabledBefore) control.disabled = disabled;
-    disabledBefore.clear(); $('profile-form').removeAttribute('aria-busy');
+    disabledBefore.clear();
+    $('profile-form').removeAttribute('aria-busy');
   }
 }
 
 function button(label, className, action, immediate = false) {
   const element = document.createElement('button');
-  element.type = 'button'; element.textContent = label; element.className = className;
+  element.type = 'button';
+  element.textContent = label;
+  element.className = className;
   element.addEventListener('click', () => {
     if (pending) return;
-    if (immediate) { try { action(); } catch (error) { message(error.message, true); } }
-    else operation(label, action);
+    if (immediate) {
+      try {
+        action();
+      } catch (error) {
+        message(error.message, true);
+      }
+    } else operation(label, action);
   });
   return element;
 }
@@ -115,7 +156,9 @@ function populateModels(models) {
   syncModelSelect();
 }
 
-function updateThinking() { $('thinking-field').hidden = $('provider').value !== 'xiaomi_mimo'; }
+function updateThinking() {
+  $('thinking-field').hidden = $('provider').value !== 'xiaomi_mimo';
+}
 
 function updateApiKeyFieldState() {
   const input = $('api-key');
@@ -130,9 +173,13 @@ function updateApiKeyFieldState() {
     return;
   }
 
-  const normalizeUrl = val => String(val || '').trim().replace(/\/+$/, '');
-  const targetChanged = $('provider').value !== editingProfile.provider
-    || normalizeUrl($('base-url').value) !== normalizeUrl(editingProfile.baseURL);
+  const normalizeUrl = val =>
+    String(val || '')
+      .trim()
+      .replace(/\/+$/, '');
+  const targetChanged =
+    $('provider').value !== editingProfile.provider ||
+    normalizeUrl($('base-url').value) !== normalizeUrl(editingProfile.baseURL);
   const hasNewInput = input.value.trim().length > 0;
 
   if (hasNewInput) {
@@ -146,7 +193,8 @@ function updateApiKeyFieldState() {
     if (status) {
       status.hidden = false;
       status.className = 'key-status updating';
-      status.textContent = 'Yeni API anahtarı girildi. Profili kaydettiğinizde önceki anahtarın üzerine yazılır ve en son girilen bu anahtar şifrelenerek saklanır.';
+      status.textContent =
+        'Yeni API anahtarı girildi. Profili kaydettiğinizde önceki anahtarın üzerine yazılır ve en son girilen bu anahtar şifrelenerek saklanır.';
     }
   } else if (targetChanged) {
     input.required = true;
@@ -160,7 +208,8 @@ function updateApiKeyFieldState() {
     if (status) {
       status.hidden = false;
       status.className = 'key-status warning';
-      status.textContent = 'Sağlayıcı veya API temel adresi değiştirildiği için güvenlik gereği yeni API anahtarı girilmelidir.';
+      status.textContent =
+        'Sağlayıcı veya API temel adresi değiştirildiği için güvenlik gereği yeni API anahtarı girilmelidir.';
     }
   } else {
     input.required = false;
@@ -174,7 +223,8 @@ function updateApiKeyFieldState() {
     if (status) {
       status.hidden = false;
       status.className = 'key-status saved';
-      status.textContent = 'Bu profilde önceden kaydedilmiş şifreli bir API anahtarı var. Boş bırakırsanız mevcut anahtar korunur; yeni bir anahtar yazarsanız en son girilen anahtar kaydedilir.';
+      status.textContent =
+        'Bu profilde önceden kaydedilmiş şifreli bir API anahtarı var. Boş bırakırsanız mevcut anahtar korunur; yeni bir anahtar yazarsanız en son girilen anahtar kaydedilir.';
     }
   }
 }
@@ -258,7 +308,7 @@ function editProfile(profile) {
 function lastTestText(profile, mode) {
   const label = mode === 'quick' ? 'Bağlantı testi' : mode === 'conversation' ? 'Sohbet testi' : 'Son test';
   const test = mode
-    ? profile.lastTests?.[mode] ?? ((profile.lastTest?.mode || 'quick') === mode ? profile.lastTest : null)
+    ? (profile.lastTests?.[mode] ?? ((profile.lastTest?.mode || 'quick') === mode ? profile.lastTest : null))
     : profile.lastTest;
   if (!test) return `${label}: Yapılmadı`;
   const at = new Date(test.at);
@@ -341,7 +391,14 @@ function render() {
     activate.disabled = isActive;
 
     actions.append(
-      button('Düzenle', 'secondary', () => { editProfile(profile); }, true),
+      button(
+        'Düzenle',
+        'secondary',
+        () => {
+          editProfile(profile);
+        },
+        true
+      ),
       button('Bağlantıyı sına', 'secondary', () => testProfile(profile, 'quick')),
       button('Sohbeti sına', 'secondary', () => testProfile(profile, 'conversation')),
       button('Modelleri getir', 'secondary', async () => {
@@ -419,7 +476,9 @@ async function init() {
   });
   $('model').addEventListener('input', syncModelSelect);
   $('api-key').addEventListener('input', updateApiKeyFieldState);
-  $('clear-form').addEventListener('click', () => { if (!pending) clearForm(); });
+  $('clear-form').addEventListener('click', () => {
+    if (!pending) clearForm();
+  });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault();
     operation('Profil kaydediliyor', async () => {

@@ -30,10 +30,7 @@ export function detectProjectType(cwd = process.cwd()) {
       return 'express';
     }
   }
-  if (
-    fs.existsSync(path.join(cwd, 'nuxt.config.ts')) ||
-    fs.existsSync(path.join(cwd, 'nuxt.config.js'))
-  ) {
+  if (fs.existsSync(path.join(cwd, 'nuxt.config.ts')) || fs.existsSync(path.join(cwd, 'nuxt.config.js'))) {
     return 'nuxt';
   }
   if (
@@ -136,7 +133,14 @@ export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cw
       'index.js'
     );
   } else if (type === 'nextjs') {
-    candidates.push('src/app/page.js', 'src/app/page.tsx', 'src/app/page.jsx', 'app/page.js', 'app/page.tsx', 'app/page.jsx');
+    candidates.push(
+      'src/app/page.js',
+      'src/app/page.tsx',
+      'src/app/page.jsx',
+      'app/page.js',
+      'app/page.tsx',
+      'app/page.jsx'
+    );
   } else if (type === 'nuxt') {
     candidates.push('app.vue', 'pages/index.vue', 'src/app.vue', 'src/pages/index.vue');
   } else if (type === 'sveltekit') {
@@ -341,19 +345,17 @@ export function injectIntoEntryFile({
             updatedExisting = true;
             break;
           }
-          if (!useEsm && /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]electron['"]\s*\)/.test(lines[i])) {
-            lines[i] = lines[i].replace(
-              /\{([^}]*)\}/,
-              (_m, imports) => `{ ${imports.trim()}, ipcMain }`
-            );
+          if (
+            !useEsm &&
+            /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]electron['"]\s*\)/.test(lines[i])
+          ) {
+            lines[i] = lines[i].replace(/\{([^}]*)\}/, (_m, imports) => `{ ${imports.trim()}, ipcMain }`);
             updatedExisting = true;
             break;
           }
         }
         if (!updatedExisting) {
-          const ipcImport = useEsm
-            ? "import { ipcMain } from 'electron';"
-            : "const { ipcMain } = require('electron');";
+          const ipcImport = useEsm ? "import { ipcMain } from 'electron';" : "const { ipcMain } = require('electron');";
           lines.splice(findJsImportInsertIndex(lines, useEsm), 0, ipcImport);
           addedLines.push(ipcImport);
         }
@@ -513,8 +515,10 @@ export const PUT = (req) => llm.fetch(req);
 export const DELETE = (req) => llm.fetch(req);
 `;
     if (writeFileIfMissing(path.join(cwd, llmRel), llmContent, force)) createdFiles.push(llmRel);
-    if (writeFileIfMissing(path.join(cwd, apiRouteRel), routeContent(importPath), force)) createdFiles.push(apiRouteRel);
-    if (writeFileIfMissing(path.join(cwd, pageRouteRel), routeContent(pageImportPath), force)) createdFiles.push(pageRouteRel);
+    if (writeFileIfMissing(path.join(cwd, apiRouteRel), routeContent(importPath), force))
+      createdFiles.push(apiRouteRel);
+    if (writeFileIfMissing(path.join(cwd, pageRouteRel), routeContent(pageImportPath), force))
+      createdFiles.push(pageRouteRel);
   } else if (type === 'nuxt') {
     const llmContent = `import { createLLMManager } from 'llm-manager/core';
 
@@ -825,7 +829,8 @@ export function verifyIntegration({
       title: dataDirTitle,
       ok: false,
       error: 'Veri klasörüne (./data) yazma izni yok.',
-      solution: 'Proje klasörünün yazma izinlerini kontrol edin veya uygulamayı yazma izni olan bir klasörde çalıştırın.'
+      solution:
+        'Proje klasörünün yazma izinlerini kontrol edin veya uygulamayı yazma izni olan bir klasörde çalıştırın.'
     });
   }
 
@@ -854,9 +859,13 @@ export function verifyIntegration({
 
   // 3. entry_binding kontrolü
   const bindingTitle = 'Ana Dosya Import / Bağlantı Kontrolü';
-  if (normalizedEntry && fs.existsSync(path.join(cwd, normalizedEntry)) && fs.statSync(path.join(cwd, normalizedEntry)).isFile()) {
+  if (
+    normalizedEntry &&
+    fs.existsSync(path.join(cwd, normalizedEntry)) &&
+    fs.statSync(path.join(cwd, normalizedEntry)).isFile()
+  ) {
     const content = fs.readFileSync(path.join(cwd, normalizedEntry), 'utf8');
-    let hasBinding = false;
+    let hasBinding;
     if (type === 'express') {
       hasBinding = /\b(?:setupLLM|askLLM)\b/.test(content);
     } else if (type === 'spa' || type === 'nextjs' || type === 'nuxt' || type === 'sveltekit') {
@@ -897,7 +906,11 @@ export function verifyIntegration({
   } else if (type === 'dotnet' && fs.existsSync(path.join(cwd, 'LlmClient.cs'))) {
     filesToSyntaxCheck.push('LlmClient.cs');
   }
-  if (normalizedEntry && fs.existsSync(path.join(cwd, normalizedEntry)) && !filesToSyntaxCheck.includes(normalizedEntry)) {
+  if (
+    normalizedEntry &&
+    fs.existsSync(path.join(cwd, normalizedEntry)) &&
+    !filesToSyntaxCheck.includes(normalizedEntry)
+  ) {
     filesToSyntaxCheck.push(normalizedEntry);
   }
 
@@ -1070,7 +1083,9 @@ export async function probeAndOpenBrowser({
 }
 
 function isDeclined(answer) {
-  const normalized = String(answer ?? '').trim().toLowerCase();
+  const normalized = String(answer ?? '')
+    .trim()
+    .toLowerCase();
   return normalized === 'h' || normalized === 'hayır' || normalized === 'hayir';
 }
 
