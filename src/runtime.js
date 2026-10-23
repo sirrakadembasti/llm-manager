@@ -1,4 +1,5 @@
 import { credentialEndpointProblem } from './credentialValidation.js';
+import { LLMError, ErrorCodes } from './errors.js';
 import { providerFetch } from './providerTransport.js';
 import { validateProviderUrl } from './providers.js';
 
@@ -7,13 +8,22 @@ export function normalizeRuntimeOptions(input = {}) {
   const maxOutputTokens = Number(input.maxOutputTokens ?? 8192);
   const thinking = input.thinking ?? 'auto';
   if (!Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 300000) {
-    throw new Error('Yanıt süresi 5000–300000 ms arasında olmalıdır.');
+    throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Yanıt süresi 5000–300000 ms arasında olmalıdır.', {
+      status: 400,
+      retryable: false
+    });
   }
   if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 256 || maxOutputTokens > 32768) {
-    throw new Error('Token bütçesi 256–32768 arasında olmalıdır.');
+    throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Token bütçesi 256–32768 arasında olmalıdır.', {
+      status: 400,
+      retryable: false
+    });
   }
   if (!['auto', 'enabled', 'disabled'].includes(thinking)) {
-    throw new Error('Geçersiz düşünme ayarı.');
+    throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Geçersiz düşünme ayarı.', {
+      status: 400,
+      retryable: false
+    });
   }
   return { timeoutMs, maxOutputTokens, thinking };
 }
@@ -51,59 +61,198 @@ export function providerAuthHeaders(profile) {
   return { Authorization: `Bearer ${profile.apiKey}` };
 }
 
+const KNOWN_CODE_DEFAULTS = {
+  [ErrorCodes.LLM_ABORTED]: {
+    status: 499,
+    message: 'İstek iptal edildi.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_TIMEOUT]: {
+    status: 504,
+    message: 'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.',
+    retryable: true
+  },
+  [ErrorCodes.LLM_RATE_LIMIT]: {
+    status: 502,
+    message: 'Sağlayıcının hız veya kota sınırına ulaşıldı. Bir süre bekleyip kota durumunu kontrol edin.',
+    retryable: true
+  },
+  [ErrorCodes.LLM_BILLING]: {
+    status: 502,
+    message: 'Sağlayıcı ödeme veya bakiye nedeniyle isteği reddetti. Bakiye ve aboneliği kontrol edin.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_FORBIDDEN]: {
+    status: 502,
+    message: 'Anahtarın model veya hizmet erişim izni yok.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_AUTH]: {
+    status: 502,
+    message: 'Sağlayıcı API anahtarını veya model erişim yetkisini kabul etmedi. Profili kontrol edin.',
+    retryable: false
+  },
+  [ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH]: {
+    status: 400,
+    message: 'Xiaomi anahtar türü ile PAYG / Token Plan adresi eşleşmiyor.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_REQUEST_REJECTED]: {
+    status: 502,
+    message: 'Sağlayıcı model, adres veya istek ayarını reddetti. Profil testlerini çalıştırın.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_EMPTY_RESPONSE]: {
+    status: 502,
+    message: 'Model kullanılabilir cevap üretmedi. Token bütçesini ve düşünme ayarını kontrol edin.',
+    retryable: true
+  },
+  [ErrorCodes.LLM_TRUNCATED]: {
+    status: 422,
+    message: 'Model yanıtı token bütçesine takıldı. Token bütçesini artırın veya isteği küçültün.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_CONTENT_FILTERED]: {
+    status: 422,
+    message: 'Model yanıtı güvenlik veya içerik filtresi nedeniyle engellendi.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_RESPONSE_TOO_LARGE]: {
+    status: 502,
+    message: 'Sağlayıcı yanıt boyutu izin verilen sınırı aştı.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_DNS_BLOCKED]: {
+    status: 502,
+    message: 'Sağlayıcı adresi güvenlik ilkesi gereği engellendi. Yalnızca genel HTTPS adresleri kullanılabilir.',
+    retryable: false
+  },
+  [ErrorCodes.LLM_UPSTREAM_UNAVAILABLE]: {
+    status: 503,
+    message: 'Sağlayıcı geçici olarak hizmet veremiyor. Lütfen daha sonra tekrar deneyin.',
+    retryable: true
+  },
+  [ErrorCodes.LLM_NETWORK]: {
+    status: 502,
+    message: 'Sağlayıcıya ağ bağlantısı kurulamadı. DNS, internet ve proxy ayarlarını kontrol edin.',
+    retryable: true
+  },
+  [ErrorCodes.RUNTIME_OPTIONS_INVALID]: {
+    status: 400,
+    message: 'Çalışma zamanı seçenekleri geçersiz.',
+    retryable: false
+  },
+  [ErrorCodes.PROFILE_INVALID]: {
+    status: 400,
+    message: 'Profil ayarları geçersiz.',
+    retryable: false
+  },
+  [ErrorCodes.PROFILE_NOT_FOUND]: {
+    status: 404,
+    message: 'Profil bulunamadı.',
+    retryable: false
+  },
+  [ErrorCodes.PROFILE_CONFLICT]: {
+    status: 409,
+    message: 'Profil başka bir işlemde değiştirildi; yenileyin.',
+    retryable: false
+  }
+};
+
 export function classifyLLMError(error) {
   const upstreamStatus =
     Number(error?.upstreamStatus || /(?:HTTP|Hatası[: (]*)\s*(\d{3})/i.exec(error?.message || '')?.[1]) || null;
   const name = error?.name || '';
   const text = String(error?.message || '');
+
+  // 1. Birincil yol: tipli error.code kontrolü
+  if (error?.code && KNOWN_CODE_DEFAULTS[error.code]) {
+    const meta = KNOWN_CODE_DEFAULTS[error.code];
+    return {
+      code: error.code,
+      status: error.status ?? meta.status,
+      error: meta.message,
+      retryable: error.retryable ?? meta.retryable,
+      upstreamStatus: error.upstreamStatus ?? upstreamStatus
+    };
+  }
+
+  // 2. İkincil / yedek yol: HTTP durumu ve metin tespiti
   let code = 'LLM_PROVIDER_ERROR';
   let status = 502;
   let message = 'Model sağlayıcısından yanıt alınamadı. Sağlayıcı durumunu ve profil ayarlarını kontrol edin.';
   let retryable = true;
 
-  if (/Timeout|Abort/.test(name) || /timeout|zaman aşımı|aborted/i.test(text)) {
-    code = 'LLM_TIMEOUT';
+  if (name === 'AbortError' || /abort/i.test(name) || /aborted|iptal edildi/i.test(text)) {
+    code = ErrorCodes.LLM_ABORTED;
+    status = 499;
+    retryable = false;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_ABORTED].message;
+  } else if (/Timeout/.test(name) || /timeout|zaman aşımı/i.test(text)) {
+    code = ErrorCodes.LLM_TIMEOUT;
     status = 504;
-    message = 'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_TIMEOUT].message;
+  } else if (upstreamStatus && upstreamStatus >= 500 && upstreamStatus <= 599) {
+    code = ErrorCodes.LLM_UPSTREAM_UNAVAILABLE;
+    status = 503;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_UPSTREAM_UNAVAILABLE].message;
   } else if (upstreamStatus === 429) {
-    code = 'LLM_RATE_LIMIT';
-    message = 'Sağlayıcının hız veya kota sınırına ulaşıldı. Bir süre bekleyip kota durumunu kontrol edin.';
+    code = ErrorCodes.LLM_RATE_LIMIT;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_RATE_LIMIT].message;
   } else if (upstreamStatus === 402) {
-    code = 'LLM_BILLING';
+    code = ErrorCodes.LLM_BILLING;
     retryable = false;
-    message = 'Sağlayıcı ödeme veya bakiye nedeniyle isteği reddetti. Bakiye ve aboneliği kontrol edin.';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_BILLING].message;
   } else if (upstreamStatus === 403) {
-    code = 'LLM_FORBIDDEN';
+    code = ErrorCodes.LLM_FORBIDDEN;
     retryable = false;
-    message = 'Anahtarın model veya hizmet erişim izni yok.';
-  } else if (error?.code === 'AI_CREDENTIAL_ENDPOINT_MISMATCH') {
-    code = 'AI_CREDENTIAL_ENDPOINT_MISMATCH';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_FORBIDDEN].message;
+  } else if (error?.code === ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH) {
+    code = ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH;
+    status = 400;
     retryable = false;
-    message = 'Xiaomi anahtar türü ile PAYG / Token Plan adresi eşleşmiyor.';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH].message;
   } else if (upstreamStatus === 401) {
-    code = 'LLM_AUTH';
+    code = ErrorCodes.LLM_AUTH;
     retryable = false;
-    message = 'Sağlayıcı API anahtarını veya model erişim yetkisini kabul etmedi. Profili kontrol edin.';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_AUTH].message;
   } else if (upstreamStatus === 400 || upstreamStatus === 404) {
-    code = 'LLM_REQUEST_REJECTED';
+    code = ErrorCodes.LLM_REQUEST_REJECTED;
     retryable = false;
-    message = 'Sağlayıcı model, adres veya istek ayarını reddetti. Profil testlerini çalıştırın.';
-  } else if (error?.code === 'LLM_EMPTY_RESPONSE' || /boş içerik|model yanıtı alınamadı|empty/i.test(text)) {
-    code = 'LLM_EMPTY_RESPONSE';
-    message = 'Model kullanılabilir cevap üretmedi. Token bütçesini ve düşünme ayarını kontrol edin.';
-  } else if (error?.code === 'LLM_TRUNCATED' || /token sınırı/i.test(text)) {
-    code = 'LLM_TRUNCATED';
-    message = 'Model yanıtı token bütçesine takıldı. Token bütçesini artırın veya isteği küçültün.';
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_REQUEST_REJECTED].message;
+  } else if (error?.code === ErrorCodes.LLM_CONTENT_FILTERED || /safety|güvenlik|içerik filtre/i.test(text)) {
+    code = ErrorCodes.LLM_CONTENT_FILTERED;
+    status = 422;
+    retryable = false;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_CONTENT_FILTERED].message;
+  } else if (error?.code === ErrorCodes.LLM_EMPTY_RESPONSE || /boş içerik|model yanıtı alınamadı|empty/i.test(text)) {
+    code = ErrorCodes.LLM_EMPTY_RESPONSE;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_EMPTY_RESPONSE].message;
+  } else if (error?.code === ErrorCodes.LLM_TRUNCATED || /token sınırı/i.test(text)) {
+    code = ErrorCodes.LLM_TRUNCATED;
+    status = 422;
+    retryable = false;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_TRUNCATED].message;
+  } else if (error?.code === ErrorCodes.LLM_RESPONSE_TOO_LARGE || /EXTERNAL_RESPONSE_TOO_LARGE/i.test(text)) {
+    code = ErrorCodes.LLM_RESPONSE_TOO_LARGE;
+    retryable = false;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_RESPONSE_TOO_LARGE].message;
+  } else if (error?.code === ErrorCodes.LLM_DNS_BLOCKED || /DNS.*must resolve|public HTTPS hostname/i.test(text)) {
+    code = ErrorCodes.LLM_DNS_BLOCKED;
+    retryable = false;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_DNS_BLOCKED].message;
   } else if (/fetch|DNS|ağ|network|ECONN|ENOTFOUND/i.test(text) || error?.cause) {
-    code = 'LLM_NETWORK';
-    message = 'Sağlayıcıya ağ bağlantısı kurulamadı. DNS, internet ve proxy ayarlarını kontrol edin.';
+    code = ErrorCodes.LLM_NETWORK;
+    message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_NETWORK].message;
   }
+
   return { code, status, error: message, retryable, upstreamStatus };
 }
 
 export function buildProviderRequest(profile, messages, options = {}) {
   const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
-  if (problem) throw Object.assign(new Error(problem), { code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH' });
+  if (problem)
+    throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, { status: 400, retryable: false });
 
   const { timeoutMs, maxOutputTokens, thinking } = resolveRuntimeOptions(profile, options);
   const transport = profile.transport || 'openai';
@@ -147,19 +296,48 @@ export function buildProviderRequest(profile, messages, options = {}) {
 export async function generateProfileResponse(messages, profile, options = {}) {
   const request = buildProviderRequest(profile, messages, options);
   const deadline = AbortSignal.timeout(request.timeoutMs);
-  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
-  const response = await providerFetch(request.url, {
-    method: 'POST',
-    headers: request.headers,
-    body: JSON.stringify(request.body),
-    signal,
-    allowLocalHttp: options.allowLocalHttp
-  });
-  if (!response.ok) {
-    const error = new Error(`Sağlayıcı HTTP ${response.status} döndürdü.`);
-    error.upstreamStatus = response.status;
-    throw error;
+  const userSignal = options.signal;
+  const signal = userSignal ? AbortSignal.any([userSignal, deadline]) : deadline;
+  let response;
+  try {
+    response = await providerFetch(request.url, {
+      method: 'POST',
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+      signal,
+      allowLocalHttp: options.allowLocalHttp
+    });
+  } catch (fetchError) {
+    if (userSignal?.aborted) {
+      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
+        status: 499,
+        retryable: false,
+        cause: fetchError
+      });
+    }
+    if (deadline.aborted) {
+      throw new LLMError(
+        ErrorCodes.LLM_TIMEOUT,
+        'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.',
+        { status: 504, retryable: true, cause: fetchError }
+      );
+    }
+    throw fetchError;
   }
+
+  if (!response.ok) {
+    const is5xx = response.status >= 500 && response.status <= 599;
+    throw new LLMError(
+      is5xx ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE : ErrorCodes.LLM_PROVIDER_ERROR,
+      `Sağlayıcı HTTP ${response.status} döndürdü.`,
+      {
+        upstreamStatus: response.status,
+        status: is5xx ? 503 : 502,
+        retryable: is5xx
+      }
+    );
+  }
+
   const payload = await response.json();
   const content =
     profile.transport === 'google'
@@ -175,11 +353,24 @@ export async function generateProfileResponse(messages, profile, options = {}) {
         : payload.choices?.[0]?.message?.content;
   const finishReason =
     payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason || payload.stop_reason;
+  if (['SAFETY', 'content_filter'].includes(finishReason)) {
+    throw new LLMError(
+      ErrorCodes.LLM_CONTENT_FILTERED,
+      'Model yanıtı güvenlik veya içerik filtresi nedeniyle engellendi.',
+      { status: 422, retryable: false }
+    );
+  }
   if (['length', 'MAX_TOKENS', 'max_tokens'].includes(finishReason)) {
-    throw Object.assign(new Error('Model yanıtı token sınırında kesildi.'), { code: 'LLM_TRUNCATED' });
+    throw new LLMError(ErrorCodes.LLM_TRUNCATED, 'Model yanıtı token sınırında kesildi.', {
+      status: 422,
+      retryable: false
+    });
   }
   if (!content) {
-    throw Object.assign(new Error('Sağlayıcı kullanılabilir model yanıtı üretmedi.'), { code: 'LLM_EMPTY_RESPONSE' });
+    throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Sağlayıcı kullanılabilir model yanıtı üretmedi.', {
+      status: 502,
+      retryable: true
+    });
   }
   return content;
 }

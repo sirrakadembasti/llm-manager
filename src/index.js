@@ -1,11 +1,20 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
+import { LLMError, ErrorCodes } from './errors.js';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager } from './core.js';
 
-export { generateProfileResponse, classifyLLMError, PROVIDERS, validateProviderUrl, createLLMProfileStore };
+export {
+  LLMError,
+  ErrorCodes,
+  generateProfileResponse,
+  classifyLLMError,
+  PROVIDERS,
+  validateProviderUrl,
+  createLLMProfileStore
+};
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
 
 /** @deprecated `llm-manager/init` alt yolunu kullanın. */
@@ -44,7 +53,12 @@ const safeEqual = (left, right) => {
 };
 
 export function createBasicAuth({ user = 'admin', password } = {}) {
-  if (!password) throw new Error('Basic Auth için parola (adminPassword) zorunludur.');
+  if (!password) {
+    throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Basic Auth için parola (adminPassword) zorunludur.', {
+      status: 500,
+      retryable: false
+    });
+  }
   return (req, res, next) => {
     const authorization = req.get('Authorization') || '';
     const decoded = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString() : '';

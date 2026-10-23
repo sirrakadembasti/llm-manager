@@ -1,4 +1,5 @@
 import { credentialEndpointProblem } from './credentialValidation.js';
+import { LLMError, ErrorCodes } from './errors.js';
 import { normalizeRuntimeOptions } from './runtime.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -6,8 +7,10 @@ import path from 'node:path';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 
 const CONFLICT_MESSAGE = 'Profil başka bir işlemde değiştirildi; yenileyin.';
-const conflictError = () => Object.assign(new Error(CONFLICT_MESSAGE), { code: 'PROFILE_CONFLICT' });
-const notFoundError = () => Object.assign(new Error('Profil bulunamadı.'), { code: 'PROFILE_NOT_FOUND' });
+const conflictError = () =>
+  new LLMError(ErrorCodes.PROFILE_CONFLICT, CONFLICT_MESSAGE, { status: 409, retryable: false });
+const notFoundError = () =>
+  new LLMError(ErrorCodes.PROFILE_NOT_FOUND, 'Profil bulunamadı.', { status: 404, retryable: false });
 
 export function parseEncryptionKey(value) {
   const raw = String(value || '').trim();
@@ -15,7 +18,11 @@ export function parseEncryptionKey(value) {
   const isBase64 = /^[A-Za-z0-9+/]+={0,2}$/.test(raw);
   const bytes = isHex ? Buffer.from(raw, 'hex') : isBase64 ? Buffer.from(raw, 'base64') : Buffer.alloc(0);
   if (bytes.length !== 32) {
-    throw new Error('LLM_CONFIG_ENCRYPTION_KEY 32 baytlık hex veya base64 anahtar olmalıdır.');
+    throw new LLMError(
+      ErrorCodes.PROFILE_INVALID,
+      'LLM_CONFIG_ENCRYPTION_KEY 32 baytlık hex veya base64 anahtar olmalıdır.',
+      { status: 400, retryable: false }
+    );
   }
   return bytes;
 }
@@ -30,11 +37,17 @@ function encrypt(secret, key) {
 function decrypt(payload, key) {
   const parts = String(payload || '').split('.');
   if (parts.length !== 3 || parts.some(part => !part)) {
-    throw new Error('Şifreli profil verisi geçersiz veya bozuk.');
+    throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Şifreli profil verisi geçersiz veya bozuk.', {
+      status: 400,
+      retryable: false
+    });
   }
   const [iv, tag, data] = parts.map(part => Buffer.from(part, 'base64'));
   if (iv.length !== 12 || tag.length !== 16) {
-    throw new Error('Şifreli profil verisi geçersiz veya bozuk.');
+    throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Şifreli profil verisi geçersiz veya bozuk.', {
+      status: 400,
+      retryable: false
+    });
   }
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   decipher.setAuthTag(tag);
@@ -71,8 +84,10 @@ function resolveAutoEncryptionKey(filePath) {
   if (fs.existsSync(filePath)) {
     const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     if (data.profiles?.some(profile => profile.secret)) {
-      throw new Error(
-        'Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok. Önce eski LLM_CONFIG_ENCRYPTION_KEY değerini yedekten kurtarın.'
+      throw new LLMError(
+        ErrorCodes.PROFILE_INVALID,
+        'Kayıtlı LLM profilleri var fakat şifreleme anahtarı yok. Önce eski LLM_CONFIG_ENCRYPTION_KEY değerini yedekten kurtarın.',
+        { status: 400, retryable: false }
       );
     }
   }
@@ -145,7 +160,10 @@ export function createLLMProfileStore({
         .trim()
         .slice(0, 160);
       if (!name || !model || !PROVIDERS.some(item => item.id === provider)) {
-        throw new Error('Sağlayıcı, profil adı ve model zorunludur.');
+        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı, profil adı ve model zorunludur.', {
+          status: 400,
+          retryable: false
+        });
       }
       const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
       const data = read();
@@ -156,12 +174,25 @@ export function createLLMProfileStore({
       }
       const newKey = String(input.apiKey || '').trim();
       const problem = credentialEndpointProblem(provider, baseURL, newKey);
-      if (problem) throw Object.assign(new Error(problem), { code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH' });
+      if (problem) {
+        throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, {
+          status: 400,
+          retryable: false
+        });
+      }
       if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
-        throw new Error('Sağlayıcı değişince yeni API anahtarı girin.');
+        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı değişince yeni API anahtarı girin.', {
+          status: 400,
+          retryable: false
+        });
       }
       const secret = newKey ? encrypt(newKey, getKeyBytes()) : existing?.secret;
-      if (!secret) throw new Error('API anahtarı zorunludur.');
+      if (!secret) {
+        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'API anahtarı zorunludur.', {
+          status: 400,
+          retryable: false
+        });
+      }
       const runtime = normalizeRuntimeOptions({ ...existing, ...input });
       const keepTests = Boolean(
         existing &&
@@ -200,7 +231,12 @@ export function createLLMProfileStore({
     },
 
     recordTest(id, status, expectedRevision, details = {}) {
-      if (!['passed', 'failed'].includes(status)) throw new Error('Geçersiz bağlantı testi sonucu.');
+      if (!['passed', 'failed'].includes(status)) {
+        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Geçersiz bağlantı testi sonucu.', {
+          status: 400,
+          retryable: false
+        });
+      }
       const data = read();
       const profile = data.profiles.find(item => item.id === id);
       if (!profile) throw notFoundError();

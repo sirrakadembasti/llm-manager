@@ -6,10 +6,13 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Tipli hata modeli eklendi: `src/errors.js` (`llm-manager/errors`) içinde `LLMError`, `ErrorCodes` ve `isLLMError`; `RUNTIME_OPTIONS_INVALID`, `PROFILE_INVALID`, `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT`, `LLM_NETWORK`, `LLM_DNS_BLOCKED`, `LLM_RESPONSE_TOO_LARGE`, `LLM_TIMEOUT`, `LLM_ABORTED`, `LLM_CONTENT_FILTERED`, `LLM_UPSTREAM_UNAVAILABLE` gibi standart tipli hata kodları tanımlandı (YH1-A4).
 - Bağımsız sunucu fonksiyonu `createStandaloneServer` (`src/server.js`, `llm-manager/server`) eklendi; `--host`, `--data-dir` ve `--chat-token` CLI seçenekleri, graceful shutdown ve ağa açık sunucu parola uzunluğu (en az 12 karakter) doğrulaması sağlandı (YH1-A2).
 - Geliştirme ve CI altyapısı eklendi: ESLint flat config (`eslint.config.js`), Prettier yapılandırması (`.prettierrc`, `.prettierignore`), `.editorconfig`, `.gitattributes` ve GitHub Actions çoklu işletim sistemi / Node matrisi iş akışı (`.github/workflows/ci.yml`). `npm run lint` ve `npm run format:check` komutları tanımlandı (YH1-F1).
 
 ### Değişti
+- Hata sınıflandırması ve yönetimi metin regex kontrolü yerine birincil olarak `error.code` tablosuna bağlandı; kullanıcı abort (`LLM_ABORTED`) ile zaman aşımı (`LLM_TIMEOUT`) ayrıştırıldı; sağlayıcı 5xx yanıtları `LLM_UPSTREAM_UNAVAILABLE`, içerik filtreleri `LLM_CONTENT_FILTERED`, aşırı büyük yanıtlar `LLM_RESPONSE_TOO_LARGE` kodlarıyla tiplendirildi (YH1-A4).
+- `src/profileStore.js` doğrulama ve durum hataları ile `src/runtime.js` seçenek denetimleri `LLMError` fırlatacak şekilde güncellendi (YH1-A4).
 - `src/index.js` içinden `init.js` statik bağımlılığı kaldırıldı; `src/init.js` içerisindeki statik `express` bağımlılığı temizlendi. `src/index.js` üzerinden `init` fonksiyonlarına erişim asenkron lazy sarmalayıcılarla geriye dönük uyumlu tutuldu (`@deprecated`, YH1-A1).
 - `package.json` içinde `express` doğrudan bağımlılıktan `peerDependencies` (`^4.19.2 || ^5.0.0`, isteğe bağlı) ve geliştirme bağımlılığına (`devDependencies`) dönüştürüldü; `dotenv` çalışma zamanı bağımlılığı tamamen kaldırılarak yerleşik Node ortam dosyası yüklemesi ve güvenli ayrıştırıcıya geçildi (YH1-A1).
 - `examples/server.js` `src/server.js` üzerindeki ince bir kullanım örneğine dönüştürüldü (YH1-A2).

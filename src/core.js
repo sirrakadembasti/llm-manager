@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
+import { LLMError, ErrorCodes } from './errors.js';
 import {
   generateProfileResponse,
   classifyLLMError,
@@ -16,7 +17,15 @@ import { providerFetch } from './providerTransport.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 
-export { generateProfileResponse, classifyLLMError, PROVIDERS, validateProviderUrl, createLLMProfileStore };
+export {
+  LLMError,
+  ErrorCodes,
+  generateProfileResponse,
+  classifyLLMError,
+  PROVIDERS,
+  validateProviderUrl,
+  createLLMProfileStore
+};
 export const CSRF_HEADER = 'X-LLM-CSRF';
 export const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
@@ -28,7 +37,12 @@ export function isValidMountPath(value) {
 
 // Yönetim sayfası ve betiği bir kez okunup yol ayarlarıyla önbelleğe alınır.
 export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm' } = {}) {
-  if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
+  if (![apiPath, pagePath].every(isValidMountPath)) {
+    throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Geçersiz eklenti mount yolu.', {
+      status: 400,
+      retryable: false
+    });
+  }
   let html = fs.readFileSync(path.join(publicDir, 'llm.html'), 'utf8');
   html = html.replace(/data-api-base="[^"]*"/, `data-api-base="${apiPath}"`);
   if (!html.includes('data-api-base=')) html = html.replace('<body', `<body data-api-base="${apiPath}"`);
@@ -66,8 +80,10 @@ function defaultTestMessages(mode) {
 const ok = (body, status = 200) => ({ status, body });
 const notFound = () => ({ status: 404 });
 const profileError = error => ({
-  status: error.code === 'PROFILE_NOT_FOUND' ? 404 : error.code === 'PROFILE_CONFLICT' ? 409 : 400,
-  body: { error: error.message, code: error.code || 'PROFILE_INVALID' }
+  status:
+    error.status ||
+    (error.code === ErrorCodes.PROFILE_NOT_FOUND ? 404 : error.code === ErrorCodes.PROFILE_CONFLICT ? 409 : 400),
+  body: { error: error.message, code: error.code || ErrorCodes.PROFILE_INVALID }
 });
 
 export function createLLMManager({
@@ -140,9 +156,10 @@ export function createLLMManager({
         ? await generate(messages, options)
         : await generateProfileResponse(messages, profile, options);
       if (!reply) {
-        const error = new Error('Model kullanılabilir cevap üretmedi.');
-        error.code = 'LLM_EMPTY_RESPONSE';
-        throw error;
+        throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
+          status: 502,
+          retryable: true
+        });
       }
       if (validateTestReply) await validateTestReply(reply, { mode, profile });
       const durationMs = Date.now() - start;
@@ -239,7 +256,10 @@ export function createLLMManager({
         ? await generate(messages, options)
         : await generateProfileResponse(messages, profile, options);
       if (!content) {
-        throw Object.assign(new Error('Model kullanılabilir cevap üretmedi.'), { code: 'LLM_EMPTY_RESPONSE' });
+        throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
+          status: 502,
+          retryable: true
+        });
       }
       return ok({
         ok: true,
@@ -253,12 +273,12 @@ export function createLLMManager({
       });
     } catch (error) {
       if (
-        error &&
-        !error.upstreamStatus &&
-        !error.code &&
-        /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error.message)
+        error?.code === ErrorCodes.RUNTIME_OPTIONS_INVALID ||
+        (!error?.upstreamStatus &&
+          !error?.code &&
+          /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error?.message || ''))
       ) {
-        return ok({ error: error.message, code: 'RUNTIME_OPTIONS_INVALID' }, 400);
+        return ok({ error: error.message, code: ErrorCodes.RUNTIME_OPTIONS_INVALID }, 400);
       }
       const classified = classifyLLMError(error);
       return ok({ ...classified, durationMs: Date.now() - start }, classified.status);
@@ -269,14 +289,14 @@ export function createLLMManager({
   async function ask(promptOrMessages, options = {}) {
     const messages = normalizeMessagesInput(promptOrMessages, options.system);
     if (!Array.isArray(messages) || !messages.length) {
-      throw Object.assign(new Error('Geçerli bir mesaj listesi (messages) veya prompt zorunludur.'), {
-        code: 'MESSAGES_INVALID'
+      throw new LLMError(ErrorCodes.MESSAGES_INVALID, 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', {
+        status: 400,
+        retryable: false
       });
     }
     const result = await chatCompletion({ ...options, messages });
     if (result.status !== 200) {
-      throw Object.assign(new Error(result.body?.error || 'Model çağrısı başarısız.'), {
-        code: result.body?.code || 'LLM_ERROR',
+      throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status
       });
     }

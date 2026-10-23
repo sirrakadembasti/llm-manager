@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import net from 'node:net';
 import { Agent } from 'undici';
+import { LLMError, ErrorCodes } from './errors.js';
 
 function isPublicAddress(address) {
   const family = net.isIP(address);
@@ -51,12 +52,23 @@ export function createPublicLookup({ resolver = (...args) => dns.lookup(...args)
         )
       ) {
         return callback(
-          new Error('Provider DNS must resolve exclusively to public addresses; private networks are forbidden.')
+          new LLMError(
+            ErrorCodes.LLM_DNS_BLOCKED,
+            'Provider DNS must resolve exclusively to public addresses; private networks are forbidden.',
+            { status: 502, retryable: false }
+          )
         );
       }
       const family = typeof options === 'number' ? options : options?.family;
       const matching = family ? addresses.filter(entry => entry.family === family) : addresses;
-      if (!matching.length) return callback(new Error('Provider DNS has no address in the requested family.'));
+      if (!matching.length) {
+        return callback(
+          new LLMError(ErrorCodes.LLM_DNS_BLOCKED, 'Provider DNS has no address in the requested family.', {
+            status: 502,
+            retryable: false
+          })
+        );
+      }
       if (options?.all) return callback(null, matching);
       callback(null, matching[0].address, matching[0].family);
     });
@@ -78,15 +90,65 @@ export async function providerFetch(url, options = {}) {
     target.password ||
     (!local && net.isIP(target.hostname.replace(/^\[|\]$/g, '')))
   ) {
-    throw new Error('Provider transport requires a public HTTPS hostname.');
+    throw new LLMError(ErrorCodes.LLM_DNS_BLOCKED, 'Provider transport requires a public HTTPS hostname.', {
+      status: 502,
+      retryable: false
+    });
   }
-  // The validated DNS result is the socket lookup result, preventing DNS rebinding.
-  const response = await fetch(url, {
-    ...fetchOptions,
-    dispatcher: local ? localAgent : publicAgent,
-    redirect: 'error',
-    signal: fetchOptions.signal || AbortSignal.timeout(30000)
-  });
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      dispatcher: local ? localAgent : publicAgent,
+      redirect: 'error',
+      signal: fetchOptions.signal || AbortSignal.timeout(30000)
+    });
+  } catch (error) {
+    if (error instanceof LLMError) throw error;
+    if (error?.code === ErrorCodes.LLM_DNS_BLOCKED || error?.cause?.code === ErrorCodes.LLM_DNS_BLOCKED) {
+      throw new LLMError(
+        ErrorCodes.LLM_DNS_BLOCKED,
+        error?.cause?.message || error.message || 'Provider DNS blocked.',
+        { status: 502, retryable: false, cause: error }
+      );
+    }
+    if (fetchOptions.signal?.aborted) {
+      const reason = fetchOptions.signal.reason;
+      if (reason?.name === 'TimeoutError' || /timeout/i.test(reason?.message || '')) {
+        throw new LLMError(ErrorCodes.LLM_TIMEOUT, 'Model yanıtı süre sınırını aştı.', {
+          status: 504,
+          retryable: true,
+          cause: error
+        });
+      }
+      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
+        status: 499,
+        retryable: false,
+        cause: error
+      });
+    }
+    if (error?.name === 'TimeoutError' || /timeout/i.test(error?.message || '')) {
+      throw new LLMError(ErrorCodes.LLM_TIMEOUT, 'Model yanıtı süre sınırını aştı.', {
+        status: 504,
+        retryable: true,
+        cause: error
+      });
+    }
+    if (error?.name === 'AbortError' || /abort/i.test(error?.message || '')) {
+      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
+        status: 499,
+        retryable: false,
+        cause: error
+      });
+    }
+    throw new LLMError(
+      ErrorCodes.LLM_NETWORK,
+      'Sağlayıcıya ağ bağlantısı kurulamadı. DNS, internet ve proxy ayarlarını kontrol edin.',
+      { status: 502, retryable: true, cause: error }
+    );
+  }
+
   if (!response.body) return response;
 
   const reader = response.body.getReader();
@@ -99,7 +161,11 @@ export async function providerFetch(url, options = {}) {
       size += value.byteLength;
       if (size > 2 * 1024 * 1024) {
         await reader.cancel();
-        throw new Error('EXTERNAL_RESPONSE_TOO_LARGE');
+        throw new LLMError(
+          ErrorCodes.LLM_RESPONSE_TOO_LARGE,
+          'EXTERNAL_RESPONSE_TOO_LARGE: Yanıt boyutu 2 MiB sınırını aştı.',
+          { status: 502, retryable: false }
+        );
       }
       chunks.push(Buffer.from(value));
     }

@@ -14,7 +14,8 @@
     "./init": "./src/init.js",
     "./setup": "./src/setup.js",
     "./transport": "./src/providerTransport.js",
-    "./runtime": "./src/runtime.js"
+    "./runtime": "./src/runtime.js",
+    "./errors": "./src/errors.js"
   },
   "files": [
     "bin",
