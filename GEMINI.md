@@ -26,6 +26,12 @@
 - CSRF başlığı `X-LLM-CSRF: 1`. Git kimliği (yerel): llm-yonetimi <noreply@users.noreply.github.com>.
 - Klasör adı `llm-yonetimi` -> `llm-manager` olarak güncellendi.
 
+## Mimari inceleme ve yol haritaları (2026-10-22)
+- `docs/roadmap/` altında iki yol haritası var: YH1 (teknik/mimari, A–F fazları) ve YH2 (vaat ↔ gerçek, G01–G26). Uygulama sırası YH2 §5'te.
+- Doğrulanmış kritik bulgular (`node docs/roadmap/dogrulama.mjs`): `chatAccess:false` sohbeti kapatmıyor, `llm.fetch` kimlik doğrulamasız (Next/Nuxt/SvelteKit rotaları açık), async store bozuk, gövde ayrıştırıcı sırası, SPA şablonu admin parolasını tarayıcıya gömüyor, init parolayı koda/package.json'a yazıyor ve `.gitignore` güncellemiyor, `--cors *` + credentials, npm'de `llm-manager` adı başkasına ait.
+- Sonraki iş: YH2 Faz 0 (G03 → G02 → G04+G05 → G06 → G01+G24 → G07).
+- **Karar (kullanıcı onayı, 2026-10-23):** Paket adı `@sirrakadembasti/llm-manager` olacak; kırıcı değişiklik → **v2.0.0** (Faz 0 + Faz 1 sonunda yayımlanır). CLI komutu `llm-manager` ve GitHub deposu değişmez. Uygulama: YH2-G07. G07 uygulanana kadar `package.json#name` hâlâ `llm-manager`.
+
 ## Tamamlanan ek geliştirmeler (2026-10-19)
 - Tüm kaynak (`src/*`), arayüz (`public/*`), örnek (`examples/*`) ve test (`tests/*`) dosyalarındaki sıkıştırılmış kodların okunabilir hale getirilmesi ve `public/llm.html` içindeki mükerrer stil bloklarının birleştirilmesi.
 - `src/runtime.js` ile `src/core.js` arasındaki ortak sağlayıcı adresi, yetki başlığı ve çalışma zamanı seçenek çözümlemesinin (`providerEndpoint`, `providerAuthHeaders`, `resolveRuntimeOptions`) tekilleştirilmesi.
