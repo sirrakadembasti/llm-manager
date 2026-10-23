@@ -11,7 +11,7 @@ import {
   verifyIntegration,
   formatVerificationReport,
   runInteractiveInit
-} from '../src/index.js';
+} from '../src/init.js';
 
 test('detectEntryFile ve injectIntoEntryFile: Express ESM senaryosu, idempotency ve rollback', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-exp-esm-'));

@@ -9,22 +9,33 @@ Kullanım:
   npx llm-manager --password <parola>       Yönetim sunucusunu (/llm) başlatır
 
 Seçenekler:
-  -t, --type <tip>      Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python (varsayılan: otomatik algılar)
-  -w, --password <sır>  Yönetim arayüzü parolası (LLM_ADMIN_PASSWORD ile de verilebilir)
-  -u, --user <ad>       Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
-  -c, --cors <adres>    İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
-  -p, --port <sayı>     Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
-  -f, --force           Mevcut llm.js dosyasının üzerine yaz
-  -y, --yes             Kurulum sorularını otomatik onayla (etkileşimsiz mod)
-  --no-open             Kurulum sonunda varsayılan tarayıcıyı otomatik açma
-  -h, --help            Bu yardımı göster
-  -v, --version         Sürümü göster
+  -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python (varsayılan: otomatik algılar)
+  -w, --password <sır>      Yönetim arayüzü parolası (LLM_ADMIN_PASSWORD ile de verilebilir)
+  -u, --user <ad>           Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
+  --host <adres>            Dinlenecek adres (varsayılan: 127.0.0.1)
+  -p, --port <sayı>         Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
+  -c, --cors <adres>        İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
+  --data-dir <dizin>        Profil ve anahtar verilerinin saklanacağı klasör
+  --chat-token <belirteç>   Sohbet istemcileri için izinli yetki belirteci
+  -f, --force               Mevcut llm.js dosyasının üzerine yaz
+  -y, --yes                 Kurulum sorularını otomatik onayla (etkileşimsiz mod)
+  --no-open                 Kurulum sonunda varsayılan tarayıcıyı otomatik açma
+  -h, --help                Bu yardımı göster
+  -v, --version             Sürümü göster
 
-Sunucu yalnız 127.0.0.1 üzerinde dinler; sayfa /llm adresindedir.
+Sunucu varsayılan olarak 127.0.0.1 üzerinde dinler; sayfa /llm adresindedir.
 Çalışma dizinindeki .env dosyası otomatik okunur.
 `;
 
-await import('dotenv').then(({ default: dotenv }) => dotenv.config());
+try {
+  if (typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile();
+  }
+} catch (e) {
+  if (e?.code !== 'ENOENT') {
+    // .env yoksa veya okunamadıysa yoksay
+  }
+}
 
 const args = process.argv.slice(2);
 const fail = message => {
@@ -37,6 +48,9 @@ let initType;
 let force = false;
 let yes = false;
 let openBrowser = true;
+let host = '127.0.0.1';
+let dataDir;
+let chatTokens;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -61,6 +75,8 @@ for (let i = 0; i < args.length; i++) {
     yes = true;
   } else if (arg === '--no-open') {
     openBrowser = false;
+  } else if (arg === '--host') {
+    host = String(args[++i] || '127.0.0.1');
   } else if (arg === '-p' || arg === '--port') {
     const port = Number(args[++i]);
     if (!Number.isInteger(port) || port < 1 || port > 65535) fail('Geçersiz port.');
@@ -71,6 +87,10 @@ for (let i = 0; i < args.length; i++) {
     process.env.LLM_ADMIN_USER = String(args[++i] || '');
   } else if (arg === '-c' || arg === '--cors') {
     process.env.LLM_ALLOWED_ORIGINS = String(args[++i] || '');
+  } else if (arg === '--data-dir') {
+    dataDir = String(args[++i] || '');
+  } else if (arg === '--chat-token') {
+    chatTokens = String(args[++i] || '');
   } else fail(`Bilinmeyen seçenek: ${arg}`);
 }
 
@@ -99,5 +119,23 @@ if (isInit) {
     fail('Parola gerekli: --password <parola> verin veya LLM_ADMIN_PASSWORD ortam değişkenini ayarlayın.');
   }
 
-  await import('../examples/server.js');
+  const { createStandaloneServer } = await import('../src/server.js');
+  const serverInstance = await createStandaloneServer({
+    host,
+    port: Number(process.env.PORT) || 8010,
+    adminUser: process.env.LLM_ADMIN_USER || 'admin',
+    adminPassword: process.env.LLM_ADMIN_PASSWORD,
+    allowedOrigins: process.env.LLM_ALLOWED_ORIGINS || '',
+    dataDir,
+    chatTokens
+  });
+
+  console.log(`LLM yönetimi: ${serverInstance.url} (Kullanıcı: ${process.env.LLM_ADMIN_USER || 'admin'})`);
+
+  const shutdown = () => {
+    serverInstance.close().then(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }

@@ -2,7 +2,6 @@ import { exec, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import express from 'express';
 
 function hasFilesWithExt(cwd, extList) {
   try {
@@ -969,13 +968,6 @@ export function formatVerificationReport(report) {
   return lines.join('\n');
 }
 
-function listenOnLocalhost(app, targetPort) {
-  return new Promise((resolve, reject) => {
-    const srv = app.listen(targetPort, '127.0.0.1', () => resolve(srv));
-    srv.once('error', err => reject(err));
-  });
-}
-
 function openDefaultBrowser(url) {
   try {
     const command =
@@ -1024,23 +1016,27 @@ export async function probeAndOpenBrowser({
   }
 
   if (!ok && startServerIfNeeded === true) {
-    const { mountLLMManagement } = await import('./index.js');
-    const app = express();
-    app.use(express.json({ limit: '32kb' }));
-    mountLLMManagement(app, {
-      dataDir: path.join(cwd, 'data'),
-      adminPassword: password
-    });
-
+    const { createStandaloneServer } = await import('./server.js');
+    let srvInstance;
     try {
-      server = await listenOnLocalhost(app, port);
+      srvInstance = await createStandaloneServer({
+        port,
+        host: '127.0.0.1',
+        adminPassword: password,
+        dataDir: path.join(cwd, 'data')
+      });
     } catch {
-      server = await listenOnLocalhost(app, 0);
+      srvInstance = await createStandaloneServer({
+        port: 0,
+        host: '127.0.0.1',
+        adminPassword: password,
+        dataDir: path.join(cwd, 'data')
+      });
     }
+    server = srvInstance.server;
     startedServer = true;
-
-    const actualPort = server.address().port;
-    url = `http://127.0.0.1:${actualPort}/llm`;
+    url = srvInstance.url;
+    const actualPort = srvInstance.port;
     const catalogUrl = `http://127.0.0.1:${actualPort}/api/llm/catalog`;
 
     try {

@@ -1,8 +1,25 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import dotenv from 'dotenv';
 import { parseEncryptionKey } from './profileStore.js';
+
+function parseSimpleEnv(content) {
+  const result = {};
+  for (const line of String(content || '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      const key = trimmed.slice(0, eq).trim();
+      let val = trimmed.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      result[key] = val;
+    }
+  }
+  return result;
+}
 
 export function ensureLLMEncryptionKey({
   envPath = path.join(process.cwd(), '.env'),
@@ -13,7 +30,7 @@ export function ensureLLMEncryptionKey({
   const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : null;
   const configured =
     environment.LLM_CONFIG_ENCRYPTION_KEY ||
-    (envContent && dotenv.parse(envContent).LLM_CONFIG_ENCRYPTION_KEY) ||
+    (envContent && parseSimpleEnv(envContent).LLM_CONFIG_ENCRYPTION_KEY) ||
     (fs.existsSync(keyPath) && fs.readFileSync(keyPath, 'utf8').trim());
   if (configured) {
     parseEncryptionKey(configured);

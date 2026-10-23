@@ -3,30 +3,31 @@ import { Router } from 'express';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
-import {
-  initLLMProject,
-  detectProjectType,
-  detectEntryFile,
-  injectIntoEntryFile,
-  verifyIntegration,
-  formatVerificationReport,
-  probeAndOpenBrowser,
-  runInteractiveInit
-} from './init.js';
 import { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager } from './core.js';
 
 export { generateProfileResponse, classifyLLMError, PROVIDERS, validateProviderUrl, createLLMProfileStore };
-export {
-  initLLMProject,
-  detectProjectType,
-  detectEntryFile,
-  injectIntoEntryFile,
-  verifyIntegration,
-  formatVerificationReport,
-  probeAndOpenBrowser,
-  runInteractiveInit
-};
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
+
+/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+export async function runInteractiveInit(...a) {
+  return (await import('./init.js')).runInteractiveInit(...a);
+}
+/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+export async function probeAndOpenBrowser(...a) {
+  return (await import('./init.js')).probeAndOpenBrowser(...a);
+}
+/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+export async function initLLMProject(...a) {
+  return (await import('./init.js')).initLLMProject(...a);
+}
+/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+export async function verifyIntegration(...a) {
+  return (await import('./init.js')).verifyIntegration(...a);
+}
+/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+export async function injectIntoEntryFile(...a) {
+  return (await import('./init.js')).injectIntoEntryFile(...a);
+}
 
 const COMMON_HEADERS = {
   'Cache-Control': 'no-store',
