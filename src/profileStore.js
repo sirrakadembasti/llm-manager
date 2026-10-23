@@ -1,6 +1,7 @@
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
 import { normalizeRuntimeOptions } from './runtime.js';
+import { withFileLockSync, robustRenameSync } from './store/fileLock.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,6 +12,25 @@ const conflictError = () =>
   new LLMError(ErrorCodes.PROFILE_CONFLICT, CONFLICT_MESSAGE, { status: 409, retryable: false });
 const notFoundError = () =>
   new LLMError(ErrorCodes.PROFILE_NOT_FOUND, 'Profil bulunamadı.', { status: 404, retryable: false });
+
+function migrate(data) {
+  if (!data || typeof data !== 'object') {
+    return { version: 1, activeId: null, profiles: [] };
+  }
+  const currentVersion = data.version !== undefined ? Number(data.version) : 0;
+  if (!Number.isInteger(currentVersion) || currentVersion < 0 || currentVersion > 1) {
+    throw new LLMError(
+      ErrorCodes.STORE_VERSION_UNSUPPORTED,
+      `Desteklenmeyen profil depolama sürümü (v${data.version}). Lütfen llm-manager paketini güncelleyin.`,
+      { status: 500, retryable: false }
+    );
+  }
+  return {
+    version: 1,
+    activeId: data.activeId ?? null,
+    profiles: Array.isArray(data.profiles) ? data.profiles : []
+  };
+}
 
 export function parseEncryptionKey(value) {
   const raw = String(value || '').trim();
@@ -119,35 +139,66 @@ export function createLLMProfileStore({
   const read = () => {
     if (!fs.existsSync(filePath)) {
       cache = null;
-      return { profiles: [], activeId: null };
+      return { version: 1, profiles: [], activeId: null };
     }
     const stat = fs.statSync(filePath);
     if (cache && cache.mtimeMs === stat.mtimeMs && cache.size === stat.size) {
       return structuredClone(cache.data);
     }
     const raw = fs.readFileSync(filePath, 'utf8');
-    const data = JSON.parse(raw);
-    cache = { mtimeMs: stat.mtimeMs, size: stat.size, data };
-    return structuredClone(data);
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (parseError) {
+      throw new LLMError(
+        ErrorCodes.STORE_CORRUPT,
+        'Profil veri dosyası bozuk veya geçersiz JSON içeriyor. Kurtarmak için .bak uzantılı yedek dosyasını (llm-profiles.json.bak) asıl dosyanın üzerine kopyalayabilirsiniz.',
+        { status: 500, retryable: false, cause: parseError }
+      );
+    }
+    const migrated = migrate(parsed);
+    cache = { mtimeMs: stat.mtimeMs, size: stat.size, data: migrated };
+    return structuredClone(migrated);
   };
 
   const write = value => {
+    const toWrite = {
+      version: 1,
+      activeId: value.activeId ?? null,
+      profiles: Array.isArray(value.profiles) ? value.profiles : []
+    };
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(value), { mode: 0o600, flag: 'wx' });
+    fs.writeFileSync(temporary, JSON.stringify(toWrite, null, 2), { mode: 0o600, flag: 'wx' });
+
+    // Tek kuşak yedekleme: mevcut dosyayı .bak olarak kopyala (YH1-B3)
+    if (fs.existsSync(filePath)) {
+      const bakPath = `${filePath}.bak`;
+      try {
+        fs.copyFileSync(filePath, bakPath);
+      } catch {}
+    }
+
     try {
-      fs.renameSync(temporary, filePath);
+      robustRenameSync(temporary, filePath);
     } catch (error) {
       fs.rmSync(temporary, { force: true });
       throw error;
     }
     try {
       const stat = fs.statSync(filePath);
-      cache = { mtimeMs: stat.mtimeMs, size: stat.size, data: structuredClone(value) };
+      cache = { mtimeMs: stat.mtimeMs, size: stat.size, data: structuredClone(toWrite) };
     } catch {
       cache = null;
     }
   };
+
+  const lockPath = `${filePath}.lock`;
+  const withLock = fn =>
+    withFileLockSync(lockPath, () => {
+      cache = null; // Kilit alınınca önbelleği geçersiz kıl (YH1-B2 #3)
+      return fn();
+    });
 
   // Sunucu tarafı görünüm: çözülmüş apiKey ve transport içerir.
   const withSecret = profile => ({
@@ -160,7 +211,7 @@ export function createLLMProfileStore({
   return {
     list() {
       const data = read();
-      return { activeId: data.activeId, profiles: data.profiles.map(publicProfile) };
+      return { version: data.version, activeId: data.activeId, profiles: data.profiles.map(publicProfile) };
     },
 
     getActive() {
@@ -175,82 +226,86 @@ export function createLLMProfileStore({
     },
 
     save(input) {
-      const name = String(input?.name || '')
-        .trim()
-        .slice(0, 80);
-      const provider = String(input?.provider || '').trim();
-      const model = String(input?.model || '')
-        .trim()
-        .slice(0, 160);
-      if (!name || !model || !PROVIDERS.some(item => item.id === provider)) {
-        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı, profil adı ve model zorunludur.', {
-          status: 400,
-          retryable: false
-        });
-      }
-      const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
-      const data = read();
-      const existing = data.profiles.find(item => item.id === input.id);
-      if (input.id && !existing) throw notFoundError();
-      if (existing && (!Object.hasOwn(input, 'revision') || input.revision !== (existing.revision ?? null))) {
-        throw conflictError();
-      }
-      const newKey = String(input.apiKey || '').trim();
-      const problem = credentialEndpointProblem(provider, baseURL, newKey);
-      if (problem) {
-        throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, {
-          status: 400,
-          retryable: false
-        });
-      }
-      if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
-        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı değişince yeni API anahtarı girin.', {
-          status: 400,
-          retryable: false
-        });
-      }
-      const secret = newKey ? encrypt(newKey, getKeyBytes()) : existing?.secret;
-      if (!secret) {
-        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'API anahtarı zorunludur.', {
-          status: 400,
-          retryable: false
-        });
-      }
-      const runtime = normalizeRuntimeOptions({ ...existing, ...input });
-      const keepTests = Boolean(
-        existing &&
-        existing.provider === provider &&
-        existing.baseURL === baseURL &&
-        existing.model === model &&
-        !newKey
-      );
-      const profile = {
-        ...runtime,
-        id: existing?.id || crypto.randomUUID(),
-        name,
-        provider,
-        model,
-        baseURL,
-        secret,
-        revision: crypto.randomUUID(),
-        lastTest: keepTests ? existing.lastTest || null : null,
-        lastTests: keepTests ? existing.lastTests || {} : {}
-      };
-      data.profiles = existing
-        ? data.profiles.map(item => (item.id === existing.id ? profile : item))
-        : [...data.profiles, profile];
-      write(data);
-      return publicProfile(profile);
+      return withLock(() => {
+        const name = String(input?.name || '')
+          .trim()
+          .slice(0, 80);
+        const provider = String(input?.provider || '').trim();
+        const model = String(input?.model || '')
+          .trim()
+          .slice(0, 160);
+        if (!name || !model || !PROVIDERS.some(item => item.id === provider)) {
+          throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı, profil adı ve model zorunludur.', {
+            status: 400,
+            retryable: false
+          });
+        }
+        const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
+        const data = read();
+        const existing = data.profiles.find(item => item.id === input.id);
+        if (input.id && !existing) throw notFoundError();
+        if (existing && (!Object.hasOwn(input, 'revision') || input.revision !== (existing.revision ?? null))) {
+          throw conflictError();
+        }
+        const newKey = String(input.apiKey || '').trim();
+        const problem = credentialEndpointProblem(provider, baseURL, newKey);
+        if (problem) {
+          throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, {
+            status: 400,
+            retryable: false
+          });
+        }
+        if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
+          throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı değişince yeni API anahtarı girin.', {
+            status: 400,
+            retryable: false
+          });
+        }
+        const secret = newKey ? encrypt(newKey, getKeyBytes()) : existing?.secret;
+        if (!secret) {
+          throw new LLMError(ErrorCodes.PROFILE_INVALID, 'API anahtarı zorunludur.', {
+            status: 400,
+            retryable: false
+          });
+        }
+        const runtime = normalizeRuntimeOptions({ ...existing, ...input });
+        const keepTests = Boolean(
+          existing &&
+          existing.provider === provider &&
+          existing.baseURL === baseURL &&
+          existing.model === model &&
+          !newKey
+        );
+        const profile = {
+          ...runtime,
+          id: existing?.id || crypto.randomUUID(),
+          name,
+          provider,
+          model,
+          baseURL,
+          secret,
+          revision: crypto.randomUUID(),
+          lastTest: keepTests ? existing.lastTest || null : null,
+          lastTests: keepTests ? existing.lastTests || {} : {}
+        };
+        data.profiles = existing
+          ? data.profiles.map(item => (item.id === existing.id ? profile : item))
+          : [...data.profiles, profile];
+        write(data);
+        return publicProfile(profile);
+      });
     },
 
     activate(id, revision) {
-      const data = read();
-      const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw notFoundError();
-      assertRevision(profile, revision);
-      data.activeId = id;
-      write(data);
-      return this.list();
+      return withLock(() => {
+        const data = read();
+        const profile = data.profiles.find(item => item.id === id);
+        if (!profile) throw notFoundError();
+        assertRevision(profile, revision);
+        data.activeId = id;
+        write(data);
+        return this.list();
+      });
     },
 
     recordTest(id, status, expectedRevision, details = {}) {
@@ -260,32 +315,36 @@ export function createLLMProfileStore({
           retryable: false
         });
       }
-      const data = read();
-      const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw notFoundError();
-      if (expectedRevision !== undefined && (profile.revision || null) !== expectedRevision) return null;
-      const mode = details.mode === 'conversation' ? 'conversation' : 'quick';
-      profile.lastTest = {
-        status,
-        at: new Date().toISOString(),
-        mode,
-        durationMs: Math.max(0, Number(details.durationMs) || 0),
-        ...(details.code ? { code: String(details.code).slice(0, 80) } : {})
-      };
-      profile.lastTests = { ...(profile.lastTests || {}), [mode]: profile.lastTest };
-      write(data);
-      return publicProfile(profile);
+      return withLock(() => {
+        const data = read();
+        const profile = data.profiles.find(item => item.id === id);
+        if (!profile) throw notFoundError();
+        if (expectedRevision !== undefined && (profile.revision || null) !== expectedRevision) return null;
+        const mode = details.mode === 'conversation' ? 'conversation' : 'quick';
+        profile.lastTest = {
+          status,
+          at: new Date().toISOString(),
+          mode,
+          durationMs: Math.max(0, Number(details.durationMs) || 0),
+          ...(details.code ? { code: String(details.code).slice(0, 80) } : {})
+        };
+        profile.lastTests = { ...(profile.lastTests || {}), [mode]: profile.lastTest };
+        write(data);
+        return publicProfile(profile);
+      });
     },
 
     remove(id, revision) {
-      const data = read();
-      const profile = data.profiles.find(item => item.id === id);
-      if (!profile) throw notFoundError();
-      assertRevision(profile, revision);
-      data.profiles = data.profiles.filter(item => item.id !== id);
-      if (data.activeId === id) data.activeId = null;
-      write(data);
-      return this.list();
+      return withLock(() => {
+        const data = read();
+        const profile = data.profiles.find(item => item.id === id);
+        if (!profile) throw notFoundError();
+        assertRevision(profile, revision);
+        data.profiles = data.profiles.filter(item => item.id !== id);
+        if (data.activeId === id) data.activeId = null;
+        write(data);
+        return this.list();
+      });
     }
   };
 }

@@ -6,11 +6,14 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Çok süreçli dosya kilidi (`src/store/fileLock.js`): `withFileLockSync` ve `withFileLock` ile atomik kilit alma, eski kilit (stale lock > 10s ve ölü PID) tespiti ve temizliği, `robustRenameSync` ile Windows `EBUSY`/`EPERM` hatalarında otomatik üstel gecikmeli yeniden deneme eklendi (YH1-B2).
+- Şema sürümü ve tek kuşak otomatik yedekleme (`src/profileStore.js`): depolama formatı `{ version: 1, activeId, profiles }` olarak standartlaştırıldı; v0 formatı otomatik taşındı (`migrate`), gelecekteki sürümler için `STORE_VERSION_UNSUPPORTED` hatası verildi; bozuk JSON durumunda `.bak` kurtarma yönergeli `STORE_CORRUPT` hatası sağlandı ve her başarılı yazım öncesinde mevcut dosya `llm-profiles.json.bak` olarak yedeklendi (YH1-B3).
 - Tipli hata modeli eklendi: `src/errors.js` (`llm-manager/errors`) içinde `LLMError`, `ErrorCodes` ve `isLLMError`; `RUNTIME_OPTIONS_INVALID`, `PROFILE_INVALID`, `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT`, `LLM_NETWORK`, `LLM_DNS_BLOCKED`, `LLM_RESPONSE_TOO_LARGE`, `LLM_TIMEOUT`, `LLM_ABORTED`, `LLM_CONTENT_FILTERED`, `LLM_UPSTREAM_UNAVAILABLE` gibi standart tipli hata kodları tanımlandı (YH1-A4).
 - Bağımsız sunucu fonksiyonu `createStandaloneServer` (`src/server.js`, `llm-manager/server`) eklendi; `--host`, `--data-dir` ve `--chat-token` CLI seçenekleri, graceful shutdown ve ağa açık sunucu parola uzunluğu (en az 12 karakter) doğrulaması sağlandı (YH1-A2).
 - Geliştirme ve CI altyapısı eklendi: ESLint flat config (`eslint.config.js`), Prettier yapılandırması (`.prettierrc`, `.prettierignore`), `.editorconfig`, `.gitattributes` ve GitHub Actions çoklu işletim sistemi / Node matrisi iş akışı (`.github/workflows/ci.yml`). `npm run lint` ve `npm run format:check` komutları tanımlandı (YH1-F1).
 
 ### Değişti
+- `src/core.js` içindeki tüm `store.*` çağrıları `await` ile asenkronlaştırıldı; hem senkron dosya deposu hem de veritabanı/özel asenkron host depoları tam uyumlu hale getirildi (YH2-G08, YH1-B2).
 - `src/profileStore.js` içine dosya stat kontrolü (`mtimeMs`, `size`) tabanlı okuma önbelleği ve closure tabanlı şifreleme anahtarı önbelleği eklendi; dönen nesneler `structuredClone` ile izole edilerek çağrıcı mutasyonlarının önbelleği bozması engellendi (YH1-B1).
 - Hata sınıflandırması ve yönetimi metin regex kontrolü yerine birincil olarak `error.code` tablosuna bağlandı; kullanıcı abort (`LLM_ABORTED`) ile zaman aşımı (`LLM_TIMEOUT`) ayrıştırıldı; sağlayıcı 5xx yanıtları `LLM_UPSTREAM_UNAVAILABLE`, içerik filtreleri `LLM_CONTENT_FILTERED`, aşırı büyük yanıtlar `LLM_RESPONSE_TOO_LARGE` kodlarıyla tiplendirildi (YH1-A4).
 - `src/profileStore.js` doğrulama ve durum hataları ile `src/runtime.js` seçenek denetimleri `LLMError` fırlatacak şekilde güncellendi (YH1-A4).

@@ -100,9 +100,9 @@ export function createLLMManager({
   let cachedUiKey = '';
   let cachedUi = null;
 
-  const guarded = (fn, status = 200) => {
+  const guarded = async (fn, status = 200) => {
     try {
-      return ok(fn(), status);
+      return ok(await fn(), status);
     } catch (error) {
       return profileError(error);
     }
@@ -139,7 +139,7 @@ export function createLLMManager({
     const start = Date.now();
     let profile;
     try {
-      profile = store.get(id);
+      profile = await store.get(id);
       if (!profile) return notFound();
       const quick = mode === 'quick';
       const purpose = quick ? 'quick' : 'manager';
@@ -163,7 +163,7 @@ export function createLLMManager({
       }
       if (validateTestReply) await validateTestReply(reply, { mode, profile });
       const durationMs = Date.now() - start;
-      if (store.recordTest(profile.id, 'passed', profile.revision, { mode, durationMs }) === null) {
+      if ((await store.recordTest(profile.id, 'passed', profile.revision, { mode, durationMs })) === null) {
         return ok({ error: 'Profil test sırasında değişti; yeniden sınayın.', code: 'PROFILE_CONFLICT' }, 409);
       }
       return ok({
@@ -178,7 +178,7 @@ export function createLLMManager({
       const classified = classifyLLMError(error);
       if (profile) {
         try {
-          store.recordTest(profile.id, 'failed', profile.revision, {
+          await store.recordTest(profile.id, 'failed', profile.revision, {
             mode,
             durationMs: Date.now() - start,
             code: classified.code
@@ -193,7 +193,7 @@ export function createLLMManager({
 
   async function listModels(id) {
     try {
-      const profile = store.get(id);
+      const profile = await store.get(id);
       if (!profile) return notFound();
       const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
       if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem }, 400);
@@ -230,7 +230,7 @@ export function createLLMManager({
     if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
       return ok({ error: 'Geçersiz çağrı amacı (purpose).', code: 'PURPOSE_INVALID' }, 400);
     }
-    const profile = body?.profileId ? store.get(String(body.profileId)) : store.getActive();
+    const profile = body?.profileId ? await store.get(String(body.profileId)) : await store.getActive();
     if (!profile) {
       return body?.profileId
         ? ok({ error: 'Profil bulunamadı.', code: 'PROFILE_NOT_FOUND' }, 404)
@@ -320,7 +320,7 @@ export function createLLMManager({
     if (resource === 'chat') return verb === 'POST' && id === undefined ? chatCompletion(body) : null;
 
     if (id === undefined) {
-      if (verb === 'GET') return ok(store.list());
+      if (verb === 'GET') return ok(await store.list());
       if (verb === 'POST') return guarded(() => store.save(body), 201);
       return null;
     }
