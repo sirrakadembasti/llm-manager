@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [22.x, 24.x]
+        node-version: [20.x, 22.x, 24.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,15 @@ jobs:
 
       - name: Format check
         run: npm run format:check
+
+      - name: Verify package bundle contents
+        shell: bash
+        run: |
+          tarball_files=$(npm pack --dry-run 2>&1)
+          if echo "$tarball_files" | grep -E "tests/|data/|\.env$"; then
+            echo "Error: Forbidden files included in npm package bundle!"
+            exit 1
+          fi
 
       - name: Run tests
         run: npm test

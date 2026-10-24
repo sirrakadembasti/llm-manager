@@ -66,4 +66,5 @@
 - YH1-E2: Çoklu dil desteği (Türkçe & İngilizce) (`public/i18n/tr.json`, `public/i18n/en.json`, `src/messages.js`, `README.en.md`, `mountLLMManagement({ locale })`, `createUiAssets`, HTML `<html lang="...">` ve `data-i18n` ön oluşturma, 107 test).
 - YH1-E3: Kullanıcı arayüzü geliştirmeleri (`homeUrl` desteği, profil klonlama `cloneProfile`, onay modalı `<dialog id="confirm-dialog">`, form `aria-describedby` hata/ipucu bağları, 112 test).
 - YH1-F3: Test kapsam ölçümü (`package.json#scripts.test:coverage`, %93+ satır ve %81+ dal kapsamı).
+- YH1-F4: Paket metaverisi ve uyumluluk (`engines.node: >=20.12.0`, `keywords`, `author`, `sideEffects: false`, `publishConfig`, `npm pack --dry-run` denetimi, 114 test).
 
