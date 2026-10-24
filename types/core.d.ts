@@ -138,6 +138,7 @@ export interface LLMManagerOptions {
   apiPath?: string;
   pagePath?: string;
   requireCsrf?: boolean;
+  health?: boolean;
 }
 
 export type StreamChunk =
@@ -180,6 +181,7 @@ export { LLMError, ErrorCodes, LLMErrorCode };
 export const PROVIDERS: readonly unknown[];
 export const CATALOG_VERSION: string;
 export const CATALOG_UPDATED_AT: string;
+export const PACKAGE_VERSION: string;
 export function validateProviderUrl(value: unknown, options?: { allowLocalHttp?: boolean }): string;
 export function classifyLLMError(error: unknown): { error: string; code: string; status: number };
 export function generateProfileResponse(

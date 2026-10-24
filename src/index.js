@@ -6,7 +6,14 @@ import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } f
 import { createLLMProfileStore } from './profileStore.js';
 import { createRateLimiter } from './rateLimit.js';
 import { sanitizeRequestId, createStructuredLogger, redact } from './logger.js';
-import { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager } from './core.js';
+import {
+  CSRF_HEADER,
+  SAFE_METHODS,
+  isValidMountPath,
+  createUiAssets,
+  createLLMManager,
+  PACKAGE_VERSION
+} from './core.js';
 
 export {
   LLMError,
@@ -16,6 +23,7 @@ export {
   PROVIDERS,
   CATALOG_VERSION,
   CATALOG_UPDATED_AT,
+  PACKAGE_VERSION,
   validateProviderUrl,
   createLLMProfileStore,
   createRateLimiter,
@@ -118,6 +126,7 @@ export function mountLLMManagement(
     requireCsrf = true,
     chatAccess = 'authenticated',
     chatOverrides = 'admin',
+    health = true,
     limits,
     rateLimit,
     logger,
@@ -165,12 +174,26 @@ export function mountLLMManagement(
     chatAccess,
     rateLimit,
     logger,
+    health,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();
   router.use(requestIdMiddleware);
-  router.use(securityHeaders, authMiddleware);
+  router.use(securityHeaders);
   router.use((req, res, next) => {
+    const isHealthRoute = /^\/health\/?$/.test(req.path || '');
+    if (isHealthRoute) {
+      if (health === false) {
+        return res.status(404).json({ error: 'Sağlık uç noktası kapalı.', code: 'HEALTH_DISABLED' });
+      }
+      return next();
+    }
+    return authMiddleware(req, res, next);
+  });
+  router.use((req, res, next) => {
+    const isHealthRoute = /^\/health\/?$/.test(req.path || '');
+    if (isHealthRoute) return next();
+
     const isChatRoute = /^\/chat\/?$/.test(req.path || '');
     if (isChatRoute) {
       if (chatAccess === false) {

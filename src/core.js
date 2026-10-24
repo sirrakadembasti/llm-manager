@@ -22,6 +22,8 @@ import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } f
 import { createLLMProfileStore } from './profileStore.js';
 import { getTransport } from './transports/index.js';
 
+const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+
 export {
   LLMError,
   ErrorCodes,
@@ -30,6 +32,7 @@ export {
   PROVIDERS,
   CATALOG_VERSION,
   CATALOG_UPDATED_AT,
+  PACKAGE_VERSION,
   validateProviderUrl,
   createLLMProfileStore,
   createRateLimiter,
@@ -111,6 +114,7 @@ export function createLLMManager({
   rateLimit: rateLimitConfig,
   retry: retryConfig,
   logger: customLogger = null,
+  health = true,
   getClientId
 } = {}) {
   const pendingTests = new Set();
@@ -725,7 +729,7 @@ export function createLLMManager({
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
   async function handle({ method, path: routePath, body, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
-    const match = /^\/(catalog|chat|profiles|models)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
+    const match = /^\/(catalog|chat|profiles|models|health)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
       routePath || ''
     );
     if (!match) return null;
@@ -735,6 +739,17 @@ export function createLLMManager({
       id = rawId === undefined ? undefined : decodeURIComponent(rawId);
     } catch {
       return notFound();
+    }
+
+    if (resource === 'health') {
+      if (health === false || verb !== 'GET' || id !== undefined) return null;
+      const active = await store.getActive();
+      return ok({
+        ok: true,
+        version: PACKAGE_VERSION,
+        hasActiveProfile: Boolean(active),
+        requestId
+      });
     }
 
     if (resource === 'catalog')
