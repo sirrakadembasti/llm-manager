@@ -83,6 +83,9 @@ const publicProfile = profile => ({
   baseURL: profile.baseURL,
   hasApiKey: Boolean(profile.secret),
   revision: profile.revision || null,
+  fallbackProfileIds: Array.isArray(profile.fallbackProfileIds)
+    ? profile.fallbackProfileIds.filter(id => typeof id === 'string' && id.trim())
+    : [],
   ...normalizeRuntimeOptions(profile),
   lastTests: profile.lastTests || {},
   lastTest: profile.lastTest || null
@@ -276,6 +279,9 @@ export function createLLMProfileStore({
           existing.model === model &&
           !newKey
         );
+        const fallbackProfileIds = Array.isArray(input?.fallbackProfileIds)
+          ? input.fallbackProfileIds.filter(id => typeof id === 'string' && id.trim())
+          : existing?.fallbackProfileIds || [];
         const profile = {
           ...runtime,
           id: existing?.id || crypto.randomUUID(),
@@ -284,6 +290,7 @@ export function createLLMProfileStore({
           model,
           baseURL,
           secret,
+          fallbackProfileIds,
           revision: crypto.randomUUID(),
           lastTest: keepTests ? existing.lastTest || null : null,
           lastTests: keepTests ? existing.lastTests || {} : {}

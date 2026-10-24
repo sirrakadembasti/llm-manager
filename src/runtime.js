@@ -107,6 +107,54 @@ export function providerAuthHeaders(profile) {
   return transport.authHeaders(profile);
 }
 
+export async function executeWithRetry(
+  operation,
+  { attempts = 2, baseMs = 500, maxMs = 4000, deadlineMs = 120000, signal = null } = {}
+) {
+  let lastError;
+  const start = Date.now();
+
+  for (let attempt = 0; attempt <= attempts; attempt++) {
+    if (signal?.aborted) {
+      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', { status: 499, retryable: false });
+    }
+    const elapsed = Date.now() - start;
+    const remainingTime = deadlineMs - elapsed;
+    if (remainingTime <= 0) {
+      break;
+    }
+
+    try {
+      const perAttemptSignal = AbortSignal.timeout(remainingTime);
+      const combinedSignal = signal ? AbortSignal.any([signal, perAttemptSignal]) : perAttemptSignal;
+      return await operation({ signal: combinedSignal, attempt, remainingTime });
+    } catch (err) {
+      lastError = err;
+      const classified = classifyLLMError(err);
+      if (!classified.retryable || attempt === attempts) {
+        throw err;
+      }
+
+      let delayMs = Math.min(maxMs, Math.round(baseMs * Math.pow(2, attempt) * (0.75 + Math.random() * 0.5)));
+      if (err.retryAfterSec) {
+        const retryAfterMs = err.retryAfterSec * 1000;
+        if (retryAfterMs > maxMs) {
+          throw err;
+        }
+        delayMs = retryAfterMs;
+      }
+
+      if (Date.now() - start + delayMs >= deadlineMs) {
+        throw err;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
+}
+
 const KNOWN_CODE_DEFAULTS = {
   [ErrorCodes.LLM_ABORTED]: {
     status: 499,

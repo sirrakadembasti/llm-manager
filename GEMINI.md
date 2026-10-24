@@ -54,4 +54,5 @@
 - YH1-A3: TypeScript tip tanımları (`types/*.d.ts`, `types/tsconfig.json`, `types/test.ts`, `package.json#exports` types, `npm run typecheck`, CI adımı).
 - YH1-A5: Sağlayıcı dönüşümleri strateji deseni (`src/transports/openai.js`, `anthropic.js`, `google.js`, `index.js`; `normalizeMessages`, `usage` normalizasyonu, 69 test).
 - YH1-C5: Üretim parametreleri ve kullanım bilgisi (`temperature`, `topP`, `stop`, `responseFormat`; `/chat` `usage` ve `finishReason`, `ask(p, { raw: true })`, arayüzde `<details>` gelişmiş parametreler, 71 test).
+- YH1-C6: Yeniden deneme ve yedek profil aktarımı (`executeWithRetry`, jittered backoff, `Retry-After` uyumu, `fallbackProfileIds`, `fallbackUsed`, 74 test).
 

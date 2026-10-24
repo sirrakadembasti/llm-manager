@@ -13,7 +13,8 @@ import {
   classifyLLMError,
   providerEndpoint,
   providerAuthHeaders,
-  resolveRuntimeOptions
+  resolveRuntimeOptions,
+  executeWithRetry
 } from './runtime.js';
 import { providerFetch } from './providerTransport.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
@@ -101,12 +102,20 @@ export function createLLMManager({
   chatOverrides = 'admin',
   chatAccess = 'authenticated',
   rateLimit: rateLimitConfig,
+  retry: retryConfig,
   logger: customLogger = null,
   getClientId
 } = {}) {
   const pendingTests = new Set();
   let cachedUiKey = '';
   let cachedUi = null;
+
+  const defaultRetryConfig = {
+    attempts: 2,
+    baseMs: 500,
+    maxMs: 4000
+  };
+  const retryPolicy = retryConfig === false ? null : { ...defaultRetryConfig, ...retryConfig };
 
   const limits = {
     maxMessages: 100,
@@ -406,51 +415,107 @@ export function createLLMManager({
         if (body?.responseFormat !== undefined) overrides.responseFormat = body.responseFormat;
       }
       if (purpose !== undefined) overrides.purpose = purpose;
-      const runtimeOpts = resolveRuntimeOptions(profile, overrides);
-      const options = {
-        ...profile,
-        ...runtimeOpts,
-        purpose,
-        allowLocalHttp,
-        useManagedProfile: false,
-        allowMockFallback: false
-      };
-      const responseResult = generate
-        ? await generate(messages, options)
-        : await generateProfileResponse(messages, profile, { ...options, raw: true });
-      const content = typeof responseResult === 'string' ? responseResult : responseResult?.content;
-      const finishReason = typeof responseResult === 'object' ? responseResult?.finishReason : 'stop';
-      const usage = typeof responseResult === 'object' ? responseResult?.usage : null;
 
-      if (!content) {
-        throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
-          status: 502,
-          retryable: true
-        });
+      const candidateProfiles = [profile];
+      if (Array.isArray(profile.fallbackProfileIds) && profile.fallbackProfileIds.length > 0) {
+        for (const fbId of profile.fallbackProfileIds) {
+          if (fbId && fbId !== profile.id) {
+            const fbProfile = await store.get(fbId);
+            if (fbProfile) candidateProfiles.push(fbProfile);
+          }
+        }
       }
-      const durationMs = Date.now() - start;
-      logger.info('chat.completed', {
-        requestId,
-        profileId: profile.id,
-        provider: profile.provider,
-        model: profile.model,
-        durationMs,
-        usage,
-        code: 'OK'
-      });
-      return ok({
-        ok: true,
-        content,
-        text: content,
-        profileId: profile.id,
-        profileName: profile.name,
-        provider: profile.provider,
-        model: profile.model,
-        durationMs,
-        usage,
-        finishReason,
-        requestId
-      });
+
+      let lastError;
+      for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
+        const currentProfile = candidateProfiles[pIdx];
+        const isFallback = pIdx > 0;
+        const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
+        const options = {
+          ...currentProfile,
+          ...runtimeOpts,
+          purpose,
+          allowLocalHttp,
+          useManagedProfile: false,
+          allowMockFallback: false
+        };
+
+        try {
+          const executeOnce = async ({ signal } = {}) => {
+            if (generate) {
+              return await generate(messages, options);
+            }
+            return await generateProfileResponse(messages, currentProfile, {
+              ...options,
+              signal,
+              raw: true
+            });
+          };
+
+          const responseResult = retryPolicy
+            ? await executeWithRetry(executeOnce, {
+                attempts: retryPolicy.attempts ?? 2,
+                baseMs: retryPolicy.baseMs ?? 500,
+                maxMs: retryPolicy.maxMs ?? 4000,
+                deadlineMs: runtimeOpts.timeoutMs,
+                signal: body?.signal
+              })
+            : await executeOnce({ signal: body?.signal });
+
+          const content = typeof responseResult === 'string' ? responseResult : responseResult?.content;
+          const finishReason = typeof responseResult === 'object' ? responseResult?.finishReason : 'stop';
+          const usage = typeof responseResult === 'object' ? responseResult?.usage : null;
+
+          if (!content) {
+            throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
+              status: 502,
+              retryable: true
+            });
+          }
+
+          const durationMs = Date.now() - start;
+          logger.info('chat.completed', {
+            requestId,
+            profileId: currentProfile.id,
+            provider: currentProfile.provider,
+            model: currentProfile.model,
+            durationMs,
+            usage,
+            fallbackUsed: isFallback,
+            code: 'OK'
+          });
+
+          return ok({
+            ok: true,
+            content,
+            text: content,
+            profileId: currentProfile.id,
+            profileName: currentProfile.name,
+            provider: currentProfile.provider,
+            model: currentProfile.model,
+            durationMs,
+            usage,
+            finishReason,
+            requestId,
+            ...(isFallback ? { fallbackUsed: true, primaryProfileId: profile.id } : {})
+          });
+        } catch (err) {
+          lastError = err;
+          const classified = classifyLLMError(err);
+          if (!classified.retryable || pIdx === candidateProfiles.length - 1) {
+            throw err;
+          }
+          logger.warn('chat.fallback', {
+            requestId,
+            failedProfileId: currentProfile.id,
+            nextProfileId: candidateProfiles[pIdx + 1]?.id,
+            error: classified.error,
+            code: classified.code
+          });
+        }
+      }
+
+      throw lastError;
     } catch (error) {
       if (
         error?.code === ErrorCodes.RUNTIME_OPTIONS_INVALID ||

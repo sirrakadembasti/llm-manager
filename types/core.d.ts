@@ -28,6 +28,7 @@ export interface LLMProfilePublic {
   topP?: number;
   stop?: string[];
   responseFormat?: 'text' | 'json';
+  fallbackProfileIds?: string[];
   lastTest?: LLMTestResult | null;
   lastTests?: Record<string, LLMTestResult>;
 }
@@ -92,6 +93,8 @@ export interface ChatResult {
   durationMs: number;
   requestId?: string;
   finishReason?: string | null;
+  fallbackUsed?: boolean;
+  primaryProfileId?: string;
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -126,6 +129,7 @@ export interface LLMManagerOptions {
   chatOverrides?: 'admin' | 'all' | 'none';
   chatAccess?: 'authenticated' | 'admin' | false;
   rateLimit?: boolean | LLMManagerRateLimitConfig;
+  retry?: boolean | { attempts?: number; baseMs?: number; maxMs?: number };
   logger?: StructuredLogger | null;
   getClientId?: (request: Request) => string | null;
   apiPath?: string;
