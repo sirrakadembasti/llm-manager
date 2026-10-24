@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
+import { createRateLimiter } from './rateLimit.js';
+import { createStructuredLogger, redact, sanitizeRequestId } from './logger.js';
 import {
   generateProfileResponse,
   classifyLLMError,
@@ -24,7 +26,11 @@ export {
   classifyLLMError,
   PROVIDERS,
   validateProviderUrl,
-  createLLMProfileStore
+  createLLMProfileStore,
+  createRateLimiter,
+  createStructuredLogger,
+  redact,
+  sanitizeRequestId
 };
 export const CSRF_HEADER = 'X-LLM-CSRF';
 export const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
@@ -94,11 +100,44 @@ export function createLLMManager({
   store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
   generate,
   testMessages,
-  validateTestReply
+  validateTestReply,
+  limits: customLimits,
+  chatOverrides = 'admin',
+  chatAccess = 'authenticated',
+  rateLimit: rateLimitConfig,
+  logger: customLogger = null,
+  getClientId
 } = {}) {
   const pendingTests = new Set();
   let cachedUiKey = '';
   let cachedUi = null;
+
+  const limits = {
+    maxMessages: 100,
+    maxChars: 200000,
+    maxSingleMessageChars: 100000,
+    maxBodyBytes: 256 * 1024,
+    ...customLimits
+  };
+
+  const logger = createStructuredLogger(customLogger);
+  const rateLimiters =
+    rateLimitConfig === false
+      ? null
+      : {
+          chat: createRateLimiter({
+            capacity: rateLimitConfig?.chatPerMinute ?? 30,
+            refillPerSec: (rateLimitConfig?.chatPerMinute ?? 30) / 60
+          }),
+          test: createRateLimiter({
+            capacity: rateLimitConfig?.testPerMinute ?? 10,
+            refillPerSec: (rateLimitConfig?.testPerMinute ?? 10) / 60
+          }),
+          models: createRateLimiter({
+            capacity: rateLimitConfig?.testPerMinute ?? 10,
+            refillPerSec: (rateLimitConfig?.testPerMinute ?? 10) / 60
+          })
+        };
 
   const guarded = async (fn, status = 200) => {
     try {
@@ -130,11 +169,28 @@ export function createLLMManager({
     return null;
   }
 
-  async function testProfile(id, body) {
+  async function testProfile(id, body, { clientKey, requestId } = {}) {
+    if (rateLimiters) {
+      const key = clientKey || id;
+      const res = rateLimiters.test.take(key);
+      if (!res.ok) {
+        return ok(
+          {
+            error: 'Çok fazla test isteği yapıldı. Lütfen biraz bekleyin.',
+            code: ErrorCodes.RATE_LIMITED || 'RATE_LIMITED',
+            retryAfterSec: res.retryAfterSec,
+            requestId
+          },
+          429
+        );
+      }
+    }
+
     const mode = body?.mode || 'quick';
     if (!['quick', 'conversation'].includes(mode))
-      return ok({ error: 'Geçersiz test türü.', code: 'TEST_MODE_INVALID' }, 400);
-    if (pendingTests.has(id)) return ok({ error: 'Bu profil için test devam ediyor.', code: 'TEST_IN_PROGRESS' }, 409);
+      return ok({ error: 'Geçersiz test türü.', code: 'TEST_MODE_INVALID', requestId }, 400);
+    if (pendingTests.has(id))
+      return ok({ error: 'Bu profil için test devam ediyor.', code: 'TEST_IN_PROGRESS', requestId }, 409);
     pendingTests.add(id);
     const start = Date.now();
     let profile;
@@ -164,7 +220,10 @@ export function createLLMManager({
       if (validateTestReply) await validateTestReply(reply, { mode, profile });
       const durationMs = Date.now() - start;
       if ((await store.recordTest(profile.id, 'passed', profile.revision, { mode, durationMs })) === null) {
-        return ok({ error: 'Profil test sırasında değişti; yeniden sınayın.', code: 'PROFILE_CONFLICT' }, 409);
+        return ok(
+          { error: 'Profil test sırasında değişti; yeniden sınayın.', code: 'PROFILE_CONFLICT', requestId },
+          409
+        );
       }
       return ok({
         ok: true,
@@ -172,7 +231,8 @@ export function createLLMManager({
         durationMs,
         message: quick
           ? 'Kısa bağlantı ve model yanıtı doğrulandı.'
-          : 'Sohbet tarzı model yanıtı doğrulandı. Bu test üretim kabul testi değildir.'
+          : 'Sohbet tarzı model yanıtı doğrulandı. Bu test üretim kabul testi değildir.',
+        requestId
       });
     } catch (error) {
       const classified = classifyLLMError(error);
@@ -185,18 +245,34 @@ export function createLLMManager({
           });
         } catch {}
       }
-      return ok({ ...classified, mode, durationMs: Date.now() - start }, classified.status);
+      return ok({ ...classified, mode, durationMs: Date.now() - start, requestId }, classified.status);
     } finally {
       pendingTests.delete(id);
     }
   }
 
-  async function listModels(id) {
+  async function listModels(id, { clientKey, requestId } = {}) {
+    if (rateLimiters) {
+      const key = clientKey || id;
+      const res = rateLimiters.models.take(key);
+      if (!res.ok) {
+        return ok(
+          {
+            error: 'Çok fazla model listeleme isteği yapıldı. Lütfen biraz bekleyin.',
+            code: ErrorCodes.RATE_LIMITED || 'RATE_LIMITED',
+            retryAfterSec: res.retryAfterSec,
+            requestId
+          },
+          429
+        );
+      }
+    }
+
     try {
       const profile = await store.get(id);
       if (!profile) return notFound();
       const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
-      if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem }, 400);
+      if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem, requestId }, 400);
       const url = providerEndpoint(profile, 'models', allowLocalHttp);
       const response = await providerFetch(url, {
         headers: providerAuthHeaders(profile),
@@ -205,43 +281,130 @@ export function createLLMManager({
       });
       if (!response.ok)
         return ok(
-          { error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.` },
+          {
+            error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.`,
+            requestId
+          },
           502
         );
-      return ok({ models: extractModelIds(await response.json(), profile) });
+      return ok({ models: extractModelIds(await response.json(), profile), requestId });
     } catch {
-      return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.' }, 502);
+      return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.', requestId }, 502);
     }
   }
 
-  async function chatCompletion(body) {
+  async function chatCompletion(body, { principal, requestId, clientKey } = {}) {
+    if (chatAccess === false) {
+      return ok({ error: 'Sohbet uç noktası kapalı.', code: 'CHAT_DISABLED', requestId }, 404);
+    }
+    if (chatAccess === 'admin' && principal && principal.isAdmin !== true) {
+      return ok({ error: 'Yönetici yetkisi gerekli.', code: 'FORBIDDEN', requestId }, 403);
+    }
+
+    if (rateLimiters) {
+      const key = clientKey || (principal?.isAdmin ? 'admin' : principal?.id || 'client');
+      const res = rateLimiters.chat.take(key);
+      if (!res.ok) {
+        return ok(
+          {
+            error: 'Çok fazla sohbet isteği yapıldı. Lütfen biraz bekleyin.',
+            code: ErrorCodes.RATE_LIMITED || 'RATE_LIMITED',
+            retryAfterSec: res.retryAfterSec,
+            requestId
+          },
+          429
+        );
+      }
+    }
+
     const messages = normalizeMessagesInput(body);
-    if (
-      !Array.isArray(messages) ||
-      !messages.length ||
-      !messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string' && m.content.trim())
-    ) {
+    if (!Array.isArray(messages) || !messages.length) {
       return ok(
-        { error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', code: 'MESSAGES_INVALID' },
+        { error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', code: 'MESSAGES_INVALID', requestId },
         400
       );
     }
-    const purpose = body?.purpose;
+    if (messages.length > limits.maxMessages) {
+      return ok(
+        { error: `En fazla ${limits.maxMessages} mesaj gönderilebilir.`, code: 'MESSAGES_INVALID', requestId },
+        400
+      );
+    }
+
+    let totalChars = 0;
+    let hasUserMessage = false;
+    for (const m of messages) {
+      if (!m || typeof m !== 'object') {
+        return ok({ error: 'Mesaj biçimi geçersiz.', code: 'MESSAGES_INVALID', requestId }, 400);
+      }
+      if (!['system', 'user', 'assistant'].includes(m.role)) {
+        return ok(
+          { error: "'role' yalnızca 'system', 'user' veya 'assistant' olabilir.", code: 'MESSAGES_INVALID', requestId },
+          400
+        );
+      }
+      if (typeof m.content !== 'string' || !m.content.trim()) {
+        return ok(
+          {
+            error: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.',
+            code: 'MESSAGES_INVALID',
+            requestId
+          },
+          400
+        );
+      }
+      if (m.content.length > limits.maxSingleMessageChars) {
+        return ok(
+          {
+            error: `Tek bir mesaj en fazla ${limits.maxSingleMessageChars} karakter olabilir.`,
+            code: 'MESSAGES_INVALID',
+            requestId
+          },
+          400
+        );
+      }
+      totalChars += m.content.length;
+      if (m.role === 'user') hasUserMessage = true;
+    }
+
+    if (!hasUserMessage) {
+      return ok({ error: "En az bir 'user' mesajı zorunludur.", code: 'MESSAGES_INVALID', requestId }, 400);
+    }
+    if (totalChars > limits.maxChars) {
+      return ok(
+        { error: `Toplam mesaj boyutu ${limits.maxChars} karakteri aşamaz.`, code: 'MESSAGES_INVALID', requestId },
+        400
+      );
+    }
+
+    const canOverride =
+      chatOverrides === 'all' ||
+      (chatOverrides === 'admin' && (principal === undefined || principal?.isAdmin === true));
+
+    let purpose = body?.purpose;
     if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
-      return ok({ error: 'Geçersiz çağrı amacı (purpose).', code: 'PURPOSE_INVALID' }, 400);
+      return ok({ error: 'Geçersiz çağrı amacı (purpose).', code: 'PURPOSE_INVALID', requestId }, 400);
     }
-    const profile = body?.profileId ? await store.get(String(body.profileId)) : await store.getActive();
+    if (!canOverride && purpose !== 'quick') {
+      purpose = undefined;
+    }
+
+    const profileIdToUse = canOverride && body?.profileId ? String(body.profileId) : null;
+    const profile = profileIdToUse ? await store.get(profileIdToUse) : await store.getActive();
     if (!profile) {
-      return body?.profileId
-        ? ok({ error: 'Profil bulunamadı.', code: 'PROFILE_NOT_FOUND' }, 404)
-        : ok({ error: 'Etkin LLM profili seçilmedi.', code: 'ACTIVE_PROFILE_MISSING' }, 409);
+      return profileIdToUse
+        ? ok({ error: 'Profil bulunamadı.', code: 'PROFILE_NOT_FOUND', requestId }, 404)
+        : ok({ error: 'Etkin LLM profili seçilmedi.', code: 'ACTIVE_PROFILE_MISSING', requestId }, 409);
     }
+
     const start = Date.now();
     try {
       const overrides = {};
-      if (body?.timeoutMs !== undefined) overrides.timeoutMs = body.timeoutMs;
-      if (body?.maxOutputTokens !== undefined) overrides.maxOutputTokens = body.maxOutputTokens;
-      if (body?.thinking !== undefined) overrides.thinking = body.thinking;
+      if (canOverride) {
+        if (body?.timeoutMs !== undefined) overrides.timeoutMs = body.timeoutMs;
+        if (body?.maxOutputTokens !== undefined) overrides.maxOutputTokens = body.maxOutputTokens;
+        if (body?.thinking !== undefined) overrides.thinking = body.thinking;
+      }
       if (purpose !== undefined) overrides.purpose = purpose;
       const runtimeOpts = resolveRuntimeOptions(profile, overrides);
       const options = {
@@ -261,6 +424,15 @@ export function createLLMManager({
           retryable: true
         });
       }
+      const durationMs = Date.now() - start;
+      logger.info('chat.completed', {
+        requestId,
+        profileId: profile.id,
+        provider: profile.provider,
+        model: profile.model,
+        durationMs,
+        code: 'OK'
+      });
       return ok({
         ok: true,
         content,
@@ -269,7 +441,8 @@ export function createLLMManager({
         profileName: profile.name,
         provider: profile.provider,
         model: profile.model,
-        durationMs: Date.now() - start
+        durationMs,
+        requestId
       });
     } catch (error) {
       if (
@@ -278,10 +451,19 @@ export function createLLMManager({
           !error?.code &&
           /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error?.message || ''))
       ) {
-        return ok({ error: error.message, code: ErrorCodes.RUNTIME_OPTIONS_INVALID }, 400);
+        return ok({ error: error.message, code: ErrorCodes.RUNTIME_OPTIONS_INVALID, requestId }, 400);
       }
       const classified = classifyLLMError(error);
-      return ok({ ...classified, durationMs: Date.now() - start }, classified.status);
+      const durationMs = Date.now() - start;
+      logger.warn('chat.completed', {
+        requestId,
+        profileId: profile.id,
+        provider: profile.provider,
+        model: profile.model,
+        durationMs,
+        code: classified.code
+      });
+      return ok({ ...classified, durationMs, requestId }, classified.status);
     }
   }
 
@@ -294,7 +476,7 @@ export function createLLMManager({
         retryable: false
       });
     }
-    const result = await chatCompletion({ ...options, messages });
+    const result = await chatCompletion({ ...options, messages }, { principal: { isAdmin: true } });
     if (result.status !== 200) {
       throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status
@@ -304,7 +486,7 @@ export function createLLMManager({
   }
 
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
-  async function handle({ method, path: routePath, body } = {}) {
+  async function handle({ method, path: routePath, body, principal, requestId, clientKey } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const match = /^\/(catalog|chat|profiles)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(routePath || '');
     if (!match) return null;
@@ -316,22 +498,46 @@ export function createLLMManager({
       return notFound();
     }
 
-    if (resource === 'catalog') return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS }) : null;
-    if (resource === 'chat') return verb === 'POST' && id === undefined ? chatCompletion(body) : null;
+    if (resource === 'catalog')
+      return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS, requestId }) : null;
+    if (resource === 'chat')
+      return verb === 'POST' && id === undefined ? chatCompletion(body, { principal, requestId, clientKey }) : null;
 
     if (id === undefined) {
       if (verb === 'GET') return ok(await store.list());
-      if (verb === 'POST') return guarded(() => store.save(body), 201);
+      if (verb === 'POST') {
+        const res = await guarded(() => store.save(body), 201);
+        if (res.status === 201 && res.body?.id) {
+          logger.info('profile.saved', {
+            profileId: res.body.id,
+            name: res.body.name,
+            provider: res.body.provider,
+            model: res.body.model
+          });
+        }
+        return res;
+      }
       return null;
     }
     if (!action) {
-      if (verb === 'PUT') return guarded(() => store.save({ ...body, id }));
+      if (verb === 'PUT') {
+        const res = await guarded(() => store.save({ ...body, id }));
+        if (res.status === 200 && res.body?.id) {
+          logger.info('profile.saved', {
+            profileId: res.body.id,
+            name: res.body.name,
+            provider: res.body.provider,
+            model: res.body.model
+          });
+        }
+        return res;
+      }
       if (verb === 'DELETE') return guarded(() => store.remove(id, body?.revision));
       return null;
     }
     if (action === 'activate' && verb === 'POST') return guarded(() => store.activate(id, body?.revision));
-    if (action === 'test' && verb === 'POST') return testProfile(id, body);
-    if (action === 'models' && verb === 'GET') return listModels(id);
+    if (action === 'test' && verb === 'POST') return testProfile(id, body, { clientKey, requestId });
+    if (action === 'models' && verb === 'GET') return listModels(id, { clientKey, requestId });
     return null;
   }
 
@@ -342,10 +548,12 @@ export function createLLMManager({
       cachedUi = createUiAssets({ apiPath, pagePath });
       cachedUiKey = key;
     }
+    const requestId = sanitizeRequestId(request.headers.get('x-request-id'));
     const commonHeaders = {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY'
+      'X-Frame-Options': 'DENY',
+      'x-request-id': requestId
     };
     const pathname = new URL(request.url, 'http://localhost').pathname;
     if (request.method === 'GET' && pathname === pagePath) {
@@ -368,13 +576,62 @@ export function createLLMManager({
     if (pathname === apiPath || pathname.startsWith(`${apiPath}/`)) {
       if (requireCsrf && !SAFE_METHODS.includes(request.method) && request.headers.get(CSRF_HEADER) !== '1') {
         return Response.json(
-          { error: 'İstek doğrulama başlığı eksik.', code: 'CSRF_REQUIRED' },
+          { error: 'İstek doğrulama başlığı eksik.', code: 'CSRF_REQUIRED', requestId },
           { status: 403, headers: commonHeaders }
         );
       }
       const subPath = pathname.slice(apiPath.length) || '/';
-      const body = !SAFE_METHODS.includes(request.method) ? await request.json().catch(() => ({})) : null;
-      const result = await handle({ method: request.method, path: subPath, body });
+      let body = null;
+      if (!SAFE_METHODS.includes(request.method)) {
+        const contentLength = Number(request.headers.get('content-length'));
+        if (contentLength && contentLength > limits.maxBodyBytes) {
+          return Response.json(
+            { error: 'Gövde boyutu sınırı aştı.', code: 'BODY_TOO_LARGE', requestId },
+            { status: 413, headers: commonHeaders }
+          );
+        }
+
+        if (request.body) {
+          const reader = request.body.getReader();
+          const chunks = [];
+          let byteCount = 0;
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              byteCount += value.byteLength;
+              if (byteCount > limits.maxBodyBytes) {
+                await reader.cancel();
+                return Response.json(
+                  { error: 'Gövde boyutu sınırı aştı.', code: 'BODY_TOO_LARGE', requestId },
+                  { status: 413, headers: commonHeaders }
+                );
+              }
+              chunks.push(Buffer.from(value));
+            }
+          } finally {
+            reader.releaseLock();
+          }
+          const raw = Buffer.concat(chunks).toString('utf8').trim();
+          if (raw) {
+            try {
+              body = JSON.parse(raw);
+            } catch {
+              return Response.json(
+                { error: 'Geçersiz JSON gövdesi.', code: ErrorCodes.BODY_INVALID || 'BODY_INVALID', requestId },
+                { status: 400, headers: commonHeaders }
+              );
+            }
+          } else {
+            body = {};
+          }
+        } else {
+          body = {};
+        }
+      }
+
+      const clientKey = typeof getClientId === 'function' ? getClientId(request) : null;
+      const result = await handle({ method: request.method, path: subPath, body, requestId, clientKey });
       if (!result) return new Response(null, { status: 404, headers: commonHeaders });
       if (result.body === undefined) return new Response(null, { status: result.status, headers: commonHeaders });
       return Response.json(result.body, { status: result.status, headers: commonHeaders });

@@ -4,6 +4,8 @@ import { LLMError, ErrorCodes } from './errors.js';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
+import { createRateLimiter } from './rateLimit.js';
+import { sanitizeRequestId, createStructuredLogger, redact } from './logger.js';
 import { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager } from './core.js';
 
 export {
@@ -13,7 +15,11 @@ export {
   classifyLLMError,
   PROVIDERS,
   validateProviderUrl,
-  createLLMProfileStore
+  createLLMProfileStore,
+  createRateLimiter,
+  createStructuredLogger,
+  redact,
+  sanitizeRequestId
 };
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
 
@@ -52,14 +58,25 @@ const safeEqual = (left, right) => {
   return crypto.timingSafeEqual(a, b);
 };
 
-export function createBasicAuth({ user = 'admin', password } = {}) {
+export function createBasicAuth({ user = 'admin', password, rateLimit = true } = {}) {
   if (!password) {
     throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Basic Auth için parola (adminPassword) zorunludur.', {
       status: 500,
       retryable: false
     });
   }
+  const authLimiter = rateLimit !== false ? createRateLimiter({ capacity: 10, refillPerSec: 10 / 60 }) : null;
+
   return (req, res, next) => {
+    const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    if (authLimiter) {
+      const check = authLimiter.check(ip);
+      if (!check.ok) {
+        res.set('Retry-After', String(check.retryAfterSec));
+        return res.status(429).json({ error: 'Çok fazla hatalı giriş denemesi yapıldı.', code: 'RATE_LIMITED' });
+      }
+    }
+
     const authorization = req.get('Authorization') || '';
     const decoded = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString() : '';
     const colon = decoded.indexOf(':');
@@ -68,8 +85,14 @@ export function createBasicAuth({ user = 'admin', password } = {}) {
     const userOk = safeEqual(candidateUser, user);
     const passOk = safeEqual(candidatePass, password);
     if (colon < 0 || !userOk || !passOk) {
+      if (authLimiter) {
+        authLimiter.take(ip, 1);
+      }
       res.set('WWW-Authenticate', 'Basic realm="LLM Yonetimi"');
       return res.sendStatus(401);
+    }
+    if (authLimiter) {
+      authLimiter.reset(ip);
     }
     req.user = { isAdmin: true };
     next();
@@ -92,6 +115,10 @@ export function mountLLMManagement(
     pagePath = '/llm',
     requireCsrf = true,
     chatAccess = 'authenticated',
+    chatOverrides = 'admin',
+    limits,
+    rateLimit,
+    logger,
     testMessages,
     validateTestReply
   } = {}
@@ -100,7 +127,7 @@ export function mountLLMManagement(
     typeof requireAuth === 'function'
       ? requireAuth
       : adminPassword
-        ? createBasicAuth({ user: adminUser, password: adminPassword })
+        ? createBasicAuth({ user: adminUser, password: adminPassword, rateLimit: rateLimit !== false })
         : null;
   if (!authMiddleware) throw new Error('LLM yönetimi için requireAuth veya adminPassword zorunludur.');
   if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
@@ -125,14 +152,27 @@ export function mountLLMManagement(
     generate,
     testMessages,
     validateTestReply,
+    limits,
+    chatOverrides,
+    chatAccess,
+    rateLimit,
+    logger,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();
+  router.use((req, res, next) => {
+    const requestId = sanitizeRequestId(req.get('x-request-id'));
+    res.set('x-request-id', requestId);
+    req.requestId = requestId;
+    next();
+  });
   router.use(securityHeaders, authMiddleware);
   router.use((req, res, next) => {
     const isChatRoute = /^\/chat\/?$/.test(req.path || '');
     if (isChatRoute) {
-      if (chatAccess === false) return next();
+      if (chatAccess === false) {
+        return res.status(404).json({ error: 'Sohbet uç noktası kapalı.', code: 'CHAT_DISABLED' });
+      }
       if (chatAccess === 'admin' && req.user?.isAdmin !== true) {
         return res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
       }
@@ -149,7 +189,14 @@ export function mountLLMManagement(
 
   router.use(async (req, res, next) => {
     try {
-      const result = await manager.handle({ method: req.method, path: req.path, body: req.body });
+      const result = await manager.handle({
+        method: req.method,
+        path: req.path,
+        body: req.body,
+        principal: req.user,
+        requestId: req.requestId,
+        clientKey: req.ip
+      });
       if (!result) return next();
       if (result.body === undefined) return res.sendStatus(result.status);
       res.status(result.status).json(result.body);

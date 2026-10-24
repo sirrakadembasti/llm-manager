@@ -6,6 +6,11 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Mesaj ve istek sınırları (`src/core.js`): `maxMessages` (100), `maxChars` (200000), `maxSingleMessageChars` (100000), rol beyaz listesi (`system`, `user`, `assistant`) ve en az bir `user` mesajı doğrulama kontrolleri eklendi; kural dışı durumlarda 400 `MESSAGES_INVALID` hatası sağlandı (YH1-C1).
+- Akışlı gövde ve JSON denetimi (`src/core.js`): `maxBodyBytes` (varsayılan 256 KB) aşımında 413 `BODY_TOO_LARGE`, geçersiz JSON gövdesi durumunda 400 `BODY_INVALID` döndürme eklendi (YH1-C1).
+- Maliyet kontrolü ve override izinleri (`src/core.js`): `chatOverrides` seçeneği (`'admin'` | `'all'`) eklendi; yönetici olmayan kullanıcıların `profileId`, `timeoutMs`, `maxOutputTokens` ve `thinking` değerlerini ezmesi engellendi (YH1-C2).
+- İstek hız sınırlayıcısı (`src/rateLimit.js`): Token bucket algoritması ile bellek dostu hız sınırlama mekanizması (`createRateLimiter`), `/chat`, `/test`, `/models` ve Express Basic Auth kaba kuvvet (brute-force) koruması eklendi; aşımda 429 `RATE_LIMITED` ve `Retry-After` başlığı sağlandı (YH1-C3).
+- Yapılandırılmış loglama ve istek izleme (`src/logger.js`): `x-request-id` başlığı doğrulama ve yanıtlara yayma (`sanitizeRequestId`), hassas alanları (`apiKey`, `password`, `secret`, `authorization`, `bearer`) otomatik maskeleyen `redact()` fonksiyonu ve yapılandırılmış loglayıcı (`createStructuredLogger`) eklendi (YH1-D1).
 - Çok süreçli dosya kilidi (`src/store/fileLock.js`): `withFileLockSync` ve `withFileLock` ile atomik kilit alma, eski kilit (stale lock > 10s ve ölü PID) tespiti ve temizliği, `robustRenameSync` ile Windows `EBUSY`/`EPERM` hatalarında otomatik üstel gecikmeli yeniden deneme eklendi (YH1-B2).
 - Şema sürümü ve tek kuşak otomatik yedekleme (`src/profileStore.js`): depolama formatı `{ version: 1, activeId, profiles }` olarak standartlaştırıldı; v0 formatı otomatik taşındı (`migrate`), gelecekteki sürümler için `STORE_VERSION_UNSUPPORTED` hatası verildi; bozuk JSON durumunda `.bak` kurtarma yönergeli `STORE_CORRUPT` hatası sağlandı ve her başarılı yazım öncesinde mevcut dosya `llm-profiles.json.bak` olarak yedeklendi (YH1-B3).
 - Tipli hata modeli eklendi: `src/errors.js` (`llm-manager/errors`) içinde `LLMError`, `ErrorCodes` ve `isLLMError`; `RUNTIME_OPTIONS_INVALID`, `PROFILE_INVALID`, `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT`, `LLM_NETWORK`, `LLM_DNS_BLOCKED`, `LLM_RESPONSE_TOO_LARGE`, `LLM_TIMEOUT`, `LLM_ABORTED`, `LLM_CONTENT_FILTERED`, `LLM_UPSTREAM_UNAVAILABLE` gibi standart tipli hata kodları tanımlandı (YH1-A4).
@@ -33,6 +38,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - `public/llm.html` içindeki mükerrer `<style>` blokları birleştirildi; `public/llm-ui.js`, `examples/server.js` ve test dosyaları okunabilir biçime getirildi.
 
 ### Düzeltildi
+- Express `mountLLMManagement` içinde `chatAccess: false` yapılandırmasının isteği sonrakilere paslamak yerine 404 `CHAT_DISABLED` döndürmesi sağlandı (YH2-G03).
 - Express 4 üzerinde asenkron yönlendirici hatalarının `next(err)` ile hata katmanına iletilmesi sağlandı; yönetim sayfası ve API yanıtlarına güvenlik başlıkları (`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, yönetim sayfası için `Content-Security-Policy`) eklendi.
 - Örnek sunucuda (`examples/server.js`) Basic Auth karşılaştırması SHA-256 özeti ve kısa devresiz kontrol ile sabit zamanlı (constant-time) hale getirildi.
 - `createUiAssets` içinde `apiPath` ve `pagePath` parametrelerine mount yolu doğrulaması (`isValidMountPath`) eklendi.
