@@ -48,9 +48,9 @@ let initType;
 let force = false;
 let yes = false;
 let openBrowser = true;
-let host = '127.0.0.1';
-let dataDir;
-let chatTokens;
+let host = process.env.HOST || '127.0.0.1';
+let dataDir = process.env.LLM_DATA_DIR;
+let chatTokens = process.env.LLM_CHAT_TOKENS;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];

@@ -60,4 +60,5 @@
 - YH1-C8 & C9: Kurumsal proxy ve LAN modelleri (`proxyUrl`, Undici `ProxyAgent`, bilinen sağlayıcı ve `allowedHosts` doğrulaması, `allowedPrivateHosts`, `ollama` katalog girdisi ve arayüz notu, 88 test).
 - YH1-C10: Model kataloğu veri dosyası ve canlı model önizleme (`src/catalog/providers.json`, `src/providers.js`, `GET /catalog` `updatedAt`, `POST /models/preview`, `scripts/check-catalog.js`, derin dondurma ve UI rozeti, 93 test).
 - YH1-D2: Sağlık uç noktası (`GET /health`, `{ ok: true, version, hasActiveProfile }`, kimlik doğrulamasız/sır sızdırmaz, `health: false` kapatma seçeneği, 96 test).
+- YH1-D3: Docker ve dağıtım (`Dockerfile` node:22-alpine non-root, `VOLUME /data`, `HEALTHCHECK` `/api/llm/health`, `.dockerignore`, `docs/DEPLOY.md`, 97 test).
 
