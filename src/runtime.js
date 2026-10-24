@@ -2,6 +2,7 @@ import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
 import { providerFetch } from './providerTransport.js';
 import { validateProviderUrl } from './providers.js';
+import { getTransport } from './transports/index.js';
 
 export function normalizeRuntimeOptions(input = {}) {
   const timeoutMs = Number(input.timeoutMs ?? 120000);
@@ -52,13 +53,8 @@ export function providerEndpoint(profile, suffix, allowLocalHttp = process.env.L
 }
 
 export function providerAuthHeaders(profile) {
-  if (profile.transport === 'anthropic') {
-    return { 'x-api-key': profile.apiKey, 'anthropic-version': '2023-06-01' };
-  }
-  if (profile.transport === 'google') {
-    return { 'x-goog-api-key': profile.apiKey };
-  }
-  return { Authorization: `Bearer ${profile.apiKey}` };
+  const transport = getTransport(profile?.transport);
+  return transport.authHeaders(profile);
 }
 
 const KNOWN_CODE_DEFAULTS = {
@@ -255,42 +251,16 @@ export function buildProviderRequest(profile, messages, options = {}) {
     throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, { status: 400, retryable: false });
 
   const { timeoutMs, maxOutputTokens, thinking } = resolveRuntimeOptions(profile, options);
-  const transport = profile.transport || 'openai';
-  const headers = { 'content-type': 'application/json', ...providerAuthHeaders({ ...profile, transport }) };
-  const systemText = messages
-    .filter(m => m.role === 'system')
-    .map(m => m.content)
-    .join('\n');
-
-  let url;
-  let body;
-  if (transport === 'google') {
-    const modelId = String(profile.model).replace(/^models\//, '');
-    url = providerEndpoint(profile, `models/${encodeURIComponent(modelId)}:generateContent`, options.allowLocalHttp);
-    body = {
-      generationConfig: { maxOutputTokens },
-      contents: messages
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-    };
-    if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
-  } else if (transport === 'anthropic') {
-    url = providerEndpoint(profile, 'messages', options.allowLocalHttp);
-    body = {
-      model: profile.model,
-      max_tokens: maxOutputTokens,
-      messages: messages.filter(m => m.role !== 'system')
-    };
-    if (systemText) body.system = systemText;
-  } else {
-    url = providerEndpoint(profile, 'chat/completions', options.allowLocalHttp);
-    const modern = ['openai', 'xiaomi_mimo'].includes(profile.provider);
-    body = { model: profile.model, messages, [modern ? 'max_completion_tokens' : 'max_tokens']: maxOutputTokens };
-    if (profile.provider === 'xiaomi_mimo') {
-      if (thinking !== 'auto') body.thinking = { type: thinking };
-    }
-  }
-  return { url, headers, body, timeoutMs };
+  const transport = getTransport(profile.transport || 'openai');
+  const endpointSuffix = transport.chatEndpoint(profile);
+  const url = providerEndpoint(profile, endpointSuffix, options.allowLocalHttp);
+  const headers = { 'content-type': 'application/json', ...transport.authHeaders(profile) };
+  const body = transport.buildBody(profile, messages, {
+    maxOutputTokens,
+    thinking,
+    ...options
+  });
+  return { url, headers, body, timeoutMs, transport };
 }
 
 export async function generateProfileResponse(messages, profile, options = {}) {
@@ -339,20 +309,10 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   }
 
   const payload = await response.json();
-  const content =
-    profile.transport === 'google'
-      ? payload.candidates?.[0]?.content?.parts
-          ?.filter(p => p.text)
-          .map(p => p.text)
-          .join('\n')
-      : profile.transport === 'anthropic'
-        ? payload.content
-            ?.filter(p => p.type === 'text')
-            .map(p => p.text)
-            .join('\n')
-        : payload.choices?.[0]?.message?.content;
-  const finishReason =
-    payload.choices?.[0]?.finish_reason || payload.candidates?.[0]?.finishReason || payload.stop_reason;
+  const transport = request.transport || getTransport(profile.transport);
+  const parsed = transport.parseResponse(payload);
+  const { content, finishReason, usage, reasoning } = parsed;
+
   if (['SAFETY', 'content_filter'].includes(finishReason)) {
     throw new LLMError(
       ErrorCodes.LLM_CONTENT_FILTERED,
@@ -371,6 +331,9 @@ export async function generateProfileResponse(messages, profile, options = {}) {
       status: 502,
       retryable: true
     });
+  }
+  if (options.raw === true) {
+    return { content, finishReason, usage, reasoning };
   }
   return content;
 }

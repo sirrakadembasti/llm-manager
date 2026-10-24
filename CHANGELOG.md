@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Sağlayıcı dönüşümleri strateji deseni (`src/transports/`): `openai`, `anthropic`, `google` sağlayıcı adaptörleri ayrı strateji modüllerine bölündü; ardışık aynı rol birleştirme, Anthropic ilk mesaj denetimi, Perplexity rol alternasyonu ve normalize `usage` (`{ inputTokens, outputTokens, totalTokens }`) desteği eklendi (YH1-A5).
 - TypeScript tip tanımları (`types/*.d.ts`, `types/tsconfig.json`, `types/test.ts`): `LLMProfilePublic`, `LLMProfileInternal`, `LLMMessage`, `LLMStore`, `LLMManager`, `MountOptions`, `ChatResult`, `LLMErrorCode` ve tüm modül alt yolları için tam tip bildirimleri eklendi; `package.json#exports` içine koşullu `"types"` alanları tanımlandı, `npm run typecheck` komutu ve CI iş akışına eklendi (YH1-A3).
 - Gerçek entegrasyon testleri ve mock sağlayıcı sunucusu (`tests/helpers/mockProvider.js`, `tests/integration/`): Express 4 ESM, Express 4 CommonJS (`app.cjs` dinamik import) ve Web standart `llm.fetch(Request)` yerel Node HTTP sunucu köprüsü testleri eklendi; `npm test` betiği alt dizinleri kapsayacak şekilde güncellendi (YH1-F2).
 - Mesaj ve istek sınırları (`src/core.js`): `maxMessages` (100), `maxChars` (200000), `maxSingleMessageChars` (100000), rol beyaz listesi (`system`, `user`, `assistant`) ve en az bir `user` mesajı doğrulama kontrolleri eklendi; kural dışı durumlarda 400 `MESSAGES_INVALID` hatası sağlandı (YH1-C1).

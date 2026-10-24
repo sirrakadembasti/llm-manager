@@ -18,6 +18,7 @@ import {
 import { providerFetch } from './providerTransport.js';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
+import { getTransport } from './transports/index.js';
 
 export {
   LLMError,
@@ -59,13 +60,8 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm' } = {})
 
 // Sağlayıcı yanıtından benzersiz, temizlenmiş model kimliği listesi çıkarır.
 function extractModelIds(body, profile) {
-  const isGoogle = profile.transport === 'google';
-  const ids = (body.data || body.models || [])
-    .filter(item => !isGoogle || item.supportedGenerationMethods?.includes('generateContent'))
-    .map(item => item.id || item.name)
-    .filter(Boolean)
-    .map(id => (isGoogle ? String(id).replace(/^models\//, '') : String(id)));
-  return [...new Set(ids)].filter(id => id.length <= 160).slice(0, 500);
+  const transport = getTransport(profile?.transport);
+  return transport.parseModels(body);
 }
 
 function defaultTestMessages(mode) {
