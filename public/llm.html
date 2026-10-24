@@ -127,7 +127,7 @@
     <section id="active-summary" class="active-summary" aria-live="polite">Etkin profil yükleniyor…</section>
     <div class="grid">
       <section>
-        <h2 id="form-title">Yeni profil</h2>
+        <h2 id="form-title">Yeni profil <span id="catalog-badge" class="muted" style="font-size: 13px; font-weight: normal;"></span></h2>
         <p class="muted">Anahtarlar sunucuda şifreli saklanır. Düzenlerken anahtarı boş bırakırsanız kayıtlı anahtar korunur. Sağlayıcı seçimi yalnızca başlangıç değerlerini doldurur; API adresini ve model kimliğini istediğiniz zaman elle yazabilirsiniz.</p>
         <form id="profile-form">
           <input id="profile-id" type="hidden">
@@ -141,6 +141,7 @@
           <label for="model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
           <select id="model-select" class="sub-select" aria-label="Önerilen modeller"></select>
           <input id="model" list="known-models" required maxlength="160" placeholder="Örn. sağlayıcının güncel model kimliği">
+          <button type="button" id="preview-models-btn" class="secondary" style="margin-top: 6px; font-size: 13px; padding: 4px 10px;">Modelleri getir (canlı)</button>
           <datalist id="known-models"></datalist>
           <label for="api-key">
             <span>API anahtarı</span>

@@ -475,6 +475,9 @@ async function init() {
   $('home-link').href = document.body.dataset.homeUrl || '/';
   const result = await request('/catalog', { timeoutMs: 30000 });
   catalog = result.providers;
+  if ($('catalog-badge') && result.updatedAt) {
+    $('catalog-badge').textContent = `· Katalog: ${result.updatedAt}`;
+  }
   for (const provider of catalog) {
     const option = document.createElement('option');
     option.value = provider.id;
@@ -485,6 +488,24 @@ async function init() {
   $('base-url').addEventListener('input', () => {
     serviceChoices();
     updateApiKeyFieldState();
+  });
+  $('preview-models-btn')?.addEventListener('click', () => {
+    operation('Modeller getiriliyor', async () => {
+      const provider = $('provider').value;
+      const baseURL = $('base-url').value;
+      const apiKey = $('api-key').value;
+      const profileId = $('profile-id').value;
+      const res = await request('/models/preview', {
+        method: 'POST',
+        body: JSON.stringify({ provider, baseURL, apiKey, profileId }),
+        timeoutMs: 30000
+      });
+      if (res.models?.length) {
+        populateModels(res.models);
+        return `${res.models.length} model listelendi.`;
+      }
+      return 'Model listesi boş döndü.';
+    });
   });
   $('model-select')?.addEventListener('change', () => {
     const selected = $('model-select').value;

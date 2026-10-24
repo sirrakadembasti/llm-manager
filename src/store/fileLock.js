@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { LLMError, ErrorCodes } from '../errors.js';
 
 function sleepSync(ms) {
@@ -53,6 +54,10 @@ export function withFileLockSync(lockPath, fn, { timeoutMs = 5000, retryInterval
     try {
       fd = fs.openSync(lockPath, 'wx');
     } catch (err) {
+      if (err.code === 'ENOENT') {
+        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        continue;
+      }
       if (err.code === 'EEXIST') {
         if (handleStaleLock(lockPath)) {
           continue;
@@ -97,6 +102,10 @@ export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryInterv
     try {
       fd = fs.openSync(lockPath, 'wx');
     } catch (err) {
+      if (err.code === 'ENOENT') {
+        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        continue;
+      }
       if (err.code === 'EEXIST') {
         if (handleStaleLock(lockPath)) {
           continue;

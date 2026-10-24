@@ -178,6 +178,8 @@ export function createUiAssets(options: { apiPath: string; pagePath: string }): 
 
 export { LLMError, ErrorCodes, LLMErrorCode };
 export const PROVIDERS: readonly unknown[];
+export const CATALOG_VERSION: string;
+export const CATALOG_UPDATED_AT: string;
 export function validateProviderUrl(value: unknown, options?: { allowLocalHttp?: boolean }): string;
 export function classifyLLMError(error: unknown): { error: string; code: string; status: number };
 export function generateProfileResponse(

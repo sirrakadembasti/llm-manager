@@ -18,7 +18,7 @@ import {
   executeWithRetry
 } from './runtime.js';
 import { providerFetch } from './providerTransport.js';
-import { PROVIDERS, validateProviderUrl } from './providers.js';
+import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { getTransport } from './transports/index.js';
 
@@ -28,6 +28,8 @@ export {
   generateProfileResponse,
   classifyLLMError,
   PROVIDERS,
+  CATALOG_VERSION,
+  CATALOG_UPDATED_AT,
   validateProviderUrl,
   createLLMProfileStore,
   createRateLimiter,
@@ -305,6 +307,71 @@ export function createLLMManager({
           502
         );
       return ok({ models: extractModelIds(await response.json(), profile), requestId });
+    } catch {
+      return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.', requestId }, 502);
+    }
+  }
+
+  async function previewModels(body, { principal, clientKey, requestId } = {}) {
+    if (principal && principal.isAdmin !== true) {
+      return ok({ error: 'Yönetici yetkisi gerekli.', code: 'FORBIDDEN', requestId }, 403);
+    }
+    if (rateLimiters) {
+      const key = clientKey || 'preview';
+      const res = rateLimiters.models.take(key);
+      if (!res.ok) {
+        return ok(
+          {
+            error: 'Çok fazla model listeleme isteği yapıldı. Lütfen biraz bekleyin.',
+            code: ErrorCodes.RATE_LIMITED || 'RATE_LIMITED',
+            retryAfterSec: res.retryAfterSec,
+            requestId
+          },
+          429
+        );
+      }
+    }
+
+    const { provider, baseURL, apiKey: candidateKey, profileId } = body || {};
+    if (!baseURL || !provider) {
+      return ok({ error: 'Sağlayıcı ve API adresi zorunludur.', code: 'PARAMS_INVALID', requestId }, 400);
+    }
+
+    let apiKey = candidateKey;
+    if (!apiKey && profileId) {
+      const existing = await store.get(profileId);
+      if (existing?.apiKey) apiKey = existing.apiKey;
+    }
+    if (!apiKey) {
+      return ok({ error: 'API anahtarı girilmelidir.', code: 'API_KEY_REQUIRED', requestId }, 400);
+    }
+
+    const dummyProfile = {
+      provider,
+      baseURL,
+      apiKey
+    };
+
+    const problem = credentialEndpointProblem(provider, baseURL, apiKey);
+    if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem, requestId }, 400);
+
+    try {
+      const url = providerEndpoint(dummyProfile, 'models', networkOptions);
+      const response = await providerFetch(url, {
+        headers: providerAuthHeaders(dummyProfile),
+        signal: AbortSignal.timeout(10000),
+        ...networkOptions
+      });
+      if (!response.ok) {
+        return ok(
+          {
+            error: `Model listesi alınamadı (HTTP ${response.status}). Model kimliğini elle girebilirsiniz.`,
+            requestId
+          },
+          502
+        );
+      }
+      return ok({ models: extractModelIds(await response.json(), dummyProfile), requestId });
     } catch {
       return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.', requestId }, 502);
     }
@@ -658,7 +725,9 @@ export function createLLMManager({
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
   async function handle({ method, path: routePath, body, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
-    const match = /^\/(catalog|chat|profiles)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(routePath || '');
+    const match = /^\/(catalog|chat|profiles|models)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
+      routePath || ''
+    );
     if (!match) return null;
     const [, resource, rawId, action] = match;
     let id;
@@ -669,7 +738,11 @@ export function createLLMManager({
     }
 
     if (resource === 'catalog')
-      return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS, requestId }) : null;
+      return verb === 'GET' && id === undefined
+        ? ok({ providers: PROVIDERS, catalogVersion: CATALOG_VERSION, updatedAt: CATALOG_UPDATED_AT, requestId })
+        : null;
+    if (resource === 'models')
+      return verb === 'POST' && id === 'preview' ? previewModels(body, { principal, clientKey, requestId }) : null;
     if (resource === 'chat')
       return verb === 'POST' && id === undefined
         ? chatCompletion(body ? { ...body, signal: body.signal || signal } : { signal }, {

@@ -58,4 +58,5 @@
 - YH1-C4: Akış (Streaming SSE) desteği (`parseStreamEvent`, sayaçlı `stream: true`, `llm.stream` AsyncIterable, `POST /chat` SSE `event: delta|done|error`, istemci kopmasında üst akış abort, 79 test).
 - YH1-C7: Düşünme (reasoning) ayarı genelleştirmesi (`capabilities.thinking`, OpenAI `reasoning_effort`, Anthropic `budget_tokens`, Gemini `thinkingBudget`, Qwen `enable_thinking`, UI tüm sağlayıcı desteği, 85 test).
 - YH1-C8 & C9: Kurumsal proxy ve LAN modelleri (`proxyUrl`, Undici `ProxyAgent`, bilinen sağlayıcı ve `allowedHosts` doğrulaması, `allowedPrivateHosts`, `ollama` katalog girdisi ve arayüz notu, 88 test).
+- YH1-C10: Model kataloğu veri dosyası ve canlı model önizleme (`src/catalog/providers.json`, `src/providers.js`, `GET /catalog` `updatedAt`, `POST /models/preview`, `scripts/check-catalog.js`, derin dondurma ve UI rozeti, 93 test).
 

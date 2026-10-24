@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { LLMError, ErrorCodes } from './errors.js';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
-import { PROVIDERS, validateProviderUrl } from './providers.js';
+import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { createRateLimiter } from './rateLimit.js';
 import { sanitizeRequestId, createStructuredLogger, redact } from './logger.js';
@@ -14,6 +14,8 @@ export {
   generateProfileResponse,
   classifyLLMError,
   PROVIDERS,
+  CATALOG_VERSION,
+  CATALOG_UPDATED_AT,
   validateProviderUrl,
   createLLMProfileStore,
   createRateLimiter,
