@@ -55,7 +55,7 @@ export function isValidMountPath(value) {
 }
 
 // Yönetim sayfası ve betiği bir kez okunup yol ayarlarıyla önbelleğe alınır.
-export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', locale = 'tr' } = {}) {
+export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', locale = 'tr', homeUrl = '/' } = {}) {
   if (![apiPath, pagePath].every(isValidMountPath)) {
     throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Geçersiz eklenti mount yolu.', {
       status: 400,
@@ -73,6 +73,8 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', locale
   if (!html.includes('data-api-base=')) html = html.replace('<body', `<body data-api-base="${apiPath}"`);
   html = html.replace(/data-locale="[^"]*"/, `data-locale="${normalizedLocale}"`);
   if (!html.includes('data-locale=')) html = html.replace('<body', `<body data-locale="${normalizedLocale}"`);
+  html = html.replace(/data-home-url="[^"]*"/, `data-home-url="${homeUrl}"`);
+  if (!html.includes('data-home-url=')) html = html.replace('<body', `<body data-home-url="${homeUrl}"`);
   html = html.replace(/src="(?:\.\/|\/llm\/)llm-ui\.js"/, `src="${pagePath}/llm-ui.js"`);
 
   // Replace data-i18n text in html
@@ -143,6 +145,7 @@ export function createLLMManager({
   health = true,
   usageLog = false,
   locale = 'tr',
+  homeUrl = '/',
   getClientId
 } = {}) {
   const pendingTests = new Set();
@@ -890,12 +893,13 @@ export function createLLMManager({
   // Next.js, SvelteKit, Nuxt, Astro, Hono, Bun/Deno için standart Web Request -> Response adaptörü.
   async function fetchHandler(
     request,
-    { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true, locale: customLocale } = {}
+    { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true, locale: customLocale, homeUrl: customHomeUrl } = {}
   ) {
     const activeLocale = customLocale || locale || 'tr';
-    const key = `${apiPath}|${pagePath}|${activeLocale}`;
+    const activeHomeUrl = customHomeUrl || homeUrl || '/';
+    const key = `${apiPath}|${pagePath}|${activeLocale}|${activeHomeUrl}`;
     if (cachedUiKey !== key) {
-      cachedUi = createUiAssets({ apiPath, pagePath, locale: activeLocale });
+      cachedUi = createUiAssets({ apiPath, pagePath, locale: activeLocale, homeUrl: activeHomeUrl });
       cachedUiKey = key;
     }
     const requestId = sanitizeRequestId(request.headers.get('x-request-id'));

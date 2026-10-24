@@ -135,6 +135,7 @@ export function mountLLMManagement(
     health = true,
     usageLog = false,
     locale = 'tr',
+    homeUrl = '/',
     limits,
     rateLimit,
     logger,
@@ -166,7 +167,7 @@ export function mountLLMManagement(
   };
   const protectPage = [requestIdMiddleware, securityHeaders, authMiddleware, admin];
 
-  const { html, script } = createUiAssets({ apiPath, pagePath, locale });
+  const { html, script } = createUiAssets({ apiPath, pagePath, locale, homeUrl });
   app.get(pagePath, ...protectPage, (_req, res) => {
     res.set('Content-Security-Policy', PAGE_CSP).type('html').send(html);
   });
@@ -188,6 +189,7 @@ export function mountLLMManagement(
     health,
     usageLog,
     locale,
+    homeUrl,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();

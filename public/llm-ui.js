@@ -358,6 +358,70 @@ function editProfile(profile) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function cloneProfile(profile) {
+  clearForm();
+  if (![...$('provider').options].some(option => option.value === profile.provider)) {
+    const option = document.createElement('option');
+    option.value = profile.provider;
+    option.textContent = profile.provider;
+    $('provider').append(option);
+  }
+  $('profile-id').value = '';
+  editingRevision = undefined;
+  editingProfile = null;
+  const suffix = t('profiles.clone_suffix', { name: profile.name }, `${profile.name} (Kopya)`);
+  $('name').value = suffix;
+  $('provider').value = profile.provider;
+  $('base-url').value = profile.baseURL;
+  $('model').value = profile.model;
+  const known = catalog.find(item => item.id === profile.provider)?.models || [];
+  populateModels(profile.model && !known.includes(profile.model) ? [profile.model, ...known] : known);
+  $('timeout-ms').value = profile.timeoutMs ?? 120000;
+  $('max-output-tokens').value = profile.maxOutputTokens ?? 8192;
+  $('thinking').value = profile.thinking || 'auto';
+  if ($('temperature')) $('temperature').value = profile.temperature ?? '';
+  if ($('top-p')) $('top-p').value = profile.topP ?? '';
+  if ($('response-format')) $('response-format').value = profile.responseFormat ?? '';
+  if ($('stop')) $('stop').value = Array.isArray(profile.stop) ? profile.stop.join(', ') : profile.stop || '';
+  updateThinking();
+  $('api-key').value = '';
+  $('form-title').textContent = t('form.clone_title', { name: profile.name }, `Yeni profil (${profile.name} kopyası)`);
+  serviceChoices();
+  updateApiKeyFieldState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  message(t('profiles.cloned_msg', {}, 'Profil kopyalandı; yeni bir ad ve API anahtarı girerek kaydedebilirsiniz.'));
+}
+
+async function showConfirm(promptText) {
+  const dialog = $('confirm-dialog');
+  if (dialog && typeof dialog.showModal === 'function') {
+    return new Promise(resolve => {
+      const msgEl = $('confirm-dialog-msg');
+      if (msgEl) msgEl.textContent = promptText;
+      const cancelBtn = $('confirm-dialog-cancel');
+      const onCancel = () => {
+        cleanup();
+        dialog.close();
+        resolve(false);
+      };
+      const onConfirm = e => {
+        e.preventDefault();
+        cleanup();
+        dialog.close();
+        resolve(true);
+      };
+      const cleanup = () => {
+        cancelBtn?.removeEventListener('click', onCancel);
+        dialog.removeEventListener('submit', onConfirm);
+      };
+      cancelBtn?.addEventListener('click', onCancel, { once: true });
+      dialog.addEventListener('submit', onConfirm, { once: true });
+      dialog.showModal();
+    });
+  }
+  return typeof window.confirm === 'function' ? window.confirm(promptText) : true;
+}
+
 function lastTestText(profile, mode) {
   const label = mode === 'quick' ? 'Bağlantı testi' : mode === 'conversation' ? 'Sohbet testi' : 'Son test';
   const test = mode
@@ -473,6 +537,14 @@ function render() {
         },
         true
       ),
+      button(
+        t('profiles.btn_clone', {}, 'Klonla'),
+        'secondary',
+        () => {
+          cloneProfile(profile);
+        },
+        true
+      ),
       button(t('profiles.btn_test_quick', {}, 'Bağlantıyı sına'), 'secondary', () => testProfile(profile, 'quick')),
       button(t('profiles.btn_test_conv', {}, 'Sohbeti sına'), 'secondary', () => testProfile(profile, 'conversation')),
       button(t('profiles.btn_fetch_models', {}, 'Modelleri getir'), 'secondary', async () => {
@@ -498,7 +570,8 @@ function render() {
               `${profile.name} etkin profil. Silinirse etkin profil kalmayacak. Silinsin mi?`
             )
           : t('profiles.delete_confirm', { name: profile.name }, `${profile.name} profili silinsin mi?`);
-        if (!window.confirm(promptText)) return;
+        const confirmed = await showConfirm(promptText);
+        if (!confirmed) return;
         await request(path, { method: 'DELETE', body: JSON.stringify({ revision: profile.revision }) });
         if ($('profile-id').value === profile.id) clearForm();
         await loadProfiles();

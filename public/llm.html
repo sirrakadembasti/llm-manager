@@ -98,6 +98,16 @@
     #message.error { color: #b91c1c; }
     #message.success { color: #047857; }
     code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
+    dialog.confirm-dialog {
+      border: 1px solid #dce2ef;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 420px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    dialog.confirm-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.4);
+    }
     [hidden] { display: none !important; }
     @media (max-width: 760px) {
       .grid, .summary-grid, .field-grid { grid-template-columns: 1fr; }
@@ -134,15 +144,15 @@
         <form id="profile-form">
           <input id="profile-id" type="hidden">
           <label for="name" data-i18n="form.name">Profil adı</label>
-          <input id="name" required maxlength="80" data-i18n-placeholder="form.name_placeholder" placeholder="Örn. Üretim modeli">
+          <input id="name" required maxlength="80" data-i18n-placeholder="form.name_placeholder" placeholder="Örn. Üretim modeli" aria-describedby="message">
           <label for="provider" data-i18n="form.provider">Sağlayıcı</label>
           <select id="provider" required></select>
           <label for="base-url" data-i18n="form.base_url">API temel adresi (listeden seçilebilir veya elle düzenlenebilir)</label>
-          <input id="base-url" type="url" required placeholder="https://api.example.com/v1">
+          <input id="base-url" type="url" required placeholder="https://api.example.com/v1" aria-describedby="provider-note message">
           <p id="provider-note" class="muted" hidden></p>
           <label for="model" data-i18n="form.model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
           <select id="model-select" class="sub-select" aria-label="Önerilen modeller"></select>
-          <input id="model" list="known-models" required maxlength="160" data-i18n-placeholder="form.model_placeholder" placeholder="Örn. sağlayıcının güncel model kimliği">
+          <input id="model" list="known-models" required maxlength="160" data-i18n-placeholder="form.model_placeholder" placeholder="Örn. sağlayıcının güncel model kimliği" aria-describedby="message">
           <button type="button" id="preview-models-btn" class="secondary" data-i18n="form.fetch_models_btn" style="margin-top: 6px; font-size: 13px; padding: 4px 10px;">Modelleri getir (canlı)</button>
           <datalist id="known-models"></datalist>
           <label for="api-key">
@@ -150,17 +160,17 @@
             <span id="api-key-badge" class="key-badge" hidden></span>
           </label>
           <div id="api-key-status" class="key-status" role="status" aria-live="polite" hidden></div>
-          <input id="api-key" type="password" autocomplete="new-password" data-i18n-placeholder="form.api_key_placeholder" placeholder="API anahtarını girin">
+          <input id="api-key" type="password" autocomplete="new-password" data-i18n-placeholder="form.api_key_placeholder" placeholder="API anahtarını girin" aria-describedby="api-key-status message">
           <div class="field-grid">
             <div>
               <label for="timeout-ms" data-i18n="form.timeout">Zaman sınırı (ms)</label>
-              <input id="timeout-ms" type="number" required min="5000" max="300000" step="1" value="120000">
-              <span class="muted" data-i18n="form.timeout_hint">5–300 saniye</span>
+              <input id="timeout-ms" type="number" required min="5000" max="300000" step="1" value="120000" aria-describedby="timeout-hint message">
+              <span id="timeout-hint" class="muted" data-i18n="form.timeout_hint">5–300 saniye</span>
             </div>
             <div>
               <label for="max-output-tokens" data-i18n="form.max_tokens">En fazla çıktı tokenı</label>
-              <input id="max-output-tokens" type="number" required min="256" max="32768" step="1" value="8192">
-              <span class="muted" data-i18n="form.max_tokens_hint">256–32768 token</span>
+              <input id="max-output-tokens" type="number" required min="256" max="32768" step="1" value="8192" aria-describedby="max-tokens-hint message">
+              <span id="max-tokens-hint" class="muted" data-i18n="form.max_tokens_hint">256–32768 token</span>
             </div>
           </div>
           <div id="thinking-field" hidden>
@@ -240,6 +250,15 @@
         <pre id="playground-output"></pre>
       </div>
     </section>
+    <dialog id="confirm-dialog" class="confirm-dialog">
+      <form method="dialog">
+        <p id="confirm-dialog-msg" style="margin: 0 0 16px; font-weight: 500;"></p>
+        <div class="actions" style="margin-top: 14px; justify-content: flex-end;">
+          <button type="button" id="confirm-dialog-cancel" class="secondary" data-i18n="dialog.cancel">Vazgeç</button>
+          <button type="submit" id="confirm-dialog-confirm" class="danger" data-i18n="dialog.confirm">Evet, Sil</button>
+        </div>
+      </form>
+    </dialog>
   </main>
 </body>
 </html>

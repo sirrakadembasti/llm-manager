@@ -8,6 +8,7 @@
   "app.active_summary": "Etkin profil: {name} · {model}. {lastTest}",
   "app.catalog_badge": "· Katalog: {date}",
   "form.new_title": "Yeni profil",
+  "form.clone_title": "Yeni profil ({name} kopyası)",
   "form.edit_title": "Profili düzenle: {name}",
   "form.info": "Anahtarlar sunucuda şifreli saklanır. Düzenlerken anahtarı boş bırakırsanız kayıtlı anahtar korunur. Sağlayıcı seçimi yalnızca başlangıç değerlerini doldurur; API adresini ve model kimliğini istediğiniz zaman elle yazabilirsiniz.",
   "form.name": "Profil adı",
@@ -46,6 +47,9 @@
   "profiles.this_month": "📊 Bu ay: {requests} istek · {tokens} token",
   "profiles.this_month_empty": "📊 Bu ay: Henüz istek yok",
   "profiles.btn_edit": "Düzenle",
+  "profiles.btn_clone": "Klonla",
+  "profiles.clone_suffix": "{name} (Kopya)",
+  "profiles.cloned_msg": "Profil kopyalandı; yeni bir ad ve API anahtarı girerek kaydedebilirsiniz.",
   "profiles.btn_test_quick": "Bağlantıyı sına",
   "profiles.btn_test_conv": "Sohbeti sına",
   "profiles.btn_fetch_models": "Modelleri getir",
@@ -70,5 +74,7 @@
   "playground.waiting": "Model yanıtı bekleniyor…",
   "playground.failed": "İstek başarısız oldu.",
   "playground.user_required": "Lütfen bir kullanıcı mesajı girin.",
-  "playground.profile_required": "Lütfen önce bir profil seçin veya ekleyin."
+  "playground.profile_required": "Lütfen önce bir profil seçin veya ekleyin.",
+  "dialog.cancel": "Vazgeç",
+  "dialog.confirm": "Evet, Sil"
 }

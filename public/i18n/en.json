@@ -8,6 +8,7 @@
   "app.active_summary": "Active profile: {name} · {model}. {lastTest}",
   "app.catalog_badge": "· Catalog: {date}",
   "form.new_title": "New profile",
+  "form.clone_title": "New profile (Copy of {name})",
   "form.edit_title": "Edit profile: {name}",
   "form.info": "API keys are encrypted and stored securely on the server. Leaving the key blank during editing preserves the existing saved key. Provider selection only populates initial templates; endpoints and model IDs can be customized at any time.",
   "form.name": "Profile name",
@@ -46,6 +47,9 @@
   "profiles.this_month": "📊 This month: {requests} requests · {tokens} tokens",
   "profiles.this_month_empty": "📊 This month: No requests yet",
   "profiles.btn_edit": "Edit",
+  "profiles.btn_clone": "Clone",
+  "profiles.clone_suffix": "{name} (Copy)",
+  "profiles.cloned_msg": "Profile cloned; enter a new name and API key to save.",
   "profiles.btn_test_quick": "Test connection",
   "profiles.btn_test_conv": "Test chat",
   "profiles.btn_fetch_models": "Fetch models",
@@ -70,5 +74,7 @@
   "playground.waiting": "Waiting for model response…",
   "playground.failed": "Request failed.",
   "playground.user_required": "Please enter a user message.",
-  "playground.profile_required": "Please select or create a profile first."
+  "playground.profile_required": "Please select or create a profile first.",
+  "dialog.cancel": "Cancel",
+  "dialog.confirm": "Confirm Delete"
 }

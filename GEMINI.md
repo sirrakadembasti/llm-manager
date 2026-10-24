@@ -64,4 +64,5 @@
 - YH1-D4: Kullanım kaydı ve aylık özet (`src/usageLogger.js`, `data/usage-YYYY-MM.jsonl`, `GET /usage`, kart rozeti "Bu ay: N istek · X token", 100 test).
 - YH1-E1: Deneme sohbeti (Playground) paneli (`public/llm.html`, `public/llm-ui.js`, profil seçimi, streaming SSE çıktısı, latency ve token sayaç rozeti, 102 test).
 - YH1-E2: Çoklu dil desteği (Türkçe & İngilizce) (`public/i18n/tr.json`, `public/i18n/en.json`, `src/messages.js`, `README.en.md`, `mountLLMManagement({ locale })`, `createUiAssets`, HTML `<html lang="...">` ve `data-i18n` ön oluşturma, 107 test).
+- YH1-E3: Kullanıcı arayüzü geliştirmeleri (`homeUrl` desteği, profil klonlama `cloneProfile`, onay modalı `<dialog id="confirm-dialog">`, form `aria-describedby` hata/ipucu bağları, 112 test).
 
