@@ -53,6 +53,7 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.js tests/**/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=70 tests/*.test.js tests/**/*.test.js",
     "typecheck": "tsc -p types/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check .",
