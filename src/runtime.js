@@ -26,7 +26,57 @@ export function normalizeRuntimeOptions(input = {}) {
       retryable: false
     });
   }
-  return { timeoutMs, maxOutputTokens, thinking };
+
+  const result = { timeoutMs, maxOutputTokens, thinking };
+
+  if (input.temperature !== undefined && input.temperature !== null && input.temperature !== '') {
+    const temp = Number(input.temperature);
+    if (isNaN(temp) || temp < 0 || temp > 2) {
+      throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Sıcaklık (temperature) 0.0–2.0 arasında olmalıdır.', {
+        status: 400,
+        retryable: false
+      });
+    }
+    result.temperature = temp;
+  }
+
+  if (input.topP !== undefined && input.topP !== null && input.topP !== '') {
+    const topP = Number(input.topP);
+    if (isNaN(topP) || topP < 0 || topP > 1) {
+      throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Top-P 0.0–1.0 arasında olmalıdır.', {
+        status: 400,
+        retryable: false
+      });
+    }
+    result.topP = topP;
+  }
+
+  if (input.stop !== undefined && input.stop !== null && input.stop !== '') {
+    const stopList = Array.isArray(input.stop) ? input.stop : [input.stop];
+    if (stopList.length > 4 || stopList.some(s => typeof s !== 'string' || s.length > 100)) {
+      throw new LLMError(
+        ErrorCodes.RUNTIME_OPTIONS_INVALID,
+        'Durdurma dizileri en fazla 4 adet ve her biri en fazla 100 karakter olabilir.',
+        {
+          status: 400,
+          retryable: false
+        }
+      );
+    }
+    result.stop = stopList;
+  }
+
+  if (input.responseFormat !== undefined && input.responseFormat !== null && input.responseFormat !== '') {
+    if (!['text', 'json'].includes(input.responseFormat)) {
+      throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, "Yanıt biçimi 'text' veya 'json' olmalıdır.", {
+        status: 400,
+        retryable: false
+      });
+    }
+    result.responseFormat = input.responseFormat;
+  }
+
+  return result;
 }
 
 export function resolveRuntimeOptions(profile, options = {}) {

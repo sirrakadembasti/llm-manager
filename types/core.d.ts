@@ -24,6 +24,10 @@ export interface LLMProfilePublic {
   timeoutMs?: number;
   maxOutputTokens?: number;
   thinking?: 'auto' | 'disabled';
+  temperature?: number;
+  topP?: number;
+  stop?: string[];
+  responseFormat?: 'text' | 'json';
   lastTest?: LLMTestResult | null;
   lastTests?: Record<string, LLMTestResult>;
 }
@@ -80,16 +84,19 @@ export interface StructuredLogger {
 export interface ChatResult {
   ok: boolean;
   content: string;
+  text?: string;
   profileId: string;
+  profileName?: string;
   provider: string;
   model: string;
   durationMs: number;
   requestId?: string;
+  finishReason?: string | null;
   usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  } | null;
 }
 
 export interface HandleOptions {
@@ -128,7 +135,7 @@ export interface LLMManagerOptions {
 
 export interface LLMManager {
   handle(options: HandleOptions): Promise<HandleResponse | null>;
-  ask(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown>): Promise<string>;
+  ask(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown> & { raw?: boolean }): Promise<any>;
   fetch(request: Request): Promise<Response>;
   store: LLMStore;
 }

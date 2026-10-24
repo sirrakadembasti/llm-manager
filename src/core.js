@@ -400,6 +400,10 @@ export function createLLMManager({
         if (body?.timeoutMs !== undefined) overrides.timeoutMs = body.timeoutMs;
         if (body?.maxOutputTokens !== undefined) overrides.maxOutputTokens = body.maxOutputTokens;
         if (body?.thinking !== undefined) overrides.thinking = body.thinking;
+        if (body?.temperature !== undefined) overrides.temperature = body.temperature;
+        if (body?.topP !== undefined) overrides.topP = body.topP;
+        if (body?.stop !== undefined) overrides.stop = body.stop;
+        if (body?.responseFormat !== undefined) overrides.responseFormat = body.responseFormat;
       }
       if (purpose !== undefined) overrides.purpose = purpose;
       const runtimeOpts = resolveRuntimeOptions(profile, overrides);
@@ -411,9 +415,13 @@ export function createLLMManager({
         useManagedProfile: false,
         allowMockFallback: false
       };
-      const content = generate
+      const responseResult = generate
         ? await generate(messages, options)
-        : await generateProfileResponse(messages, profile, options);
+        : await generateProfileResponse(messages, profile, { ...options, raw: true });
+      const content = typeof responseResult === 'string' ? responseResult : responseResult?.content;
+      const finishReason = typeof responseResult === 'object' ? responseResult?.finishReason : 'stop';
+      const usage = typeof responseResult === 'object' ? responseResult?.usage : null;
+
       if (!content) {
         throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
           status: 502,
@@ -427,6 +435,7 @@ export function createLLMManager({
         provider: profile.provider,
         model: profile.model,
         durationMs,
+        usage,
         code: 'OK'
       });
       return ok({
@@ -438,6 +447,8 @@ export function createLLMManager({
         provider: profile.provider,
         model: profile.model,
         durationMs,
+        usage,
+        finishReason,
         requestId
       });
     } catch (error) {
@@ -477,6 +488,9 @@ export function createLLMManager({
       throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status
       });
+    }
+    if (options.raw === true) {
+      return result.body;
     }
     return result.body.content;
   }

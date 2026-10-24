@@ -274,6 +274,10 @@ function clearForm() {
   $('profile-form').reset();
   $('profile-id').value = '';
   $('api-key').value = '';
+  if ($('temperature')) $('temperature').value = '';
+  if ($('top-p')) $('top-p').value = '';
+  if ($('response-format')) $('response-format').value = '';
+  if ($('stop')) $('stop').value = '';
   $('form-title').textContent = 'Yeni profil';
   providerDefaults();
 }
@@ -297,6 +301,10 @@ function editProfile(profile) {
   $('timeout-ms').value = profile.timeoutMs ?? 120000;
   $('max-output-tokens').value = profile.maxOutputTokens ?? 8192;
   $('thinking').value = profile.thinking || 'auto';
+  if ($('temperature')) $('temperature').value = profile.temperature ?? '';
+  if ($('top-p')) $('top-p').value = profile.topP ?? '';
+  if ($('response-format')) $('response-format').value = profile.responseFormat ?? '';
+  if ($('stop')) $('stop').value = Array.isArray(profile.stop) ? profile.stop.join(', ') : profile.stop || '';
   updateThinking();
   $('api-key').value = '';
   $('form-title').textContent = `Profili düzenle: ${profile.name}`;
@@ -492,6 +500,15 @@ async function init() {
         maxOutputTokens: Number($('max-output-tokens').value),
         thinking: $('provider').value === 'xiaomi_mimo' ? $('thinking').value : 'auto'
       };
+      if ($('temperature')?.value !== '') input.temperature = Number($('temperature').value);
+      if ($('top-p')?.value !== '') input.topP = Number($('top-p').value);
+      if ($('response-format')?.value) input.responseFormat = $('response-format').value;
+      if ($('stop')?.value.trim()) {
+        input.stop = $('stop')
+          .value.split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
       if (id && editingRevision !== undefined) input.revision = editingRevision;
       if (!Number.isInteger(input.timeoutMs) || input.timeoutMs < 5000 || input.timeoutMs > 300000) {
         throw new Error('Zaman sınırı 5000–300000 ms arasında olmalı.');

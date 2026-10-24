@@ -168,6 +168,33 @@
             </select>
             <p class="muted">Otomatik mod Manager'ın hızlı denemelerinde düşünmeyi kapatır; üretim sohbetlerinde modelin varsayılan düşünme davranışını korur.</p>
           </div>
+          <details class="advanced-settings" style="margin-top: 14px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #4338ca;">Gelişmiş üretim parametreleri</summary>
+            <div class="field-grid" style="margin-top: 10px;">
+              <div>
+                <label for="temperature">Sıcaklık (temperature: 0.0–2.0)</label>
+                <input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Varsayılan (boş)">
+              </div>
+              <div>
+                <label for="top-p">Top-P (0.0–1.0)</label>
+                <input id="top-p" type="number" min="0" max="1" step="0.05" placeholder="Varsayılan (boş)">
+              </div>
+            </div>
+            <div class="field-grid">
+              <div>
+                <label for="response-format">Yanıt biçimi</label>
+                <select id="response-format">
+                  <option value="">Varsayılan (metin)</option>
+                  <option value="text">Düz metin (text)</option>
+                  <option value="json">Yapılandırılmış JSON (json)</option>
+                </select>
+              </div>
+              <div>
+                <label for="stop">Durdurma dizileri (virgülle ayrılmış)</label>
+                <input id="stop" placeholder="Örn: STOP, END">
+              </div>
+            </div>
+          </details>
           <div class="actions">
             <button type="submit">Profili kaydet</button>
             <button type="button" id="clear-form" class="secondary">Yeni profil</button>
