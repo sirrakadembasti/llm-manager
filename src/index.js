@@ -135,11 +135,17 @@ export function mountLLMManagement(
 
   const admin = (req, res, next) =>
     req.user?.isAdmin === true ? next() : res.status(403).json({ error: 'Yönetici yetkisi gerekli.' });
+  const requestIdMiddleware = (req, res, next) => {
+    const requestId = sanitizeRequestId(req.get('x-request-id'));
+    res.set('x-request-id', requestId);
+    req.requestId = requestId;
+    next();
+  };
   const securityHeaders = (_req, res, next) => {
     res.set(COMMON_HEADERS);
     next();
   };
-  const protectPage = [securityHeaders, authMiddleware, admin];
+  const protectPage = [requestIdMiddleware, securityHeaders, authMiddleware, admin];
 
   const { html, script } = createUiAssets({ apiPath, pagePath });
   app.get(pagePath, ...protectPage, (_req, res) => {
@@ -160,12 +166,7 @@ export function mountLLMManagement(
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();
-  router.use((req, res, next) => {
-    const requestId = sanitizeRequestId(req.get('x-request-id'));
-    res.set('x-request-id', requestId);
-    req.requestId = requestId;
-    next();
-  });
+  router.use(requestIdMiddleware);
   router.use(securityHeaders, authMiddleware);
   router.use((req, res, next) => {
     const isChatRoute = /^\/chat\/?$/.test(req.path || '');

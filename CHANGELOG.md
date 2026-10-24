@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Eklendi
+- Gerçek entegrasyon testleri ve mock sağlayıcı sunucusu (`tests/helpers/mockProvider.js`, `tests/integration/`): Express 4 ESM, Express 4 CommonJS (`app.cjs` dinamik import) ve Web standart `llm.fetch(Request)` yerel Node HTTP sunucu köprüsü testleri eklendi; `npm test` betiği alt dizinleri kapsayacak şekilde güncellendi (YH1-F2).
 - Mesaj ve istek sınırları (`src/core.js`): `maxMessages` (100), `maxChars` (200000), `maxSingleMessageChars` (100000), rol beyaz listesi (`system`, `user`, `assistant`) ve en az bir `user` mesajı doğrulama kontrolleri eklendi; kural dışı durumlarda 400 `MESSAGES_INVALID` hatası sağlandı (YH1-C1).
 - Akışlı gövde ve JSON denetimi (`src/core.js`): `maxBodyBytes` (varsayılan 256 KB) aşımında 413 `BODY_TOO_LARGE`, geçersiz JSON gövdesi durumunda 400 `BODY_INVALID` döndürme eklendi (YH1-C1).
 - Maliyet kontrolü ve override izinleri (`src/core.js`): `chatOverrides` seçeneği (`'admin'` | `'all'`) eklendi; yönetici olmayan kullanıcıların `profileId`, `timeoutMs`, `maxOutputTokens` ve `thinking` değerlerini ezmesi engellendi (YH1-C2).
