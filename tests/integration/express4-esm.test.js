@@ -137,6 +137,9 @@ test('YH1-F2: Express 4 ESM integration with real HTTP server and mock provider'
     assert.equal(chatData.content, 'Mock OpenAI response');
     assert.equal(chatData.profileId, profile.id);
   } finally {
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();
+    }
     await new Promise(resolve => server.close(resolve));
     await mock.close();
   }

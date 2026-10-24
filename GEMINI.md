@@ -51,4 +51,5 @@
 - YH1-B2 & B3: Çok süreçli dosya kilidi (`src/store/fileLock.js`, `withFileLockSync`, `withFileLock`), Windows EBUSY/EPERM yeniden deneme (`robustRenameSync`), şema sürümü `{ version: 1 }`, v0 migration, tek kuşak yedek (`.bak`), bozuk JSON kurtarma rehberi ve asenkron store uyumluluğu (56 test).
 - YH1-C1, C2, C3, D1: Mesaj/karakter sınırları ve rol doğrulaması (`limits`), override izinleri (`chatOverrides`), akışlı gövde boyutu sınırı (413) ve geçersiz JSON (400), token bucket hız sınırlayıcı (`src/rateLimit.js`, `createRateLimiter`), Basic Auth brute-force koruması, `x-request-id` yayılımı (`src/logger.js`, `sanitizeRequestId`), hassas veri maskeleme (`redact`) ve yapılandırılmış loglayıcı (`createStructuredLogger`, 61 test).
 - YH1-F2: Gerçek entegrasyon testleri ve mock sağlayıcı sunucusu (`tests/helpers/mockProvider.js`, Express 4 ESM, Express 4 CommonJS `app.cjs`, Web standart `llm.fetch` Node HTTP sunucu köprüsü, 64 test).
+- YH1-A3: TypeScript tip tanımları (`types/*.d.ts`, `types/tsconfig.json`, `types/test.ts`, `package.json#exports` types, `npm run typecheck`, CI adımı).
 

@@ -140,6 +140,9 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
     const reply = await manager.ask('What is 2+2?');
     assert.equal(reply, 'Mock Anthropic response');
   } finally {
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();
+    }
     await new Promise(resolve => server.close(resolve));
     await mock.close();
   }

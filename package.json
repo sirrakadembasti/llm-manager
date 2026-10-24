@@ -4,23 +4,46 @@
   "description": "Reusable authenticated LLM profile management and diagnostics",
   "type": "module",
   "main": "src/index.js",
+  "types": "./types/index.d.ts",
   "bin": {
     "llm-manager": "bin/llm-manager.js"
   },
   "exports": {
-    ".": "./src/index.js",
-    "./core": "./src/core.js",
-    "./server": "./src/server.js",
-    "./init": "./src/init.js",
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./core": {
+      "types": "./types/core.d.ts",
+      "default": "./src/core.js"
+    },
+    "./server": {
+      "types": "./types/server.d.ts",
+      "default": "./src/server.js"
+    },
+    "./init": {
+      "types": "./types/init.d.ts",
+      "default": "./src/init.js"
+    },
     "./setup": "./src/setup.js",
-    "./transport": "./src/providerTransport.js",
-    "./runtime": "./src/runtime.js",
-    "./errors": "./src/errors.js"
+    "./transport": {
+      "types": "./types/transport.d.ts",
+      "default": "./src/providerTransport.js"
+    },
+    "./runtime": {
+      "types": "./types/runtime.d.ts",
+      "default": "./src/runtime.js"
+    },
+    "./errors": {
+      "types": "./types/errors.d.ts",
+      "default": "./src/errors.js"
+    }
   },
   "files": [
     "bin",
     "src",
     "public",
+    "types",
     "examples",
     "docs",
     "README.md",
@@ -30,6 +53,7 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.js tests/**/*.test.js",
+    "typecheck": "tsc -p types/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
@@ -66,6 +90,7 @@
     "eslint": "^10.13.0",
     "express": "^4.19.2",
     "globals": "^17.13.0",
-    "prettier": "^3.9.10"
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
   }
 }
