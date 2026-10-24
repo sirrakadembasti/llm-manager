@@ -1,7 +1,37 @@
 import dns from 'node:dns';
 import net from 'node:net';
-import { Agent } from 'undici';
+import { Agent, ProxyAgent } from 'undici';
 import { LLMError, ErrorCodes } from './errors.js';
+import { PROVIDERS } from './providers.js';
+
+function getKnownProviderHosts() {
+  const hosts = new Set();
+  for (const p of PROVIDERS) {
+    if (p.baseURL) {
+      try {
+        hosts.add(new URL(p.baseURL).hostname.toLowerCase());
+      } catch {}
+    }
+    if (Array.isArray(p.endpoints)) {
+      for (const ep of p.endpoints) {
+        if (ep.baseURL) {
+          try {
+            hosts.add(new URL(ep.baseURL).hostname.toLowerCase());
+          } catch {}
+        }
+      }
+    }
+  }
+  return hosts;
+}
+
+const proxyAgents = new Map();
+function getProxyAgent(proxyUrl) {
+  if (!proxyAgents.has(proxyUrl)) {
+    proxyAgents.set(proxyUrl, new ProxyAgent(proxyUrl));
+  }
+  return proxyAgents.get(proxyUrl);
+}
 
 function isPublicAddress(address) {
   const family = net.isIP(address);
@@ -35,7 +65,11 @@ function isPublicAddress(address) {
   return false;
 }
 
-export function createPublicLookup({ resolver = (...args) => dns.lookup(...args), allowLoopback = false } = {}) {
+export function createPublicLookup({
+  resolver = (...args) => dns.lookup(...args),
+  allowLoopback = false,
+  allowPrivate = false
+} = {}) {
   return (hostname, options, callback) => {
     resolver(hostname, { all: true, verbatim: true }, (error, addresses) => {
       if (error) return callback(error);
@@ -43,6 +77,7 @@ export function createPublicLookup({ resolver = (...args) => dns.lookup(...args)
         !addresses?.length ||
         addresses.some(
           ({ address }) =>
+            !allowPrivate &&
             !isPublicAddress(address) &&
             !(
               allowLoopback &&
@@ -77,13 +112,55 @@ export function createPublicLookup({ resolver = (...args) => dns.lookup(...args)
 
 const publicAgent = new Agent({ connect: { lookup: createPublicLookup() } });
 const localAgent = new Agent({ connect: { lookup: createPublicLookup({ allowLoopback: true }) } });
+const lanAgent = new Agent({ connect: { lookup: createPublicLookup({ allowLoopback: true, allowPrivate: true }) } });
 
 export async function providerFetch(url, options = {}) {
-  const { allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true', ...fetchOptions } = options;
+  const {
+    allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true',
+    proxyUrl = process.env.LLM_HTTPS_PROXY || process.env.HTTPS_PROXY,
+    allowedHosts = [],
+    allowedPrivateHosts = [],
+    ...fetchOptions
+  } = options;
   const target = new URL(url);
+
+  const privateList = [
+    ...allowedPrivateHosts,
+    ...(process.env.LLM_ALLOWED_PRIVATE_HOSTS ? process.env.LLM_ALLOWED_PRIVATE_HOSTS.split(',') : [])
+  ]
+    .map(h => h.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isAllowedPrivate = privateList.some(
+    h => h === target.host.toLowerCase() || h === target.hostname.toLowerCase()
+  );
+
   const local =
-    allowLocalHttp && target.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
-  // Numeric hosts bypass socket lookup, so reject them here unless explicit local development.
+    (allowLocalHttp && target.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) ||
+    isAllowedPrivate;
+
+  let dispatcher;
+  if (proxyUrl) {
+    const knownHosts = getKnownProviderHosts();
+    const explicitAllowed = new Set(allowedHosts.map(h => h.toLowerCase()));
+    const targetHost = target.hostname.toLowerCase();
+    if (!knownHosts.has(targetHost) && !explicitAllowed.has(targetHost)) {
+      throw new LLMError(
+        ErrorCodes.LLM_DNS_BLOCKED,
+        `Proxy üzerinden yalnızca bilinen sağlayıcı adreslerine veya izin verilen adreslere bağlanılabilir: ${target.hostname}`,
+        { status: 502, retryable: false }
+      );
+    }
+    dispatcher = getProxyAgent(proxyUrl);
+  } else if (isAllowedPrivate) {
+    dispatcher = lanAgent;
+  } else if (local) {
+    dispatcher = localAgent;
+  } else {
+    dispatcher = publicAgent;
+  }
+
+  // Numeric hosts bypass socket lookup, so reject them here unless explicit local/private development.
   if (
     (!local && target.protocol !== 'https:') ||
     target.username ||
@@ -100,7 +177,7 @@ export async function providerFetch(url, options = {}) {
   try {
     response = await fetch(url, {
       ...fetchOptions,
-      dispatcher: local ? localAgent : publicAgent,
+      dispatcher,
       redirect: 'error',
       signal: fetchOptions.signal || AbortSignal.timeout(30000)
     });

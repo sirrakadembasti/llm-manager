@@ -132,6 +132,9 @@ export interface LLMManagerOptions {
   retry?: boolean | { attempts?: number; baseMs?: number; maxMs?: number };
   logger?: StructuredLogger | null;
   getClientId?: (request: Request) => string | null;
+  proxyUrl?: string;
+  allowedHosts?: string[];
+  allowedPrivateHosts?: string[];
   apiPath?: string;
   pagePath?: string;
   requireCsrf?: boolean;

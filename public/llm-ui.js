@@ -270,6 +270,13 @@ function providerDefaults() {
   populateModels(provider?.models);
   updateThinking();
   serviceChoices();
+
+  const noteEl = $('provider-note');
+  if (noteEl) {
+    noteEl.textContent = provider?.note || '';
+    noteEl.hidden = !provider?.note;
+  }
+
   updateApiKeyFieldState();
 }
 

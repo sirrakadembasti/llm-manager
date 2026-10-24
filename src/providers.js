@@ -213,6 +213,16 @@ export const PROVIDERS = Object.freeze([
     models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.5-pro', 'mimo-v2.5']
   },
   {
+    id: 'ollama',
+    name: 'Ollama (Yerel / LAN)',
+    region: 'Yerel',
+    transport: 'openai',
+    capabilities: { thinking: true },
+    baseURL: 'http://localhost:11434/v1',
+    models: ['llama3.2', 'deepseek-r1', 'qwen2.5', 'mistral', 'phi4'],
+    note: 'Yerel bağlantı için allowLocalHttp: true veya LAN için allowedPrivateHosts gereklidir.'
+  },
+  {
     id: 'custom',
     name: 'Özel OpenAI uyumlu',
     region: 'Özel',
@@ -223,7 +233,7 @@ export const PROVIDERS = Object.freeze([
 ]);
 
 const disallowedHost = /(^|\.)(localhost|local|internal)$/i;
-export function validateProviderUrl(value, { allowLocalHttp = false } = {}) {
+export function validateProviderUrl(value, { allowLocalHttp = false, allowedPrivateHosts = [] } = {}) {
   let url;
   try {
     url = new URL(String(value || ''));
@@ -233,8 +243,20 @@ export function validateProviderUrl(value, { allowLocalHttp = false } = {}) {
   if (url.username || url.password) throw new Error('API adresinde kimlik bilgisi bulunamaz.');
   if (url.search || url.hash) throw new Error('API adresinde sorgu veya parça bulunamaz.');
   const host = url.hostname.replace(/^\[|\]$/g, '');
+  const privateList = [
+    ...(allowedPrivateHosts || []),
+    ...(process.env.LLM_ALLOWED_PRIVATE_HOSTS ? process.env.LLM_ALLOWED_PRIVATE_HOSTS.split(',') : [])
+  ]
+    .map(h => h.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isAllowedPrivate = privateList.some(h => h === url.host.toLowerCase() || h === host.toLowerCase());
+
   const local = disallowedHost.test(host) || host === '127.0.0.1' || host === '::1';
   const ip = net.isIP(host);
+  if (isAllowedPrivate) {
+    return url.toString().replace(/\/$/, '');
+  }
   if (local && !(allowLocalHttp && url.protocol === 'http:')) throw new Error('Yerel API adresi kapalıdır.');
   if (ip && !allowLocalHttp) throw new Error('IP adresine doğrudan bağlantı kapalıdır.');
   if (url.protocol !== 'https:' && !(allowLocalHttp && local && url.protocol === 'http:'))

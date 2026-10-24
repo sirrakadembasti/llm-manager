@@ -177,6 +177,11 @@ Xiaomi için PAYG / Token Plan hizmet seçimi vardır; bilinen Xiaomi adreslerin
 
 Profil güncellemede `revision`, silme ve etkinleştirmede JSON gövdesindeki `revision` zorunludur. Doğrudan depo çağrıları `store.activate(id, revision)` ve `store.remove(id, revision)` biçimindedir. Revizyonsuz eski kayıtlarda listeden gelen açık `null` değeri ilk değişiklik için geçerlidir; eksik alan kabul edilmez. Profilin HTTPS adresi veya sağlayıcısı değişirse yeni anahtar girilmelidir. Yalnız profil adı veya zaman/token sınırları değiştiğinde önceki test geçmişi (`lastTests` ve `lastTest`) korunur; sağlayıcı, adres, model veya API anahtarı değiştiğinde sıfırlanır. Yönetim arayüzü bu sözleşmeye uyar. Çok süreçli kullanım dosya kilidiyle desteklenir; ağ dosya sistemlerinde (NFS/SMB) garanti verilmez.
 
+### Kurumsal Proxy ve LAN Modelleri (SSRF Güvenliği)
+
+- **Kurumsal Proxy (`proxyUrl` / `LLM_HTTPS_PROXY`):** Şirket içi ağlarda dış API isteklerini bir HTTPS vekili üzerinden geçirmek için `proxyUrl` seçeneği desteklenir. Proxy kullanıldığında DNS çözümü vekil sunucuda yapıldığı için yerel soket düzeyindeki DNS filtresi devre dışı kalır. Bu güvenlik ödünleşimini dengelemek adına eklenti, proxy üzerinden çıkış yapılacak hedef adresleri katalogdaki **bilinen resmi sağlayıcı alan adları** ve açıkça izin verilen `allowedHosts` listesiyle sınırlandırır (`LLM_DNS_BLOCKED`).
+- **Yerel / LAN Model Sunucuları (`allowedPrivateHosts` / `LLM_ALLOWED_PRIVATE_HOSTS`):** Yerel ağdaki Ollama, LM Studio veya vLLM sunucularına (`http://192.168.1.50:11434`, `http://ollama.lan`) bağlanmak için `allowedPrivateHosts: ['192.168.1.50:11434', 'ollama.lan']` seçeneği kullanılır. Yalnızca bu açık listedeki adresler için özel IP ve HTTP protokolüne izin verilir; diğer tüm hedeflerde genel HTTPS zorunluluğu ve SSRF koruması aktif kalır.
+
 `mountLLMManagement` için isteğe bağlı `testMessages(mode, profile)` ve `validateTestReply(reply, {mode, profile})` parametreleri host uygulamasına özgü test sağlar. Varsayılan sohbet örneği değiştirilmediyse Manager örneği kalır. Sır içeren iç profili loglamayın. Anahtarlar otomatik olarak başka hizmete taşınmaz.
 
 ## Lisans ve sürümleme

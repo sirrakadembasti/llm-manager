@@ -95,8 +95,11 @@ export function resolveRuntimeOptions(profile, options = {}) {
   return normalized;
 }
 
-export function providerEndpoint(profile, suffix, allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true') {
-  const base = validateProviderUrl(profile.baseURL, { allowLocalHttp })
+export function providerEndpoint(profile, suffix, options = {}) {
+  const opts = typeof options === 'boolean' ? { allowLocalHttp: options } : options;
+  const allowLocalHttp = opts.allowLocalHttp ?? process.env.LLM_ALLOW_LOCAL_HTTP === 'true';
+  const allowedPrivateHosts = opts.allowedPrivateHosts || [];
+  const base = validateProviderUrl(profile.baseURL, { allowLocalHttp, allowedPrivateHosts })
     .replace(/\/+$/, '')
     .replace(/\/(chat\/completions|messages|models)$/, '');
   return `${base}/${suffix}`;
@@ -353,7 +356,7 @@ export function buildProviderRequest(profile, messages, options = {}) {
   const transportId = profile.transport || PROVIDERS.find(p => p.id === profile.provider)?.transport || 'openai';
   const transport = getTransport(transportId);
   const endpointSuffix = transport.chatEndpoint(profile);
-  const url = providerEndpoint(profile, endpointSuffix, options.allowLocalHttp);
+  const url = providerEndpoint(profile, endpointSuffix, options);
   const headers = { 'content-type': 'application/json', ...transport.authHeaders(profile) };
   const body = transport.buildBody(profile, messages, {
     maxOutputTokens,
@@ -375,7 +378,10 @@ export async function generateProfileResponse(messages, profile, options = {}) {
       headers: request.headers,
       body: JSON.stringify(request.body),
       signal,
-      allowLocalHttp: options.allowLocalHttp
+      allowLocalHttp: options.allowLocalHttp,
+      proxyUrl: options.proxyUrl,
+      allowedHosts: options.allowedHosts,
+      allowedPrivateHosts: options.allowedPrivateHosts
     });
   } catch (fetchError) {
     if (userSignal?.aborted) {
@@ -538,7 +544,7 @@ export async function* generateProfileStream(messages, profile, options = {}) {
     typeof transport.streamEndpoint === 'function'
       ? transport.streamEndpoint(profile)
       : transport.chatEndpoint(profile);
-  const url = providerEndpoint(profile, endpointSuffix, options.allowLocalHttp);
+  const url = providerEndpoint(profile, endpointSuffix, options);
   const deadline = AbortSignal.timeout(request.timeoutMs);
   const userSignal = options.signal;
   const signal = userSignal ? AbortSignal.any([userSignal, deadline]) : deadline;
@@ -551,6 +557,9 @@ export async function* generateProfileStream(messages, profile, options = {}) {
       body: JSON.stringify(request.body),
       signal,
       allowLocalHttp: options.allowLocalHttp,
+      proxyUrl: options.proxyUrl,
+      allowedHosts: options.allowedHosts,
+      allowedPrivateHosts: options.allowedPrivateHosts,
       stream: true
     });
   } catch (fetchError) {

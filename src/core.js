@@ -95,7 +95,10 @@ export function createLLMManager({
   filePath,
   encryptionKey,
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true',
-  store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
+  proxyUrl = process.env.LLM_HTTPS_PROXY || process.env.HTTPS_PROXY,
+  allowedHosts = [],
+  allowedPrivateHosts = [],
+  store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp, allowedPrivateHosts }),
   generate,
   generateStream,
   testMessages,
@@ -125,6 +128,13 @@ export function createLLMManager({
     maxSingleMessageChars: 100000,
     maxBodyBytes: 256 * 1024,
     ...customLimits
+  };
+
+  const networkOptions = {
+    allowLocalHttp,
+    proxyUrl,
+    allowedHosts,
+    allowedPrivateHosts
   };
 
   const logger = createStructuredLogger(customLogger);
@@ -211,7 +221,7 @@ export function createLLMManager({
         ...profile,
         ...resolveRuntimeOptions(profile, { purpose }),
         purpose,
-        allowLocalHttp,
+        ...networkOptions,
         useManagedProfile: false,
         allowMockFallback: false
       };
@@ -280,11 +290,11 @@ export function createLLMManager({
       if (!profile) return notFound();
       const problem = credentialEndpointProblem(profile.provider, profile.baseURL, profile.apiKey);
       if (problem) return ok({ code: 'AI_CREDENTIAL_ENDPOINT_MISMATCH', error: problem, requestId }, 400);
-      const url = providerEndpoint(profile, 'models', allowLocalHttp);
+      const url = providerEndpoint(profile, 'models', networkOptions);
       const response = await providerFetch(url, {
         headers: providerAuthHeaders(profile),
         signal: AbortSignal.timeout(10000),
-        allowLocalHttp
+        ...networkOptions
       });
       if (!response.ok)
         return ok(
@@ -440,7 +450,7 @@ export function createLLMManager({
               ...currentProfile,
               ...runtimeOpts,
               purpose,
-              allowLocalHttp,
+              ...networkOptions,
               useManagedProfile: false,
               allowMockFallback: false,
               signal: body?.signal
@@ -500,7 +510,7 @@ export function createLLMManager({
           ...currentProfile,
           ...runtimeOpts,
           purpose,
-          allowLocalHttp,
+          ...networkOptions,
           useManagedProfile: false,
           allowMockFallback: false
         };
