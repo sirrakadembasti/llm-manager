@@ -2,7 +2,8 @@ const $ = id => document.getElementById(id);
 const apiBase = (document.body.dataset.apiBase || '/api/llm').replace(/\/$/, '');
 let catalog = [],
   profiles = [],
-  activeId = null;
+  activeId = null,
+  monthlyUsage = null;
 let pending = false,
   loadSequence = 0,
   stateVersion = 0;
@@ -401,6 +402,15 @@ function render() {
       testStatus.append(result);
     }
 
+    const usageStat = document.createElement('p');
+    usageStat.className = 'muted usage-stat';
+    const profUsage = monthlyUsage?.byProfile?.[profile.id];
+    if (profUsage && profUsage.requests > 0) {
+      usageStat.textContent = `📊 Bu ay: ${profUsage.requests.toLocaleString('tr-TR')} istek · ${profUsage.totalTokens.toLocaleString('tr-TR')} token`;
+    } else {
+      usageStat.textContent = '📊 Bu ay: Henüz istek yok';
+    }
+
     const actions = document.createElement('div');
     actions.className = 'actions';
     const activate = button(isActive ? 'Etkin' : 'Etkinleştir', '', async () => {
@@ -447,7 +457,7 @@ function render() {
         return 'Profil silindi.';
       })
     );
-    card.append(title, details, settings, testStatus, actions);
+    card.append(title, details, settings, usageStat, testStatus, actions);
     container.append(card);
   }
   if (pending) lockControls();
@@ -456,7 +466,11 @@ function render() {
 async function loadProfiles() {
   const sequence = ++loadSequence;
   const version = stateVersion;
-  const result = await request('/profiles', { timeoutMs: 30000 });
+  const [usageRes, result] = await Promise.all([
+    request('/usage', { timeoutMs: 15000 }).catch(() => null),
+    request('/profiles', { timeoutMs: 30000 })
+  ]);
+  monthlyUsage = usageRes;
   if (sequence !== loadSequence || version !== stateVersion) return;
   profiles = result.profiles;
   activeId = result.activeId;

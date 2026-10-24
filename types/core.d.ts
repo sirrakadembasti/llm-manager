@@ -139,6 +139,7 @@ export interface LLMManagerOptions {
   pagePath?: string;
   requireCsrf?: boolean;
   health?: boolean;
+  usageLog?: boolean;
 }
 
 export type StreamChunk =
@@ -172,6 +173,37 @@ export function createStructuredLogger(logger?: unknown): StructuredLogger;
 export function redact<T>(value: T, depth?: number): T;
 export function sanitizeRequestId(headerValue?: unknown): string;
 
+export interface UsageSummaryItem {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  errors: number;
+}
+
+export interface UsageSummary {
+  month: string;
+  totalRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  byProfile: Record<string, UsageSummaryItem>;
+}
+
+export interface UsageTracker {
+  enabled: boolean;
+  record(entry: {
+    profileId?: string;
+    model?: string;
+    durationMs?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    code?: string;
+  }): void;
+  getSummary(month?: string): UsageSummary;
+}
+
+export function createUsageTracker(options?: { dataDir?: string; enabled?: boolean }): UsageTracker;
 export const CSRF_HEADER: string;
 export const SAFE_METHODS: readonly string[];
 export function isValidMountPath(value: unknown): boolean;

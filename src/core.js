@@ -21,6 +21,7 @@ import { providerFetch } from './providerTransport.js';
 import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { getTransport } from './transports/index.js';
+import { createUsageTracker } from './usageLogger.js';
 
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
@@ -37,6 +38,7 @@ export {
   createLLMProfileStore,
   createRateLimiter,
   createStructuredLogger,
+  createUsageTracker,
   redact,
   sanitizeRequestId
 };
@@ -115,11 +117,15 @@ export function createLLMManager({
   retry: retryConfig,
   logger: customLogger = null,
   health = true,
+  usageLog = false,
   getClientId
 } = {}) {
   const pendingTests = new Set();
   let cachedUiKey = '';
   let cachedUi = null;
+
+  const usageDir = dataDir || (filePath ? path.dirname(filePath) : 'data');
+  const usageTracker = createUsageTracker({ dataDir: usageDir, enabled: usageLog });
 
   const defaultRetryConfig = {
     attempts: 2,
@@ -532,10 +538,23 @@ export function createLLMManager({
                 ? generateStream(messages, options)
                 : generateProfileStream(messages, currentProfile, options);
 
+              let finalStreamUsage = null;
               for await (const chunk of streamIterable) {
                 yieldedAny = true;
+                if (chunk.type === 'done' && chunk.usage) {
+                  finalStreamUsage = chunk.usage;
+                }
                 yield chunk;
               }
+
+              usageTracker.record({
+                profileId: currentProfile.id,
+                model: currentProfile.model,
+                durationMs: Date.now() - start,
+                inputTokens: finalStreamUsage?.inputTokens || 0,
+                outputTokens: finalStreamUsage?.outputTokens || 0,
+                code: 'OK'
+              });
 
               logger.info('chat.stream.completed', {
                 requestId,
@@ -620,6 +639,15 @@ export function createLLMManager({
           }
 
           const durationMs = Date.now() - start;
+          usageTracker.record({
+            profileId: currentProfile.id,
+            model: currentProfile.model,
+            durationMs,
+            inputTokens: usage?.inputTokens || 0,
+            outputTokens: usage?.outputTokens || 0,
+            code: 'OK'
+          });
+
           logger.info('chat.completed', {
             requestId,
             profileId: currentProfile.id,
@@ -673,6 +701,14 @@ export function createLLMManager({
       }
       const classified = classifyLLMError(error);
       const durationMs = Date.now() - start;
+      usageTracker.record({
+        profileId: profile?.id,
+        model: profile?.model,
+        durationMs,
+        inputTokens: 0,
+        outputTokens: 0,
+        code: classified.code || 'ERROR'
+      });
       logger.warn('chat.completed', {
         requestId,
         profileId: profile.id,
@@ -727,10 +763,11 @@ export function createLLMManager({
   }
 
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
-  async function handle({ method, path: routePath, body, principal, requestId, clientKey, signal } = {}) {
+  async function handle({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
-    const match = /^\/(catalog|chat|profiles|models|health)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
-      routePath || ''
+    const cleanPath = (routePath || '').split('?')[0];
+    const match = /^\/(catalog|chat|profiles|models|health|usage)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
+      cleanPath
     );
     if (!match) return null;
     const [, resource, rawId, action] = match;
@@ -750,6 +787,26 @@ export function createLLMManager({
         hasActiveProfile: Boolean(active),
         requestId
       });
+    }
+
+    if (resource === 'usage') {
+      if (principal && principal.isAdmin !== true) {
+        return ok({ error: 'Yönetici yetkisi gerekli.', code: 'FORBIDDEN', requestId }, 403);
+      }
+      if (verb !== 'GET' || id !== undefined) return null;
+      let queryMonth = query?.month;
+      if (!queryMonth && routePath && routePath.includes('?')) {
+        try {
+          const parsed = new URL(routePath, 'http://localhost');
+          queryMonth = parsed.searchParams.get('month');
+        } catch {}
+      }
+      const targetMonth = queryMonth || new Date().toISOString().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
+        return ok({ error: 'Geçersiz ay formatı. YYYY-MM bekleniyor.', code: 'PARAMS_INVALID', requestId }, 400);
+      }
+      const summary = usageTracker.getSummary(targetMonth);
+      return ok({ ok: true, ...summary, requestId });
     }
 
     if (resource === 'catalog')
@@ -819,7 +876,9 @@ export function createLLMManager({
       'X-Frame-Options': 'DENY',
       'x-request-id': requestId
     };
-    const pathname = new URL(request.url, 'http://localhost').pathname;
+    const parsedReqUrl = new URL(request.url, 'http://localhost');
+    const pathname = parsedReqUrl.pathname;
+    const query = Object.fromEntries(parsedReqUrl.searchParams.entries());
     if (request.method === 'GET' && pathname === pagePath) {
       return new Response(cachedUi.html, {
         status: 200,
@@ -898,6 +957,7 @@ export function createLLMManager({
       const result = await handle({
         method: request.method,
         path: subPath,
+        query,
         body,
         requestId,
         clientKey,

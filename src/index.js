@@ -12,6 +12,7 @@ import {
   isValidMountPath,
   createUiAssets,
   createLLMManager,
+  createUsageTracker,
   PACKAGE_VERSION
 } from './core.js';
 
@@ -28,6 +29,7 @@ export {
   createLLMProfileStore,
   createRateLimiter,
   createStructuredLogger,
+  createUsageTracker,
   redact,
   sanitizeRequestId
 };
@@ -127,6 +129,7 @@ export function mountLLMManagement(
     chatAccess = 'authenticated',
     chatOverrides = 'admin',
     health = true,
+    usageLog = false,
     limits,
     rateLimit,
     logger,
@@ -166,6 +169,9 @@ export function mountLLMManagement(
 
   const manager = createLLMManager({
     store,
+    dataDir,
+    filePath,
+    encryptionKey,
     generate,
     testMessages,
     validateTestReply,
@@ -175,6 +181,7 @@ export function mountLLMManagement(
     rateLimit,
     logger,
     health,
+    usageLog,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();
@@ -226,6 +233,7 @@ export function mountLLMManagement(
       const result = await manager.handle({
         method: req.method,
         path: req.path,
+        query: req.query,
         body: req.body,
         principal: req.user,
         requestId: req.requestId,
