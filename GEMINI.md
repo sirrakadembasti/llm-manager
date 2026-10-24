@@ -63,4 +63,5 @@
 - YH1-D3: Docker ve dağıtım (`Dockerfile` node:22-alpine non-root, `VOLUME /data`, `HEALTHCHECK` `/api/llm/health`, `.dockerignore`, `docs/DEPLOY.md`, 97 test).
 - YH1-D4: Kullanım kaydı ve aylık özet (`src/usageLogger.js`, `data/usage-YYYY-MM.jsonl`, `GET /usage`, kart rozeti "Bu ay: N istek · X token", 100 test).
 - YH1-E1: Deneme sohbeti (Playground) paneli (`public/llm.html`, `public/llm-ui.js`, profil seçimi, streaming SSE çıktısı, latency ve token sayaç rozeti, 102 test).
+- YH1-E2: Çoklu dil desteği (Türkçe & İngilizce) (`public/i18n/tr.json`, `public/i18n/en.json`, `src/messages.js`, `README.en.md`, `mountLLMManagement({ locale })`, `createUiAssets`, HTML `<html lang="...">` ve `data-i18n` ön oluşturma, 107 test).
 

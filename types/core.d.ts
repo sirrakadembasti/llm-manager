@@ -140,6 +140,8 @@ export interface LLMManagerOptions {
   requireCsrf?: boolean;
   health?: boolean;
   usageLog?: boolean;
+  locale?: 'tr' | 'en' | string;
+  homeUrl?: string;
 }
 
 export type StreamChunk =
@@ -207,7 +209,15 @@ export function createUsageTracker(options?: { dataDir?: string; enabled?: boole
 export const CSRF_HEADER: string;
 export const SAFE_METHODS: readonly string[];
 export function isValidMountPath(value: unknown): boolean;
-export function createUiAssets(options: { apiPath: string; pagePath: string }): { html: string; script: string };
+export function createUiAssets(options?: {
+  apiPath?: string;
+  pagePath?: string;
+  locale?: 'tr' | 'en' | string;
+  homeUrl?: string;
+}): { html: string; script: string; locale: string };
+
+export const MESSAGES: Record<string, Record<string, string>>;
+export function getErrorMessage(code: string, locale?: string, fallback?: string | null): string;
 
 export { LLMError, ErrorCodes, LLMErrorCode };
 export const PROVIDERS: readonly unknown[];

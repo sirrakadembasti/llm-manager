@@ -111,60 +111,60 @@
 <body>
   <header>
     <a id="home-link" href="/">← Ana sayfaya dön</a>
-    <h1>LLM Yönetimi</h1>
+    <h1 data-i18n="app.title">LLM Profil Yönetimi</h1>
     <div>Sağlayıcı, model ve API anahtarlarını tek yerden yönetin.</div>
   </header>
   <main>
     <p id="message" role="status" aria-live="polite"></p>
     <div class="summary-grid">
       <section class="summary-card">
-        <span class="muted">Kayıtlı profil</span>
+        <span class="muted" data-i18n="app.summary_total">Kayıtlı profil sayısı</span>
         <strong id="profile-count">—</strong>
       </section>
       <section class="summary-card">
-        <span class="muted">Manager ve ajanların kullandığı profil</span>
+        <span class="muted" data-i18n="app.summary_active">Manager ve ajanların kullandığı profil</span>
         <strong id="active-name">Yükleniyor…</strong>
       </section>
     </div>
     <section id="active-summary" class="active-summary" aria-live="polite">Etkin profil yükleniyor…</section>
     <div class="grid">
       <section>
-        <h2 id="form-title">Yeni profil <span id="catalog-badge" class="muted" style="font-size: 13px; font-weight: normal;"></span></h2>
-        <p class="muted">Anahtarlar sunucuda şifreli saklanır. Düzenlerken anahtarı boş bırakırsanız kayıtlı anahtar korunur. Sağlayıcı seçimi yalnızca başlangıç değerlerini doldurur; API adresini ve model kimliğini istediğiniz zaman elle yazabilirsiniz.</p>
+        <h2 id="form-title"><span data-i18n="form.new_title">Yeni profil</span> <span id="catalog-badge" class="muted" style="font-size: 13px; font-weight: normal;"></span></h2>
+        <p class="muted" data-i18n="form.info">Anahtarlar sunucuda şifreli saklanır. Düzenlerken anahtarı boş bırakırsanız kayıtlı anahtar korunur. Sağlayıcı seçimi yalnızca başlangıç değerlerini doldurur; API adresini ve model kimliğini istediğiniz zaman elle yazabilirsiniz.</p>
         <form id="profile-form">
           <input id="profile-id" type="hidden">
-          <label for="name">Profil adı</label>
-          <input id="name" required maxlength="80" placeholder="Örn. Üretim modeli">
-          <label for="provider">Sağlayıcı</label>
+          <label for="name" data-i18n="form.name">Profil adı</label>
+          <input id="name" required maxlength="80" data-i18n-placeholder="form.name_placeholder" placeholder="Örn. Üretim modeli">
+          <label for="provider" data-i18n="form.provider">Sağlayıcı</label>
           <select id="provider" required></select>
-          <label for="base-url">API temel adresi (listeden seçilebilir veya elle düzenlenebilir)</label>
+          <label for="base-url" data-i18n="form.base_url">API temel adresi (listeden seçilebilir veya elle düzenlenebilir)</label>
           <input id="base-url" type="url" required placeholder="https://api.example.com/v1">
           <p id="provider-note" class="muted" hidden></p>
-          <label for="model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
+          <label for="model" data-i18n="form.model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
           <select id="model-select" class="sub-select" aria-label="Önerilen modeller"></select>
-          <input id="model" list="known-models" required maxlength="160" placeholder="Örn. sağlayıcının güncel model kimliği">
-          <button type="button" id="preview-models-btn" class="secondary" style="margin-top: 6px; font-size: 13px; padding: 4px 10px;">Modelleri getir (canlı)</button>
+          <input id="model" list="known-models" required maxlength="160" data-i18n-placeholder="form.model_placeholder" placeholder="Örn. sağlayıcının güncel model kimliği">
+          <button type="button" id="preview-models-btn" class="secondary" data-i18n="form.fetch_models_btn" style="margin-top: 6px; font-size: 13px; padding: 4px 10px;">Modelleri getir (canlı)</button>
           <datalist id="known-models"></datalist>
           <label for="api-key">
-            <span>API anahtarı</span>
+            <span data-i18n="form.api_key">API anahtarı</span>
             <span id="api-key-badge" class="key-badge" hidden></span>
           </label>
           <div id="api-key-status" class="key-status" role="status" aria-live="polite" hidden></div>
-          <input id="api-key" type="password" autocomplete="new-password" placeholder="API anahtarını girin">
+          <input id="api-key" type="password" autocomplete="new-password" data-i18n-placeholder="form.api_key_placeholder" placeholder="API anahtarını girin">
           <div class="field-grid">
             <div>
-              <label for="timeout-ms">Zaman sınırı (ms)</label>
+              <label for="timeout-ms" data-i18n="form.timeout">Zaman sınırı (ms)</label>
               <input id="timeout-ms" type="number" required min="5000" max="300000" step="1" value="120000">
-              <span class="muted">5–300 saniye</span>
+              <span class="muted" data-i18n="form.timeout_hint">5–300 saniye</span>
             </div>
             <div>
-              <label for="max-output-tokens">En fazla çıktı tokenı</label>
+              <label for="max-output-tokens" data-i18n="form.max_tokens">En fazla çıktı tokenı</label>
               <input id="max-output-tokens" type="number" required min="256" max="32768" step="1" value="8192">
-              <span class="muted">256–32768 token</span>
+              <span class="muted" data-i18n="form.max_tokens_hint">256–32768 token</span>
             </div>
           </div>
           <div id="thinking-field" hidden>
-            <label for="thinking">Düşünme (Reasoning) modu</label>
+            <label for="thinking" data-i18n="form.thinking">Düşünme (Reasoning) modu</label>
             <select id="thinking">
               <option value="auto">Otomatik</option>
               <option value="enabled">Açık</option>
@@ -173,70 +173,70 @@
             <p class="muted">Destekleyen modellerde (OpenAI o-serisi, Anthropic, Gemini, Qwen, MiMo) düşünme/akıl yürütme davranışını belirler.</p>
           </div>
           <details class="advanced-settings" style="margin-top: 14px;">
-            <summary style="cursor: pointer; font-weight: 600; color: #4338ca;">Gelişmiş üretim parametreleri</summary>
+            <summary data-i18n="form.advanced_settings" style="cursor: pointer; font-weight: 600; color: #4338ca;">Gelişmiş üretim parametreleri</summary>
             <div class="field-grid" style="margin-top: 10px;">
               <div>
-                <label for="temperature">Sıcaklık (temperature: 0.0–2.0)</label>
+                <label for="temperature" data-i18n="form.temperature">Sıcaklık (temperature: 0.0–2.0)</label>
                 <input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Varsayılan (boş)">
               </div>
               <div>
-                <label for="top-p">Top-P (0.0–1.0)</label>
+                <label for="top-p" data-i18n="form.top_p">Top-P (0.0–1.0)</label>
                 <input id="top-p" type="number" min="0" max="1" step="0.05" placeholder="Varsayılan (boş)">
               </div>
             </div>
             <div class="field-grid">
               <div>
-                <label for="response-format">Yanıt biçimi</label>
+                <label for="response-format" data-i18n="form.response_format">Yanıt biçimi</label>
                 <select id="response-format">
                   <option value="">Varsayılan (metin)</option>
-                  <option value="text">Düz metin (text)</option>
-                  <option value="json">Yapılandırılmış JSON (json)</option>
+                  <option value="text" data-i18n="form.response_format_text">Düz metin (text)</option>
+                  <option value="json" data-i18n="form.response_format_json">Yapılandırılmış JSON (json)</option>
                 </select>
               </div>
               <div>
-                <label for="stop">Durdurma dizileri (virgülle ayrılmış)</label>
+                <label for="stop" data-i18n="form.stop">Durdurma dizileri (virgülle ayrılmış)</label>
                 <input id="stop" placeholder="Örn: STOP, END">
               </div>
             </div>
           </details>
           <div class="actions">
-            <button type="submit">Profili kaydet</button>
-            <button type="button" id="clear-form" class="secondary">Yeni profil</button>
+            <button type="submit" data-i18n="form.save">Profili kaydet</button>
+            <button type="button" id="clear-form" class="secondary" data-i18n="form.clear">Yeni profil</button>
           </div>
         </form>
       </section>
       <section>
-        <h2>Kayıtlı profiller</h2>
-        <p class="muted">Aynı anda yalnızca bir profil etkindir. Bağlantı testi hızlı bir yanıtı doğrular; sohbet testi profilin üretim ayarlarını kullanır ve daha uzun sürebilir. Son test sonucu test anını gösterir; sağlayıcının şu an erişilebilir olduğunu garanti etmez.</p>
+        <h2 data-i18n="profiles.title">Kayıtlı profiller</h2>
+        <p class="muted" data-i18n="profiles.info">Aynı anda yalnızca bir profil etkindir. Bağlantı testi hızlı bir yanıtı doğrular; sohbet testi profilin üretim ayarlarını kullanır ve daha uzun sürebilir. Son test sonucu test anını gösterir; sağlayıcının şu an erişilebilir olduğunu garanti etmez.</p>
         <div id="profiles"></div>
       </section>
     </div>
     <section id="playground-section" class="playground-card">
-      <h2>Deneme sohbeti (Playground)</h2>
-      <p class="muted">Kayıtlı modelleri canlı olarak sınayın. Yanıtlar akışlı (SSE) olarak görüntülenir ve süre ile token tüketimi raporlanır.</p>
+      <h2 data-i18n="playground.title">Deneme sohbeti (Playground)</h2>
+      <p class="muted" data-i18n="playground.info">Kayıtlı modelleri canlı olarak sınayın. Yanıtlar akışlı (SSE) olarak görüntülenir ve süre ile token tüketimi raporlanır.</p>
       <div class="field-grid" style="margin-bottom: 12px;">
         <div>
-          <label for="playground-profile">Kullanılacak profil</label>
+          <label for="playground-profile" data-i18n="playground.profile_label">Kullanılacak profil</label>
           <select id="playground-profile"></select>
         </div>
         <div style="display: flex; align-items: flex-end; padding-bottom: 10px;">
           <label style="margin: 0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
             <input type="checkbox" id="playground-stream" checked style="width: auto;">
-            <span>Akışlı yanıt (Streaming SSE)</span>
+            <span data-i18n="playground.stream_checkbox">Akışlı yanıt (Streaming SSE)</span>
           </label>
         </div>
       </div>
-      <label for="playground-system">Sistem talimatı (isteğe bağlı)</label>
-      <textarea id="playground-system" rows="2" placeholder="Örn: Sen yardımsever bir Türkçe asistansın." style="resize: vertical; margin-bottom: 12px;"></textarea>
-      <label for="playground-user">Kullanıcı mesajı</label>
-      <textarea id="playground-user" rows="3" placeholder="Mesajınızı buraya yazın..." style="resize: vertical; margin-bottom: 12px;" required></textarea>
+      <label for="playground-system" data-i18n="playground.system_label">Sistem talimatı (isteğe bağlı)</label>
+      <textarea id="playground-system" rows="2" data-i18n-placeholder="playground.system_placeholder" placeholder="Örn: Sen yardımsever bir Türkçe asistansın." style="resize: vertical; margin-bottom: 12px;"></textarea>
+      <label for="playground-user" data-i18n="playground.user_label">Kullanıcı mesajı</label>
+      <textarea id="playground-user" rows="3" data-i18n-placeholder="playground.user_placeholder" placeholder="Mesajınızı buraya yazın..." style="resize: vertical; margin-bottom: 12px;" required></textarea>
       <div class="actions">
-        <button type="button" id="playground-send-btn">Gönder</button>
-        <button type="button" id="playground-clear-btn" class="secondary">Temizle</button>
+        <button type="button" id="playground-send-btn" data-i18n="playground.send_btn">Gönder</button>
+        <button type="button" id="playground-clear-btn" class="secondary" data-i18n="playground.clear_btn">Temizle</button>
         <span id="playground-meta" class="muted" style="align-self: center; font-size: 13px;"></span>
       </div>
       <div style="margin-top: 14px;">
-        <label for="playground-output">Model yanıtı</label>
+        <label for="playground-output" data-i18n="playground.output_label">Model yanıtı</label>
         <pre id="playground-output"></pre>
       </div>
     </section>

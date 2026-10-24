@@ -547,6 +547,9 @@ test('UI Modelleri getir action preserves in-progress form edits and keeps exist
       setAttribute(k, v) {
         this.attributes.set(k, v);
       },
+      getAttribute(k) {
+        return this.attributes.get(k);
+      },
       removeAttribute(k) {
         this.attributes.delete(k);
       },

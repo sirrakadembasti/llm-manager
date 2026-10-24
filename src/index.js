@@ -13,6 +13,8 @@ import {
   createUiAssets,
   createLLMManager,
   createUsageTracker,
+  MESSAGES,
+  getErrorMessage,
   PACKAGE_VERSION
 } from './core.js';
 
@@ -30,6 +32,8 @@ export {
   createRateLimiter,
   createStructuredLogger,
   createUsageTracker,
+  MESSAGES,
+  getErrorMessage,
   redact,
   sanitizeRequestId
 };
@@ -130,6 +134,7 @@ export function mountLLMManagement(
     chatOverrides = 'admin',
     health = true,
     usageLog = false,
+    locale = 'tr',
     limits,
     rateLimit,
     logger,
@@ -161,7 +166,7 @@ export function mountLLMManagement(
   };
   const protectPage = [requestIdMiddleware, securityHeaders, authMiddleware, admin];
 
-  const { html, script } = createUiAssets({ apiPath, pagePath });
+  const { html, script } = createUiAssets({ apiPath, pagePath, locale });
   app.get(pagePath, ...protectPage, (_req, res) => {
     res.set('Content-Security-Policy', PAGE_CSP).type('html').send(html);
   });
@@ -182,6 +187,7 @@ export function mountLLMManagement(
     logger,
     health,
     usageLog,
+    locale,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });
   const router = Router();

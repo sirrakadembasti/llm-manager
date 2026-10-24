@@ -22,6 +22,7 @@ import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } f
 import { createLLMProfileStore } from './profileStore.js';
 import { getTransport } from './transports/index.js';
 import { createUsageTracker } from './usageLogger.js';
+import { MESSAGES, getErrorMessage } from './messages.js';
 
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
@@ -39,6 +40,8 @@ export {
   createRateLimiter,
   createStructuredLogger,
   createUsageTracker,
+  MESSAGES,
+  getErrorMessage,
   redact,
   sanitizeRequestId
 };
@@ -52,19 +55,40 @@ export function isValidMountPath(value) {
 }
 
 // Yönetim sayfası ve betiği bir kez okunup yol ayarlarıyla önbelleğe alınır.
-export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm' } = {}) {
+export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', locale = 'tr' } = {}) {
   if (![apiPath, pagePath].every(isValidMountPath)) {
     throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Geçersiz eklenti mount yolu.', {
       status: 400,
       retryable: false
     });
   }
+  const normalizedLocale = String(locale).toLowerCase() === 'en' ? 'en' : 'tr';
+  const dictPath = path.join(publicDir, 'i18n', `${normalizedLocale}.json`);
+  const dictJson = fs.existsSync(dictPath) ? fs.readFileSync(dictPath, 'utf8') : '{}';
+  const dict = JSON.parse(dictJson);
+
   let html = fs.readFileSync(path.join(publicDir, 'llm.html'), 'utf8');
+  html = html.replace(/<html[^>]*lang="[^"]*"/, `<html lang="${normalizedLocale}"`);
   html = html.replace(/data-api-base="[^"]*"/, `data-api-base="${apiPath}"`);
   if (!html.includes('data-api-base=')) html = html.replace('<body', `<body data-api-base="${apiPath}"`);
+  html = html.replace(/data-locale="[^"]*"/, `data-locale="${normalizedLocale}"`);
+  if (!html.includes('data-locale=')) html = html.replace('<body', `<body data-locale="${normalizedLocale}"`);
   html = html.replace(/src="(?:\.\/|\/llm\/)llm-ui\.js"/, `src="${pagePath}/llm-ui.js"`);
+
+  // Replace data-i18n text in html
+  html = html.replace(/data-i18n="([^"]+)">([^<]*)</g, (match, key) => {
+    return dict[key] ? `data-i18n="${key}">${dict[key]}<` : match;
+  });
+  html = html.replace(/data-i18n-placeholder="([^"]+)"\s+placeholder="[^"]*"/g, (match, key) => {
+    return dict[key] ? `data-i18n-placeholder="${key}" placeholder="${dict[key]}"` : match;
+  });
+
+  // Embed translation json into document
+  const i18nScript = `<script id="llm-i18n" type="application/json">${dictJson}</script>`;
+  html = html.replace('</body>', `${i18nScript}\n</body>`);
+
   const script = fs.readFileSync(path.join(publicDir, 'llm-ui.js'), 'utf8');
-  return { html, script };
+  return { html, script, locale: normalizedLocale };
 }
 
 // Sağlayıcı yanıtından benzersiz, temizlenmiş model kimliği listesi çıkarır.
@@ -118,6 +142,7 @@ export function createLLMManager({
   logger: customLogger = null,
   health = true,
   usageLog = false,
+  locale = 'tr',
   getClientId
 } = {}) {
   const pendingTests = new Set();
@@ -863,10 +888,14 @@ export function createLLMManager({
   }
 
   // Next.js, SvelteKit, Nuxt, Astro, Hono, Bun/Deno için standart Web Request -> Response adaptörü.
-  async function fetchHandler(request, { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true } = {}) {
-    const key = `${apiPath}|${pagePath}`;
+  async function fetchHandler(
+    request,
+    { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true, locale: customLocale } = {}
+  ) {
+    const activeLocale = customLocale || locale || 'tr';
+    const key = `${apiPath}|${pagePath}|${activeLocale}`;
     if (cachedUiKey !== key) {
-      cachedUi = createUiAssets({ apiPath, pagePath });
+      cachedUi = createUiAssets({ apiPath, pagePath, locale: activeLocale });
       cachedUiKey = key;
     }
     const requestId = sanitizeRequestId(request.headers.get('x-request-id'));

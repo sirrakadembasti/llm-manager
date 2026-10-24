@@ -1,5 +1,37 @@
 const $ = id => document.getElementById(id);
 const apiBase = (document.body.dataset.apiBase || '/api/llm').replace(/\/$/, '');
+const i18n = (() => {
+  try {
+    return JSON.parse(document.getElementById('llm-i18n')?.textContent || '{}');
+  } catch {
+    return {};
+  }
+})();
+
+function t(key, params = {}, fallback = key) {
+  let val = i18n[key] || fallback;
+  for (const [k, v] of Object.entries(params)) {
+    val = val.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+  }
+  return val;
+}
+
+function translateDom() {
+  if (typeof document.querySelectorAll !== 'function') return;
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    const key = typeof el.getAttribute === 'function' ? el.getAttribute('data-i18n') : null;
+    if (key && i18n[key]) {
+      el.textContent = i18n[key];
+    }
+  }
+  for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
+    const key = typeof el.getAttribute === 'function' ? el.getAttribute('data-i18n-placeholder') : null;
+    if (key && i18n[key]) {
+      el.placeholder = i18n[key];
+    }
+  }
+}
+
 let catalog = [],
   profiles = [],
   activeId = null,
@@ -291,7 +323,7 @@ function clearForm() {
   if ($('top-p')) $('top-p').value = '';
   if ($('response-format')) $('response-format').value = '';
   if ($('stop')) $('stop').value = '';
-  $('form-title').textContent = 'Yeni profil';
+  $('form-title').textContent = t('form.new_title', {}, 'Yeni profil');
   providerDefaults();
 }
 
@@ -320,7 +352,7 @@ function editProfile(profile) {
   if ($('stop')) $('stop').value = Array.isArray(profile.stop) ? profile.stop.join(', ') : profile.stop || '';
   updateThinking();
   $('api-key').value = '';
-  $('form-title').textContent = `Profili düzenle: ${profile.name}`;
+  $('form-title').textContent = t('form.edit_title', { name: profile.name }, `Profili düzenle: ${profile.name}`);
   serviceChoices();
   updateApiKeyFieldState();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -365,16 +397,20 @@ async function testProfile(profile, mode) {
 function render() {
   const active = profiles.find(profile => profile.id === activeId);
   $('profile-count').textContent = String(profiles.length);
-  $('active-name').textContent = active?.name || 'Seçilmedi';
+  $('active-name').textContent = active?.name || t('app.not_selected', {}, 'Seçilmedi');
   $('active-summary').textContent = active
-    ? `Etkin profil: ${active.name} · ${active.model}. ${lastTestText(active)}`
-    : 'Etkin profil yok. Manager ve ajanların kullanması için bir profili etkinleştirin.';
+    ? t(
+        'app.active_summary',
+        { name: active.name, model: active.model, lastTest: lastTestText(active) },
+        `Etkin profil: ${active.name} · ${active.model}. ${lastTestText(active)}`
+      )
+    : t('app.no_active', {}, 'Etkin profil yok. Manager ve ajanların kullanması için bir profili etkinleştirin.');
   const container = $('profiles');
   container.replaceChildren();
   if (!profiles.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = 'Henüz profil yok. İlk profilinizi soldaki formdan ekleyin.';
+    empty.textContent = t('profiles.empty', {}, 'Henüz profil yok. İlk profilinizi soldaki formdan ekleyin.');
     container.append(empty);
   }
   for (const profile of profiles) {
@@ -384,15 +420,15 @@ function render() {
     card.className = `card ${isActive ? 'active' : ''}`;
 
     const title = document.createElement('h3');
-    title.textContent = `${profile.name} · ${isActive ? 'Etkin' : 'Pasif'}`;
+    title.textContent = `${profile.name} · ${isActive ? t('profiles.status_active', {}, 'Etkin') : t('profiles.status_passive', {}, 'Pasif')}`;
 
     const details = document.createElement('div');
     details.className = 'muted';
-    details.textContent = `${profile.provider} · ${profile.model} · ${profile.baseURL} · Anahtar: ${profile.hasApiKey ? '✓ kayıtlı (şifreli)' : 'eksik'}`;
+    details.textContent = `${profile.provider} · ${profile.model} · ${profile.baseURL} · ${t('form.api_key', {}, 'API anahtarı')}: ${profile.hasApiKey ? t('profiles.key_saved', {}, '✓ kayıtlı (şifreli)') : t('profiles.key_missing', {}, 'eksik')}`;
 
     const settings = document.createElement('p');
     settings.className = 'muted';
-    settings.textContent = `Zaman sınırı: ${(profile.timeoutMs ?? 120000) / 1000} sn · Çıktı sınırı: ${profile.maxOutputTokens ?? 8192} token${profile.thinking && profile.thinking !== 'auto' ? ` · Düşünme: ${profile.thinking}` : ''}`;
+    settings.textContent = `${t('profiles.timeout_prefix', {}, 'Zaman sınırı')}: ${(profile.timeoutMs ?? 120000) / 1000} sn · ${t('profiles.max_tokens_prefix', {}, 'Çıktı sınırı')}: ${profile.maxOutputTokens ?? 8192} token${profile.thinking && profile.thinking !== 'auto' ? ` · ${t('profiles.thinking_prefix', {}, 'Düşünme')}: ${profile.thinking}` : ''}`;
 
     const testStatus = document.createElement('div');
     testStatus.className = 'muted';
@@ -406,32 +442,40 @@ function render() {
     usageStat.className = 'muted usage-stat';
     const profUsage = monthlyUsage?.byProfile?.[profile.id];
     if (profUsage && profUsage.requests > 0) {
-      usageStat.textContent = `📊 Bu ay: ${profUsage.requests.toLocaleString('tr-TR')} istek · ${profUsage.totalTokens.toLocaleString('tr-TR')} token`;
+      usageStat.textContent = t(
+        'profiles.this_month',
+        { requests: profUsage.requests.toLocaleString(), tokens: profUsage.totalTokens.toLocaleString() },
+        `📊 Bu ay: ${profUsage.requests} istek · ${profUsage.totalTokens} token`
+      );
     } else {
-      usageStat.textContent = '📊 Bu ay: Henüz istek yok';
+      usageStat.textContent = t('profiles.this_month_empty', {}, '📊 Bu ay: Henüz istek yok');
     }
 
     const actions = document.createElement('div');
     actions.className = 'actions';
-    const activate = button(isActive ? 'Etkin' : 'Etkinleştir', '', async () => {
-      await request(`${path}/activate`, { method: 'POST', body: JSON.stringify({ revision: profile.revision }) });
-      await loadProfiles();
-      return `${profile.name} etkin.`;
-    });
+    const activate = button(
+      isActive ? t('profiles.btn_activated', {}, 'Etkin') : t('profiles.btn_activate', {}, 'Etkinleştir'),
+      '',
+      async () => {
+        await request(`${path}/activate`, { method: 'POST', body: JSON.stringify({ revision: profile.revision }) });
+        await loadProfiles();
+        return `${profile.name} etkin.`;
+      }
+    );
     activate.disabled = isActive;
 
     actions.append(
       button(
-        'Düzenle',
+        t('profiles.btn_edit', {}, 'Düzenle'),
         'secondary',
         () => {
           editProfile(profile);
         },
         true
       ),
-      button('Bağlantıyı sına', 'secondary', () => testProfile(profile, 'quick')),
-      button('Sohbeti sına', 'secondary', () => testProfile(profile, 'conversation')),
-      button('Modelleri getir', 'secondary', async () => {
+      button(t('profiles.btn_test_quick', {}, 'Bağlantıyı sına'), 'secondary', () => testProfile(profile, 'quick')),
+      button(t('profiles.btn_test_conv', {}, 'Sohbeti sına'), 'secondary', () => testProfile(profile, 'conversation')),
+      button(t('profiles.btn_fetch_models', {}, 'Modelleri getir'), 'secondary', async () => {
         const result = await request(`${path}/models`, {
           timeoutMs: Math.min(330000, (profile.timeoutMs || 120000) + 30000)
         });
@@ -446,15 +490,19 @@ function render() {
           : 'Model bulunamadı; kimliği elle girebilirsiniz.';
       }),
       activate,
-      button('Sil', 'danger', async () => {
+      button(t('profiles.btn_delete', {}, 'Sil'), 'danger', async () => {
         const promptText = isActive
-          ? `${profile.name} etkin profil. Silinirse etkin profil kalmayacak. Silinsin mi?`
-          : `${profile.name} profili silinsin mi?`;
+          ? t(
+              'profiles.delete_active_confirm',
+              { name: profile.name },
+              `${profile.name} etkin profil. Silinirse etkin profil kalmayacak. Silinsin mi?`
+            )
+          : t('profiles.delete_confirm', { name: profile.name }, `${profile.name} profili silinsin mi?`);
         if (!window.confirm(promptText)) return;
         await request(path, { method: 'DELETE', body: JSON.stringify({ revision: profile.revision }) });
         if ($('profile-id').value === profile.id) clearForm();
         await loadProfiles();
-        return 'Profil silindi.';
+        return t('profiles.deleted', {}, 'Profil silindi.');
       })
     );
     card.append(title, details, settings, usageStat, testStatus, actions);
@@ -468,14 +516,14 @@ function render() {
     if (!profiles.length) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = 'Kayıtlı profil yok';
+      opt.textContent = t('playground.no_profiles', {}, 'Kayıtlı profil yok');
       opt.disabled = true;
       pgSelect.append(opt);
     } else {
       for (const p of profiles) {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = `${p.name} (${p.model})${p.id === activeId ? ' · [Etkin]' : ''}`;
+        opt.textContent = `${p.name} (${p.model})${p.id === activeId ? ' · [' + t('profiles.status_active', {}, 'Etkin') + ']' : ''}`;
         pgSelect.append(opt);
       }
       if (currentVal && profiles.some(p => p.id === currentVal)) {
@@ -513,10 +561,15 @@ async function loadProfiles() {
 
 async function init() {
   $('home-link').href = document.body.dataset.homeUrl || '/';
+  translateDom();
   const result = await request('/catalog', { timeoutMs: 30000 });
   catalog = result.providers;
   if ($('catalog-badge') && result.updatedAt) {
-    $('catalog-badge').textContent = `· Katalog: ${result.updatedAt}`;
+    $('catalog-badge').textContent = t(
+      'app.catalog_badge',
+      { date: result.updatedAt },
+      `· Katalog: ${result.updatedAt}`
+    );
   }
   for (const provider of catalog) {
     const option = document.createElement('option');
@@ -571,14 +624,14 @@ async function init() {
   $('playground-send-btn')?.addEventListener('click', async () => {
     const user = $('playground-user')?.value.trim();
     if (!user) {
-      message('Lütfen bir kullanıcı mesajı girin.', true);
+      message(t('playground.user_required', {}, 'Lütfen bir kullanıcı mesajı girin.'), true);
       $('playground-user')?.focus();
       return;
     }
 
     const profileId = $('playground-profile')?.value;
     if (!profileId) {
-      message('Lütfen önce bir profil seçin veya ekleyin.', true);
+      message(t('playground.profile_required', {}, 'Lütfen önce bir profil seçin veya ekleyin.'), true);
       return;
     }
 
@@ -597,7 +650,7 @@ async function init() {
 
     if (sendBtn) sendBtn.disabled = true;
     if (output) output.textContent = '';
-    if (meta) meta.textContent = 'Model yanıtı bekleniyor…';
+    if (meta) meta.textContent = t('playground.waiting', {}, 'Model yanıtı bekleniyor…');
 
     const start = Date.now();
 
@@ -661,7 +714,7 @@ async function init() {
       }
     } catch (err) {
       if (output) output.textContent = `[HATA]: ${err.message}`;
-      if (meta) meta.textContent = 'İstek başarısız oldu.';
+      if (meta) meta.textContent = t('playground.failed', {}, 'İstek başarısız oldu.');
     } finally {
       if (sendBtn) sendBtn.disabled = false;
     }

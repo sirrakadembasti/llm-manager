@@ -29,6 +29,8 @@ export interface MountOptions extends LLMManagerOptions {
   chatAccess?: 'authenticated' | 'admin' | false;
   chatOverrides?: 'admin' | 'all' | 'none';
   allowLocalHttp?: boolean;
+  locale?: 'tr' | 'en' | string;
+  homeUrl?: string;
 }
 
 export function mountLLMManagement(app: any, options?: MountOptions): void;
