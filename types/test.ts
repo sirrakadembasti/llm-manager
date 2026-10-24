@@ -36,6 +36,14 @@ async function runTests() {
   const answerFromMsgs: string = await manager.ask(messages);
   console.log(answerFromMsgs);
 
+  for await (const chunk of manager.stream('Hello stream!')) {
+    if (chunk.type === 'delta') {
+      console.log('delta:', chunk.text);
+    } else if (chunk.type === 'done') {
+      console.log('done:', chunk.finishReason, chunk.usage);
+    }
+  }
+
   const res = await manager.handle({
     method: 'POST',
     path: '/chat',

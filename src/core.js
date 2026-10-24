@@ -10,6 +10,7 @@ import { createRateLimiter } from './rateLimit.js';
 import { createStructuredLogger, redact, sanitizeRequestId } from './logger.js';
 import {
   generateProfileResponse,
+  generateProfileStream,
   classifyLLMError,
   providerEndpoint,
   providerAuthHeaders,
@@ -96,6 +97,7 @@ export function createLLMManager({
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true',
   store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
   generate,
+  generateStream,
   testMessages,
   validateTestReply,
   limits: customLimits,
@@ -426,6 +428,69 @@ export function createLLMManager({
         }
       }
 
+      if (body?.stream === true) {
+        async function* streamGenerator() {
+          let lastStreamError;
+          let yieldedAny = false;
+          for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
+            const currentProfile = candidateProfiles[pIdx];
+            const isFallback = pIdx > 0;
+            const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
+            const options = {
+              ...currentProfile,
+              ...runtimeOpts,
+              purpose,
+              allowLocalHttp,
+              useManagedProfile: false,
+              allowMockFallback: false,
+              signal: body?.signal
+            };
+
+            try {
+              const streamIterable = generateStream
+                ? generateStream(messages, options)
+                : generateProfileStream(messages, currentProfile, options);
+
+              for await (const chunk of streamIterable) {
+                yieldedAny = true;
+                yield chunk;
+              }
+
+              logger.info('chat.stream.completed', {
+                requestId,
+                profileId: currentProfile.id,
+                provider: currentProfile.provider,
+                model: currentProfile.model,
+                durationMs: Date.now() - start,
+                fallbackUsed: isFallback
+              });
+              return;
+            } catch (err) {
+              lastStreamError = err;
+              const classified = classifyLLMError(err);
+              if (yieldedAny || !classified.retryable || pIdx === candidateProfiles.length - 1) {
+                throw err;
+              }
+              logger.warn('chat.fallback', {
+                requestId,
+                failedProfileId: currentProfile.id,
+                nextProfileId: candidateProfiles[pIdx + 1]?.id,
+                error: classified.error,
+                code: classified.code
+              });
+            }
+          }
+          throw lastStreamError;
+        }
+
+        return {
+          status: 200,
+          isStream: true,
+          stream: streamGenerator(),
+          requestId
+        };
+      }
+
       let lastError;
       for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
         const currentProfile = candidateProfiles[pIdx];
@@ -560,8 +625,28 @@ export function createLLMManager({
     return result.body.content;
   }
 
+  // Akışlı kullanım: for await (const chunk of llm.stream('Merhaba!')) { ... }
+  async function* stream(promptOrMessages, options = {}) {
+    const messages = normalizeMessagesInput(promptOrMessages, options.system);
+    if (!Array.isArray(messages) || !messages.length) {
+      throw new LLMError(ErrorCodes.MESSAGES_INVALID, 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', {
+        status: 400,
+        retryable: false
+      });
+    }
+    const result = await chatCompletion({ ...options, messages, stream: true }, { principal: { isAdmin: true } });
+    if (result.status !== 200) {
+      throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
+        status: result.status
+      });
+    }
+    if (result.isStream && result.stream) {
+      yield* result.stream;
+    }
+  }
+
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
-  async function handle({ method, path: routePath, body, principal, requestId, clientKey } = {}) {
+  async function handle({ method, path: routePath, body, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const match = /^\/(catalog|chat|profiles)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(routePath || '');
     if (!match) return null;
@@ -576,7 +661,13 @@ export function createLLMManager({
     if (resource === 'catalog')
       return verb === 'GET' && id === undefined ? ok({ providers: PROVIDERS, requestId }) : null;
     if (resource === 'chat')
-      return verb === 'POST' && id === undefined ? chatCompletion(body, { principal, requestId, clientKey }) : null;
+      return verb === 'POST' && id === undefined
+        ? chatCompletion(body ? { ...body, signal: body.signal || signal } : { signal }, {
+            principal,
+            requestId,
+            clientKey
+          })
+        : null;
 
     if (id === undefined) {
       if (verb === 'GET') return ok(await store.list());
@@ -706,13 +797,62 @@ export function createLLMManager({
       }
 
       const clientKey = typeof getClientId === 'function' ? getClientId(request) : null;
-      const result = await handle({ method: request.method, path: subPath, body, requestId, clientKey });
+      const result = await handle({
+        method: request.method,
+        path: subPath,
+        body,
+        requestId,
+        clientKey,
+        signal: request.signal
+      });
       if (!result) return new Response(null, { status: 404, headers: commonHeaders });
+
+      if (result.isStream && result.stream) {
+        const sseStream = new ReadableStream({
+          async start(controller) {
+            const encoder = new TextEncoder();
+            try {
+              for await (const chunk of result.stream) {
+                if (request.signal?.aborted) break;
+                if (chunk.type === 'delta') {
+                  controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`));
+                } else if (chunk.type === 'done') {
+                  controller.enqueue(
+                    encoder.encode(
+                      `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason })}\n\n`
+                    )
+                  );
+                }
+              }
+              controller.close();
+            } catch (err) {
+              const classified = classifyLLMError(err);
+              controller.enqueue(
+                encoder.encode(
+                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status })}\n\n`
+                )
+              );
+              controller.close();
+            }
+          }
+        });
+
+        return new Response(sseStream, {
+          status: 200,
+          headers: {
+            ...commonHeaders,
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive'
+          }
+        });
+      }
+
       if (result.body === undefined) return new Response(null, { status: result.status, headers: commonHeaders });
       return Response.json(result.body, { status: result.status, headers: commonHeaders });
     }
     return new Response(null, { status: 404, headers: commonHeaders });
   }
 
-  return { handle, ask, fetch: fetchHandler, store };
+  return { handle, ask, stream, fetch: fetchHandler, store };
 }

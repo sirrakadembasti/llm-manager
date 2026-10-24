@@ -435,3 +435,152 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   }
   return content;
 }
+
+export async function* parseSseStream(stream, transport) {
+  if (!stream) return;
+  const reader = stream.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let currentEvent = 'message';
+  let currentData = [];
+  const accumulatedUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  let lastFinishReason = null;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          if (currentData.length > 0) {
+            const dataStr = currentData.join('\n');
+            const parsed = transport.parseStreamEvent(dataStr, currentEvent);
+            if (parsed) {
+              if (parsed.usage) {
+                if (parsed.usage.inputTokens !== undefined) accumulatedUsage.inputTokens = parsed.usage.inputTokens;
+                if (parsed.usage.outputTokens !== undefined) {
+                  accumulatedUsage.outputTokens = (accumulatedUsage.outputTokens || 0) + parsed.usage.outputTokens;
+                }
+                accumulatedUsage.totalTokens =
+                  (accumulatedUsage.inputTokens || 0) + (accumulatedUsage.outputTokens || 0);
+              }
+              if (parsed.finishReason) {
+                lastFinishReason = parsed.finishReason;
+              }
+              if (parsed.text) {
+                yield { type: 'delta', text: parsed.text };
+              }
+              if (parsed.done) {
+                yield {
+                  type: 'done',
+                  finishReason: lastFinishReason || 'stop',
+                  usage: accumulatedUsage
+                };
+                return;
+              }
+            }
+            currentEvent = 'message';
+            currentData = [];
+          }
+          continue;
+        }
+
+        if (line.startsWith(':')) {
+          continue;
+        }
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          currentData.push(line.slice(5).trimStart());
+        }
+      }
+    }
+
+    if (buffer.trim() || currentData.length > 0) {
+      if (buffer.startsWith('data:')) currentData.push(buffer.slice(5).trimStart());
+      if (currentData.length > 0) {
+        const dataStr = currentData.join('\n');
+        const parsed = transport.parseStreamEvent(dataStr, currentEvent);
+        if (parsed) {
+          if (parsed.usage) {
+            if (parsed.usage.inputTokens !== undefined) accumulatedUsage.inputTokens = parsed.usage.inputTokens;
+            if (parsed.usage.outputTokens !== undefined) {
+              accumulatedUsage.outputTokens = (accumulatedUsage.outputTokens || 0) + parsed.usage.outputTokens;
+            }
+            accumulatedUsage.totalTokens = (accumulatedUsage.inputTokens || 0) + (accumulatedUsage.outputTokens || 0);
+          }
+          if (parsed.finishReason) lastFinishReason = parsed.finishReason;
+          if (parsed.text) yield { type: 'delta', text: parsed.text };
+        }
+      }
+    }
+
+    yield {
+      type: 'done',
+      finishReason: lastFinishReason || 'stop',
+      usage: accumulatedUsage
+    };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function* generateProfileStream(messages, profile, options = {}) {
+  const request = buildProviderRequest(profile, messages, { ...options, stream: true });
+  const transport = request.transport;
+  const endpointSuffix =
+    typeof transport.streamEndpoint === 'function'
+      ? transport.streamEndpoint(profile)
+      : transport.chatEndpoint(profile);
+  const url = providerEndpoint(profile, endpointSuffix, options.allowLocalHttp);
+  const deadline = AbortSignal.timeout(request.timeoutMs);
+  const userSignal = options.signal;
+  const signal = userSignal ? AbortSignal.any([userSignal, deadline]) : deadline;
+
+  let response;
+  try {
+    response = await providerFetch(url, {
+      method: 'POST',
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+      signal,
+      allowLocalHttp: options.allowLocalHttp,
+      stream: true
+    });
+  } catch (fetchError) {
+    if (userSignal?.aborted) {
+      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
+        status: 499,
+        retryable: false,
+        cause: fetchError
+      });
+    }
+    if (deadline.aborted) {
+      throw new LLMError(
+        ErrorCodes.LLM_TIMEOUT,
+        'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.',
+        { status: 504, retryable: true, cause: fetchError }
+      );
+    }
+    throw fetchError;
+  }
+
+  if (!response.ok) {
+    const is5xx = response.status >= 500 && response.status <= 599;
+    throw new LLMError(
+      is5xx ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE : ErrorCodes.LLM_PROVIDER_ERROR,
+      `Sağlayıcı HTTP ${response.status} döndürdü.`,
+      {
+        status: is5xx ? 503 : 502,
+        upstreamStatus: response.status,
+        retryable: is5xx || response.status === 429
+      }
+    );
+  }
+
+  yield* parseSseStream(response.body, transport);
+}

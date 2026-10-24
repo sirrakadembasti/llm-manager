@@ -190,15 +190,57 @@ export function mountLLMManagement(
 
   router.use(async (req, res, next) => {
     try {
+      const abortController = new AbortController();
+      const onClose = () => {
+        if (!res.writableEnded) {
+          abortController.abort();
+        }
+      };
+      res.on('close', onClose);
+
       const result = await manager.handle({
         method: req.method,
         path: req.path,
         body: req.body,
         principal: req.user,
         requestId: req.requestId,
-        clientKey: req.ip
+        clientKey: req.ip,
+        signal: abortController.signal
       });
       if (!result) return next();
+
+      if (result.isStream && result.stream) {
+        res.writeHead(200, {
+          ...COMMON_HEADERS,
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'x-request-id': req.requestId
+        });
+
+        try {
+          for await (const chunk of result.stream) {
+            if (abortController.signal.aborted) break;
+            if (chunk.type === 'delta') {
+              res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`);
+            } else if (chunk.type === 'done') {
+              res.write(
+                `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason })}\n\n`
+              );
+            }
+          }
+        } catch (err) {
+          const classified = classifyLLMError(err);
+          res.write(
+            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status })}\n\n`
+          );
+        } finally {
+          res.off('close', onClose);
+          res.end();
+        }
+        return;
+      }
+
       if (result.body === undefined) return res.sendStatus(result.status);
       res.status(result.status).json(result.body);
     } catch (error) {
@@ -210,6 +252,7 @@ export function mountLLMManagement(
   return Object.assign(router, {
     store,
     ask: manager.ask,
+    stream: manager.stream,
     fetch: manager.fetch
   });
 }

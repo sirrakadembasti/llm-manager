@@ -76,6 +76,25 @@ export function createMockProvider() {
 
       // 3. Anthropic messages
       if (req.url.includes('/v1/messages')) {
+        if (body?.stream) {
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive'
+          });
+          res.write('event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":15}}}\n\n');
+          res.write(
+            'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Mock Anthropic "}}\n\n'
+          );
+          res.write(
+            'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"stream"}}\n\n'
+          );
+          res.write(
+            'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":10}}\n\n'
+          );
+          res.write('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+          return res.end();
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(
           JSON.stringify({
@@ -87,7 +106,21 @@ export function createMockProvider() {
         );
       }
 
-      // 4. Google Gemini generateContent
+      // 4. Google Gemini streamGenerateContent
+      if (req.url.includes(':streamGenerateContent')) {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        });
+        res.write('data: {"candidates":[{"content":{"parts":[{"text":"Mock Google "}]}}]}\n\n');
+        res.write(
+          'data: {"candidates":[{"content":{"parts":[{"text":"stream"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":14,"candidatesTokenCount":7,"totalTokenCount":21}}\n\n'
+        );
+        return res.end();
+      }
+
+      // 5. Google Gemini generateContent
       if (req.url.includes(':generateContent')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(

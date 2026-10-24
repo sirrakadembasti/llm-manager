@@ -9,6 +9,10 @@ export default {
     return 'chat/completions';
   },
 
+  streamEndpoint(_profile) {
+    return 'chat/completions';
+  },
+
   normalizeMessages(messages, profile) {
     if (!Array.isArray(messages) || !messages.length) return messages;
 
@@ -46,6 +50,11 @@ export default {
       }
     }
 
+    if (opts.stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+
     if (opts.temperature !== undefined) body.temperature = opts.temperature;
     if (opts.topP !== undefined) body.top_p = opts.topP;
     if (opts.stop) body.stop = opts.stop;
@@ -72,8 +81,33 @@ export default {
     return { content, finishReason, usage, reasoning };
   },
 
-  parseStreamEvent(_line) {
-    return null;
+  parseStreamEvent(dataStr, _event) {
+    if (!dataStr) return null;
+    const trimmed = dataStr.trim();
+    if (trimmed === '[DONE]') {
+      return { done: true };
+    }
+    try {
+      const payload = JSON.parse(trimmed);
+      const choice = payload.choices?.[0];
+      const text = choice?.delta?.content || choice?.delta?.reasoning_content || '';
+      const finishReason = choice?.finish_reason || null;
+      let usage = null;
+      if (payload.usage) {
+        const inputTokens = payload.usage.prompt_tokens ?? 0;
+        const outputTokens = payload.usage.completion_tokens ?? 0;
+        const totalTokens = payload.usage.total_tokens ?? inputTokens + outputTokens;
+        usage = { inputTokens, outputTokens, totalTokens };
+      }
+      return {
+        text,
+        finishReason,
+        usage,
+        done: false
+      };
+    } catch {
+      return null;
+    }
   },
 
   modelsEndpoint(_profile) {

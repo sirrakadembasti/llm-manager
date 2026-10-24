@@ -137,9 +137,14 @@ export interface LLMManagerOptions {
   requireCsrf?: boolean;
 }
 
+export type StreamChunk =
+  | { type: 'delta'; text: string }
+  | { type: 'done'; usage?: { inputTokens: number; outputTokens: number; totalTokens: number }; finishReason?: string };
+
 export interface LLMManager {
   handle(options: HandleOptions): Promise<HandleResponse | null>;
   ask(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown> & { raw?: boolean }): Promise<any>;
+  stream(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown>): AsyncIterable<StreamChunk>;
   fetch(request: Request): Promise<Response>;
   store: LLMStore;
 }

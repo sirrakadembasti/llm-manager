@@ -151,6 +151,31 @@ export async function providerFetch(url, options = {}) {
 
   if (!response.body) return response;
 
+  if (options.stream && response.ok) {
+    let size = 0;
+    const maxStreamBytes = options.maxStreamBytes || 8 * 1024 * 1024;
+    const transform = new TransformStream({
+      transform(chunk, controller) {
+        size += chunk.byteLength;
+        if (size > maxStreamBytes) {
+          controller.error(
+            new LLMError(ErrorCodes.LLM_RESPONSE_TOO_LARGE, 'EXTERNAL_RESPONSE_TOO_LARGE: Akış boyutu sınırı aştı.', {
+              status: 502,
+              retryable: false
+            })
+          );
+          return;
+        }
+        controller.enqueue(chunk);
+      }
+    });
+    return new Response(response.body.pipeThrough(transform), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+  }
+
   const reader = response.body.getReader();
   const chunks = [];
   let size = 0;

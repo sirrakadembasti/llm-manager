@@ -14,6 +14,10 @@ export default {
     return 'messages';
   },
 
+  streamEndpoint(_profile) {
+    return 'messages';
+  },
+
   normalizeMessages(messages, _profile) {
     if (!Array.isArray(messages) || !messages.length) return messages;
 
@@ -51,6 +55,10 @@ export default {
       messages: normalizedNonSystem
     };
 
+    if (opts.stream) {
+      body.stream = true;
+    }
+
     if (systemText) {
       body.system = systemText;
     }
@@ -78,8 +86,61 @@ export default {
     return { content, finishReason, usage, reasoning: null };
   },
 
-  parseStreamEvent(_line) {
-    return null;
+  parseStreamEvent(dataStr, event) {
+    if (!dataStr) return null;
+    try {
+      const payload = JSON.parse(dataStr.trim());
+      const type = payload.type || event;
+
+      if (type === 'error') {
+        const errMsg = payload.error?.message || 'Anthropic stream error';
+        throw new LLMError(ErrorCodes.LLM_PROVIDER_ERROR, errMsg, { status: 502, retryable: false });
+      }
+
+      if (type === 'content_block_delta') {
+        return {
+          text: payload.delta?.text || '',
+          done: false
+        };
+      }
+
+      if (type === 'message_delta') {
+        const finishReason = payload.delta?.stop_reason || null;
+        let usage = null;
+        if (payload.usage) {
+          usage = {
+            outputTokens: payload.usage.output_tokens ?? 0
+          };
+        }
+        return {
+          finishReason,
+          usage,
+          done: false
+        };
+      }
+
+      if (type === 'message_start') {
+        let usage = null;
+        if (payload.message?.usage) {
+          usage = {
+            inputTokens: payload.message.usage.input_tokens ?? 0
+          };
+        }
+        return {
+          usage,
+          done: false
+        };
+      }
+
+      if (type === 'message_stop') {
+        return { done: true };
+      }
+
+      return null;
+    } catch (err) {
+      if (err instanceof LLMError) throw err;
+      return null;
+    }
   },
 
   modelsEndpoint(_profile) {

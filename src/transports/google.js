@@ -10,6 +10,11 @@ export default {
     return `models/${encodeURIComponent(modelId)}:generateContent`;
   },
 
+  streamEndpoint(profile) {
+    const modelId = String(profile.model).replace(/^models\//, '');
+    return `models/${encodeURIComponent(modelId)}:streamGenerateContent?alt=sse`;
+  },
+
   normalizeMessages(messages, _profile) {
     if (!Array.isArray(messages) || !messages.length) return messages;
 
@@ -68,8 +73,33 @@ export default {
     return { content, finishReason, usage, reasoning: null };
   },
 
-  parseStreamEvent(_line) {
-    return null;
+  parseStreamEvent(dataStr, _event) {
+    if (!dataStr || !dataStr.trim()) return null;
+    try {
+      const payload = JSON.parse(dataStr.trim());
+      const candidate = payload.candidates?.[0];
+      const textParts = candidate?.content?.parts?.filter(p => p.text)?.map(p => p.text) || [];
+      const text = textParts.join('');
+      const finishReason = candidate?.finishReason || null;
+
+      let usage = null;
+      if (payload.usageMetadata) {
+        const inputTokens = payload.usageMetadata.promptTokenCount ?? 0;
+        const outputTokens = payload.usageMetadata.candidatesTokenCount ?? 0;
+        const totalTokens = payload.usageMetadata.totalTokenCount ?? inputTokens + outputTokens;
+        usage = { inputTokens, outputTokens, totalTokens };
+      }
+
+      const done = finishReason !== null && finishReason !== undefined;
+      return {
+        text,
+        finishReason,
+        usage,
+        done
+      };
+    } catch {
+      return null;
+    }
   },
 
   modelsEndpoint(_profile) {
