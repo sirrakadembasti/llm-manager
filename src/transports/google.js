@@ -46,6 +46,13 @@ export default {
     }));
 
     const generationConfig = { maxOutputTokens: opts.maxOutputTokens };
+    if (opts.thinking === 'disabled') {
+      generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    } else if (opts.thinking === 'enabled') {
+      const maxTokens = opts.maxOutputTokens || 8192;
+      generationConfig.thinkingConfig = { thinkingBudget: Math.min(2048, maxTokens - 1) };
+    }
+
     if (opts.temperature !== undefined) generationConfig.temperature = opts.temperature;
     if (opts.topP !== undefined) generationConfig.topP = opts.topP;
     if (opts.stop) generationConfig.stopSequences = Array.isArray(opts.stop) ? opts.stop : [opts.stop];

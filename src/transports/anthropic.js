@@ -63,7 +63,13 @@ export default {
       body.system = systemText;
     }
 
-    if (opts.temperature !== undefined) body.temperature = opts.temperature;
+    if (opts.thinking === 'enabled') {
+      const maxTokens = opts.maxOutputTokens || 8192;
+      const budgetTokens = Math.min(2048, maxTokens - 1);
+      body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
+    }
+
+    if (opts.temperature !== undefined && opts.thinking !== 'enabled') body.temperature = opts.temperature;
     if (opts.topP !== undefined) body.top_p = opts.topP;
     if (opts.stop) body.stop_sequences = Array.isArray(opts.stop) ? opts.stop : [opts.stop];
 

@@ -157,7 +157,12 @@ function populateModels(models) {
 }
 
 function updateThinking() {
-  $('thinking-field').hidden = $('provider').value !== 'xiaomi_mimo';
+  const providerId = $('provider').value;
+  const providerDef = catalog.find(p => p.id === providerId);
+  const canThink =
+    providerDef?.capabilities?.thinking === true ||
+    ['openai', 'anthropic', 'google', 'qwen', 'xiaomi_mimo', 'deepseek', 'openrouter', 'groq'].includes(providerId);
+  $('thinking-field').hidden = !canThink;
 }
 
 function updateApiKeyFieldState() {
@@ -379,7 +384,7 @@ function render() {
 
     const settings = document.createElement('p');
     settings.className = 'muted';
-    settings.textContent = `Zaman sınırı: ${(profile.timeoutMs ?? 120000) / 1000} sn · Çıktı sınırı: ${profile.maxOutputTokens ?? 8192} token${profile.provider === 'xiaomi_mimo' ? ` · Düşünme: ${profile.thinking || 'auto'}` : ''}`;
+    settings.textContent = `Zaman sınırı: ${(profile.timeoutMs ?? 120000) / 1000} sn · Çıktı sınırı: ${profile.maxOutputTokens ?? 8192} token${profile.thinking && profile.thinking !== 'auto' ? ` · Düşünme: ${profile.thinking}` : ''}`;
 
     const testStatus = document.createElement('div');
     testStatus.className = 'muted';
@@ -498,7 +503,7 @@ async function init() {
         baseURL: $('base-url').value,
         timeoutMs: Number($('timeout-ms').value),
         maxOutputTokens: Number($('max-output-tokens').value),
-        thinking: $('provider').value === 'xiaomi_mimo' ? $('thinking').value : 'auto'
+        thinking: $('thinking').value || 'auto'
       };
       if ($('temperature')?.value !== '') input.temperature = Number($('temperature').value);
       if ($('top-p')?.value !== '') input.topP = Number($('top-p').value);

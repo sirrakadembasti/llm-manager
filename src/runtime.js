@@ -1,7 +1,7 @@
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
 import { providerFetch } from './providerTransport.js';
-import { validateProviderUrl } from './providers.js';
+import { validateProviderUrl, PROVIDERS } from './providers.js';
 import { getTransport } from './transports/index.js';
 
 export function normalizeRuntimeOptions(input = {}) {
@@ -103,7 +103,8 @@ export function providerEndpoint(profile, suffix, allowLocalHttp = process.env.L
 }
 
 export function providerAuthHeaders(profile) {
-  const transport = getTransport(profile?.transport);
+  const transportId = profile?.transport || PROVIDERS.find(p => p.id === profile?.provider)?.transport || 'openai';
+  const transport = getTransport(transportId);
   return transport.authHeaders(profile);
 }
 
@@ -349,7 +350,8 @@ export function buildProviderRequest(profile, messages, options = {}) {
     throw new LLMError(ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH, problem, { status: 400, retryable: false });
 
   const { timeoutMs, maxOutputTokens, thinking } = resolveRuntimeOptions(profile, options);
-  const transport = getTransport(profile.transport || 'openai');
+  const transportId = profile.transport || PROVIDERS.find(p => p.id === profile.provider)?.transport || 'openai';
+  const transport = getTransport(transportId);
   const endpointSuffix = transport.chatEndpoint(profile);
   const url = providerEndpoint(profile, endpointSuffix, options.allowLocalHttp);
   const headers = { 'content-type': 'application/json', ...transport.authHeaders(profile) };

@@ -5,6 +5,7 @@ export const PROVIDERS = Object.freeze([
     name: 'OpenAI',
     region: 'ABD',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://api.openai.com/v1',
     models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini', 'gpt-4o', 'gpt-4o-mini']
   },
@@ -13,6 +14,7 @@ export const PROVIDERS = Object.freeze([
     name: 'Anthropic',
     region: 'ABD',
     transport: 'anthropic',
+    capabilities: { thinking: true },
     baseURL: 'https://api.anthropic.com/v1',
     models: [
       'claude-sonnet-4-20250514',
@@ -26,6 +28,7 @@ export const PROVIDERS = Object.freeze([
     name: 'Google Gemini',
     region: 'ABD',
     transport: 'google',
+    capabilities: { thinking: true },
     baseURL: 'https://generativelanguage.googleapis.com/v1beta',
     models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash']
   },
@@ -42,6 +45,7 @@ export const PROVIDERS = Object.freeze([
     name: 'OpenRouter',
     region: 'ABD',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://openrouter.ai/api/v1',
     models: ['openai/gpt-4.1', 'anthropic/claude-sonnet-4', 'google/gemini-2.5-pro', 'deepseek/deepseek-r1']
   },
@@ -58,6 +62,7 @@ export const PROVIDERS = Object.freeze([
     name: 'Groq',
     region: 'ABD',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://api.groq.com/openai/v1',
     models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'deepseek-r1-distill-llama-70b', 'qwen-qwq-32b']
   },
@@ -94,6 +99,7 @@ export const PROVIDERS = Object.freeze([
     name: 'DeepSeek',
     region: 'Çin',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://api.deepseek.com',
     endpoints: [
       { name: 'Standart (api.deepseek.com)', baseURL: 'https://api.deepseek.com' },
@@ -106,6 +112,7 @@ export const PROVIDERS = Object.freeze([
     name: 'Alibaba Qwen',
     region: 'Çin',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     endpoints: [
       {
@@ -194,6 +201,7 @@ export const PROVIDERS = Object.freeze([
     name: 'Xiaomi MiMo',
     region: 'Çin',
     transport: 'openai',
+    capabilities: { thinking: true },
     baseURL: 'https://api.xiaomimimo.com/v1',
     endpoints: [
       { name: 'PAYG', baseURL: 'https://api.xiaomimimo.com/v1' },

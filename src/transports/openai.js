@@ -48,6 +48,19 @@ export default {
       if (opts.thinking && opts.thinking !== 'auto') {
         body.thinking = { type: opts.thinking };
       }
+    } else if (profile.provider === 'qwen') {
+      if (opts.thinking === 'enabled') {
+        body.enable_thinking = true;
+      } else if (opts.thinking === 'disabled') {
+        body.enable_thinking = false;
+      }
+    } else {
+      const isReasoning = /^(?:o\d|gpt-5)/i.test(profile.model || '');
+      if (opts.thinking === 'enabled') {
+        body.reasoning_effort = 'medium';
+      } else if (opts.thinking === 'disabled' && isReasoning) {
+        body.reasoning_effort = 'low';
+      }
     }
 
     if (opts.stream) {

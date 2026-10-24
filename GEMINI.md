@@ -56,4 +56,5 @@
 - YH1-C5: Üretim parametreleri ve kullanım bilgisi (`temperature`, `topP`, `stop`, `responseFormat`; `/chat` `usage` ve `finishReason`, `ask(p, { raw: true })`, arayüzde `<details>` gelişmiş parametreler, 71 test).
 - YH1-C6: Yeniden deneme ve yedek profil aktarımı (`executeWithRetry`, jittered backoff, `Retry-After` uyumu, `fallbackProfileIds`, `fallbackUsed`, 74 test).
 - YH1-C4: Akış (Streaming SSE) desteği (`parseStreamEvent`, sayaçlı `stream: true`, `llm.stream` AsyncIterable, `POST /chat` SSE `event: delta|done|error`, istemci kopmasında üst akış abort, 79 test).
+- YH1-C7: Düşünme (reasoning) ayarı genelleştirmesi (`capabilities.thinking`, OpenAI `reasoning_effort`, Anthropic `budget_tokens`, Gemini `thinkingBudget`, Qwen `enable_thinking`, UI tüm sağlayıcı desteği, 85 test).
 
