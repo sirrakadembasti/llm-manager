@@ -460,6 +460,32 @@ function render() {
     card.append(title, details, settings, usageStat, testStatus, actions);
     container.append(card);
   }
+
+  const pgSelect = $('playground-profile');
+  if (pgSelect) {
+    const currentVal = pgSelect.value;
+    pgSelect.replaceChildren();
+    if (!profiles.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Kayıtlı profil yok';
+      opt.disabled = true;
+      pgSelect.append(opt);
+    } else {
+      for (const p of profiles) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name} (${p.model})${p.id === activeId ? ' · [Etkin]' : ''}`;
+        pgSelect.append(opt);
+      }
+      if (currentVal && profiles.some(p => p.id === currentVal)) {
+        pgSelect.value = currentVal;
+      } else if (activeId) {
+        pgSelect.value = activeId;
+      }
+    }
+  }
+
   if (pending) lockControls();
 }
 
@@ -533,6 +559,112 @@ async function init() {
   $('api-key').addEventListener('input', updateApiKeyFieldState);
   $('clear-form').addEventListener('click', () => {
     if (!pending) clearForm();
+  });
+
+  $('playground-clear-btn')?.addEventListener('click', () => {
+    if ($('playground-user')) $('playground-user').value = '';
+    if ($('playground-system')) $('playground-system').value = '';
+    if ($('playground-output')) $('playground-output').textContent = '';
+    if ($('playground-meta')) $('playground-meta').textContent = '';
+  });
+
+  $('playground-send-btn')?.addEventListener('click', async () => {
+    const user = $('playground-user')?.value.trim();
+    if (!user) {
+      message('Lütfen bir kullanıcı mesajı girin.', true);
+      $('playground-user')?.focus();
+      return;
+    }
+
+    const profileId = $('playground-profile')?.value;
+    if (!profileId) {
+      message('Lütfen önce bir profil seçin veya ekleyin.', true);
+      return;
+    }
+
+    const system = $('playground-system')?.value.trim();
+    const isStream = $('playground-stream')?.checked !== false;
+    const messages = system
+      ? [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ]
+      : [{ role: 'user', content: user }];
+
+    const sendBtn = $('playground-send-btn');
+    const output = $('playground-output');
+    const meta = $('playground-meta');
+
+    if (sendBtn) sendBtn.disabled = true;
+    if (output) output.textContent = '';
+    if (meta) meta.textContent = 'Model yanıtı bekleniyor…';
+
+    const start = Date.now();
+
+    try {
+      if (isStream) {
+        const response = await fetch(`${apiBase}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-LLM-CSRF': '1' },
+          body: JSON.stringify({ profileId, messages, stream: true })
+        });
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          throw new Error(errBody.error || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let usage = null;
+        let finishReason = 'stop';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.text && output) {
+                  output.textContent += data.text;
+                }
+                if (data.usage) usage = data.usage;
+                if (data.finishReason) finishReason = data.finishReason;
+                if (data.error) throw new Error(data.error);
+              } catch (parseErr) {
+                if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
+              }
+            }
+          }
+        }
+
+        const durationMs = Date.now() - start;
+        if (meta) {
+          meta.textContent = `⏱️ ${durationMs} ms · 🔢 ${usage?.totalTokens ? usage.totalTokens.toLocaleString('tr-TR') : '—'} token (${finishReason})`;
+        }
+      } else {
+        const res = await request('/chat', {
+          method: 'POST',
+          body: JSON.stringify({ profileId, messages })
+        });
+        if (output) output.textContent = res.content || res.text || '';
+        const durationMs = Date.now() - start;
+        if (meta) {
+          meta.textContent = `⏱️ ${durationMs} ms · 🔢 ${res.usage?.totalTokens ? res.usage.totalTokens.toLocaleString('tr-TR') : '—'} token (${res.finishReason || 'stop'})`;
+        }
+      }
+    } catch (err) {
+      if (output) output.textContent = `[HATA]: ${err.message}`;
+      if (meta) meta.textContent = 'İstek başarısız oldu.';
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
   });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault();
