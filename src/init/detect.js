@@ -154,7 +154,21 @@ export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cw
   } else if (type === 'electron') {
     const pkgMain = readPkgMain(cwd);
     if (pkgMain) candidates.push(pkgMain);
-    candidates.push('main.js', 'electron/main.js', 'src/main.js', 'index.js');
+    candidates.push(
+      'main.ts',
+      'electron/main.ts',
+      'server.ts',
+      'app.ts',
+      'index.ts',
+      'src/server.ts',
+      'src/app.ts',
+      'src/index.ts',
+      'src/main.ts',
+      'main.js',
+      'electron/main.js',
+      'src/main.js',
+      'index.js'
+    );
   }
 
   for (const rel of candidates) {

@@ -57,11 +57,11 @@ export async function runInteractiveInit({
       fs.existsSync(path.join(cwd, 'package.json')) &&
       fs.readdirSync(cwd).some(name => name.endsWith('.csproj'))
     ) {
-      if (yes) throw new Error('Mixed Node/.NET project: choose --type explicitly.');
+      if (yes) throw new Error('Node ve .NET birlikte bulundu: --type ile proje tipini açıkça seçin.');
       const choice = await promptUser('Node veya .NET? (node/dotnet): ');
       if (choice.trim().toLowerCase() === 'dotnet') detectedType = 'dotnet';
     }
-    if (detectedType === 'unknown') throw new Error('Unknown project: choose --type explicitly.');
+    if (detectedType === 'unknown') throw new Error('Proje çatısı tanınamadı: --type ile proje tipini açıkça seçin.');
     if (['fastify', 'koa', 'hono', 'nestjs'].includes(detectedType))
       logger(
         detectedType +
@@ -122,7 +122,13 @@ export async function runInteractiveInit({
     }
     const initRes = initLLMProject({ cwd, type: detectedType, password, allowedOrigins, force, journal });
     if (detectedType === 'nextjs') await configureNext({ cwd, journal, promptUser, yes, logger, packageName: PKG });
-    const injectRes = injectIntoEntryFile({ cwd, type: detectedType, entryFile, esm: initRes.esm, journal });
+    const injectRes = injectIntoEntryFile({
+      cwd,
+      type: detectedType,
+      entryFile,
+      esm: /\.tsx?$/i.test(entryFile || '') ? undefined : initRes.esm,
+      journal
+    });
 
     if (initRes.targetFramework) logger('Hedef çatı: ' + initRes.targetFramework);
     if (injectRes.reason) logger(injectRes.reason);

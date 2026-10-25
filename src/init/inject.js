@@ -84,7 +84,10 @@ export function injectIntoEntryFile({
     };
   }
 
-  const useEsm = esm !== undefined ? Boolean(esm) : isEsmProject(cwd, type);
+  const useEsm =
+    esm !== undefined
+      ? Boolean(esm)
+      : (/\.tsx?$/i.test(relEntry) && /^\s*(?:import|export)\b/m.test(originalContent)) || isEsmProject(cwd, type);
   const eol = originalContent.includes('\r\n') ? '\r\n' : '\n';
   const lines = originalContent.split(/\r?\n/);
   const addedLines = [];
@@ -116,11 +119,12 @@ export function injectIntoEntryFile({
     if (!relImport.startsWith('.')) {
       relImport = `./${relImport}`;
     }
+    const requireImport = /\.tsx?$/i.test(relEntry) ? relImport : relImport.replace(/\.js$/, '');
 
     if (type === 'express') {
       const importLine = useEsm
         ? `import { setupLLM, askLLM } from '${relImport}';`
-        : `const { setupLLM, askLLM } = require('${relImport.replace(/\.js$/, '')}');`;
+        : `const { setupLLM, askLLM } = require('${requireImport}');`;
       const insertIdx = findJsImportInsertIndex(lines, useEsm);
       lines.splice(insertIdx, 0, importLine);
       addedLines.push(importLine);
@@ -193,7 +197,7 @@ export function injectIntoEntryFile({
 
       const importLine = useEsm
         ? `import { registerLLMIpc, askLLM } from '${relImport}';`
-        : `const { registerLLMIpc, askLLM } = require('${relImport.replace(/\.js$/, '')}');`;
+        : `const { registerLLMIpc, askLLM } = require('${requireImport}');`;
       const insertIdx = findJsImportInsertIndex(lines, useEsm);
       lines.splice(insertIdx, 0, importLine);
       addedLines.push(importLine);

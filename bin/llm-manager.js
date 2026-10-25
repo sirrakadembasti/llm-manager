@@ -15,7 +15,7 @@ Kullanım:
   npx llm-manager import <dosya>            Şifreli yedekten profilleri içe aktarır
 
 Seçenekler:
-  -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri | manual (varsayılan: otomatik algılar)
+  -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri (varsayılan: otomatik algılar)
   -w, --password <sır>      Yönetim / yedekleme parolası (LLM_ADMIN_PASSWORD / LLM_BACKUP_PASSWORD)
   -u, --user <ad>           Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
   --host <adres>            Dinlenecek adres (varsayılan: 127.0.0.1)
