@@ -1,5 +1,8 @@
-export default function dotnet() {
-  // DataContractJsonSerializer supports both .NET Framework 4.x and modern .NET without NuGet.
+import legacyDotnet from './dotnet-legacy.js';
+
+export default function dotnet({ legacy = false } = {}) {
+  if (legacy) return legacyDotnet();
+  // HttpClient/async require Framework 4.5+; older targets use the TPL template.
   return {
     'LlmClient.cs': `using System;
 using System.IO;

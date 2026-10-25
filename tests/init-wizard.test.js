@@ -438,7 +438,10 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     // 1. C# / .NET Core / ASP.NET MVC / MVP (Program.cs + .csproj)
     const dotnetDir = path.join(root, 'dotnet-app');
     fs.mkdirSync(dotnetDir, { recursive: true });
-    fs.writeFileSync(path.join(dotnetDir, 'MyWebApp.csproj'), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n');
+    fs.writeFileSync(
+      path.join(dotnetDir, 'MyWebApp.csproj'),
+      '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>\n'
+    );
     const origProgramCs =
       'using System;\nusing Microsoft.AspNetCore.Builder;\n\nvar builder = WebApplication.CreateBuilder(args);\n';
     fs.writeFileSync(path.join(dotnetDir, 'Program.cs'), origProgramCs);

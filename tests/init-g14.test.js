@@ -59,6 +59,10 @@ test('G14 generated C# client builds offline and handles HTTP JSON, Turkish erro
   const major = Number(version.split('.')[0]);
   const target = major >= 5 ? `net${major}.0` : `netcoreapp${version.split('.').slice(0, 2).join('.')}`;
   const cwd = fixture(t);
+  fs.writeFileSync(
+    path.join(cwd, 'App.csproj'),
+    `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>${target}</TargetFramework></PropertyGroup></Project>`
+  );
   initLLMProject({ cwd, type: 'dotnet' });
   fs.writeFileSync(path.join(cwd, 'global.json'), JSON.stringify({ sdk: { version } }));
   fs.writeFileSync(

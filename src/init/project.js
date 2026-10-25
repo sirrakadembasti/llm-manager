@@ -34,6 +34,69 @@ const templates = {
   hono,
   nestjs
 };
+function dotnetTargets(cwd) {
+  const projects = fs
+    .readdirSync(cwd)
+    .filter(name => name.endsWith('.csproj'))
+    .map(name => {
+      const full = path.join(cwd, name);
+      const content = fs.readFileSync(full, 'utf8');
+      const target = content.match(/<TargetFramework(?:Version|s)?>([^<]+)/)?.[1]?.trim();
+      const targets = target?.split(';').map(value => value.trim()) || [];
+      const family = targets.some(value => /^v4\.|^net4\d/.test(value))
+        ? 'netfx'
+        : targets.some(value => /^netcoreapp|^net(?:[5-9]|[1-9]\d)\./.test(value))
+          ? 'modern'
+          : 'unknown';
+      // Unknown/Web Forms targets must also work on the oldest promised Framework.
+      const legacy =
+        !targets.length ||
+        targets.some(value => !/^netcoreapp|^net(?:[5-9]|[1-9]\d)\.|^v4\.[5-9]|^net4[5-9]/.test(value));
+      return { full, content, target, family, legacy };
+    });
+  const selected =
+    projects.find(project => project.legacy && project.target) ||
+    projects.find(project => project.family === 'netfx') ||
+    projects.find(project => project.target);
+  const webForms = fs.existsSync(path.join(cwd, 'Web.config')) && fs.existsSync(path.join(cwd, 'Global.asax'));
+  const targetFamily = selected?.family || (webForms ? 'netfx' : 'unknown');
+  return {
+    projects,
+    legacy: !projects.length || projects.some(project => project.legacy),
+    targetFamily,
+    targetFramework: selected?.target || (targetFamily === 'netfx' ? '.NET Framework 4.x' : 'C# 7.3 (hedef bilinmiyor)')
+  };
+}
+function registerDotnet(target, journal) {
+  for (const project of target.projects) {
+    let content = project.content;
+    const sdk = /<Project\b[^>]*\bSdk\s*=|<Sdk\b/.test(content);
+    const implicitCompile = sdk && !/<EnableDefault(?:Compile)?Items>\s*false\s*</.test(content);
+    const includes = [...content.matchAll(/<Compile\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/g)].map(match => match[2]);
+    if (!implicitCompile && includes.length && !includes.some(value => /^(?:\.\\|\.\/)?LlmClient\.cs$/i.test(value))) {
+      content = content.replace(/<ItemGroup[^>]*>/, '$&\n    <Compile Include="LlmClient.cs" />');
+    }
+    if (project.family !== 'modern') {
+      const existing = [...content.matchAll(/<Reference\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/g)].map(match =>
+        match[2].split(',')[0].trim()
+      );
+      const references = [
+        'System',
+        'System.Runtime.Serialization',
+        'System.Xml',
+        ...(target.legacy ? [] : ['System.Net.Http'])
+      ];
+      for (const reference of references) {
+        if (!existing.includes(reference))
+          content = content.replace(
+            '</Project>',
+            `<ItemGroup><Reference Include="${reference}" /></ItemGroup></Project>`
+          );
+      }
+    }
+    if (content !== project.content) journal.write(project.full, content);
+  }
+}
 export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
@@ -63,7 +126,8 @@ export function initLLMProject({
     if (origins || allowedOrigins !== undefined || env.LLM_ALLOWED_ORIGINS !== undefined)
       upsertEnv(envPath, { LLM_ALLOWED_ORIGINS: origins });
   }
-  const files = templates[type]({ cwd, PKG, esm, fs });
+  const target = type === 'dotnet' ? dotnetTargets(cwd) : undefined;
+  const files = templates[type]({ cwd, PKG, esm, fs, legacy: target?.legacy });
   const createdFiles = [];
   for (const [rel, content] of Object.entries(files)) {
     const full = path.join(cwd, rel);
@@ -81,46 +145,13 @@ export function initLLMProject({
       scriptAdded = true;
     }
   }
-  let targetFramework;
-  let targetFamily;
-  if (type === 'dotnet') {
-    for (const name of fs.readdirSync(cwd).filter(name => name.endsWith('.csproj'))) {
-      const full = path.join(cwd, name);
-      let content = fs.readFileSync(full, 'utf8');
-      targetFramework = content.match(/<TargetFramework(?:Version|s)?>([^<]+)/)?.[1]?.trim();
-      if (targetFramework) {
-        const targets = targetFramework.split(';');
-        targetFamily = targets.some(target => /^v4\.|^net4\d/.test(target))
-          ? 'netfx'
-          : targets.some(target => /^netcoreapp|^net(?:[5-9]|[1-9]\d)\./.test(target))
-            ? 'modern'
-            : 'unknown';
-      }
-      if (/<Compile\s+Include=/.test(content) && !/Compile\s+Include="LlmClient.cs"/.test(content)) {
-        content = content.replace(/<ItemGroup[^>]*>/, '$&\n    <Compile Include="LlmClient.cs" />');
-        if (/<TargetFrameworkVersion>/.test(content))
-          for (const reference of ['System.Net.Http', 'System.Runtime.Serialization']) {
-            if (!content.includes('Reference Include="' + reference + '"'))
-              content = content.replace(
-                '</Project>',
-                '<ItemGroup><Reference Include="' + reference + '" /></ItemGroup></Project>'
-              );
-          }
-        journal.write(full, content);
-      }
-    }
-  }
-  if (type === 'dotnet' && !targetFramework) {
-    targetFamily =
-      fs.existsSync(path.join(cwd, 'Web.config')) && fs.existsSync(path.join(cwd, 'Global.asax')) ? 'netfx' : 'unknown';
-    targetFramework = targetFamily === 'netfx' ? '.NET Framework 4.x' : 'C# 7.3 (hedef bilinmiyor)';
-  }
+  if (target) registerDotnet(target, journal);
   return {
     type,
     esm,
     createdFiles,
     scriptAdded,
     journal,
-    ...(targetFramework ? { targetFramework, targetFamily } : {})
+    ...(target ? { targetFramework: target.targetFramework, targetFamily: target.targetFamily } : {})
   };
 }
