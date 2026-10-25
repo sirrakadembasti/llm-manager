@@ -205,6 +205,48 @@ const server=app.listen(0,'127.0.0.1',async()=>{
   }
 });
 
+test('generated CommonJS loads its ESM graph and throws setup errors synchronously', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cjs-startup-'));
+  try {
+    fs.writeFileSync(path.join(cwd, 'package.json'), '{}');
+    const name = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).name;
+    const target = path.join(cwd, 'node_modules', ...name.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.symlinkSync(path.resolve('.'), target, 'junction');
+    initLLMProject({ cwd, type: 'express' });
+    // A fresh CJS process must synchronously load the complete transitive ESM graph.
+    // Adding top-level await anywhere in that graph makes require() fail here.
+    const output = execFileSync(
+      process.execPath,
+      [
+        '-e',
+        `
+const assert = require('node:assert/strict');
+const express = require(${JSON.stringify(path.resolve('node_modules/express'))});
+const { setupLLM, askLLM } = require('./llm.js');
+assert.equal(typeof setupLLM, 'function');
+assert.equal(typeof askLLM, 'function');
+const app = express();
+assert.throws(
+  () => setupLLM(app, { adminPassword: 'test-password', apiPath: 'invalid' }),
+  { message: 'Geçersiz eklenti mount yolu.' }
+);
+// A failed startup must leave the host able to retry with valid configuration.
+const manager = setupLLM(app, { adminPassword: 'test-password' });
+assert.equal(typeof manager.then, 'undefined');
+assert.equal(typeof manager.ask, 'function');
+console.log('CJS_STARTUP_OK');
+`
+      ],
+      { cwd, encoding: 'utf8', timeout: 30000 }
+    );
+    assert.match(output, /CJS_STARTUP_OK/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('Next config accepts automatic confirmation and rolls back exact content', async () => {
   const { configureNext } = await import('../src/init/next-config.js');
   const { createChangeJournal } = await import('../src/init/journal.js');
