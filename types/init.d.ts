@@ -54,6 +54,7 @@ export interface InitProjectResult {
   scriptAdded: boolean;
   journal: ChangeJournal;
   targetFramework?: string;
+  targetFamily?: 'modern' | 'netfx' | 'unknown';
 }
 export function initLLMProject(options?: InitProjectOptions): InitProjectResult;
 export interface VerificationReport {

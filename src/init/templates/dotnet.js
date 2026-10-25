@@ -43,8 +43,9 @@ namespace LlmManager
                     try {
                         using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(body)))
                             data = (ResponseDto)new DataContractJsonSerializer(typeof(ResponseDto)).ReadObject(stream);
-                    } catch (Exception error) { throw new InvalidOperationException("LLM server returned invalid JSON (HTTP " + (int)res.StatusCode + ")", error); }
-                    if (!res.IsSuccessStatusCode) throw new InvalidOperationException(data.error ?? data.code ?? "LLM request failed");
+                    } catch (Exception error) { throw new InvalidOperationException("LLM sunucusu geçersiz JSON döndürdü (HTTP " + (int)res.StatusCode + ")", error); }
+                    if (data == null) throw new InvalidOperationException("LLM sunucusu boş JSON yanıtı döndürdü (HTTP " + (int)res.StatusCode + ")");
+                    if (!res.IsSuccessStatusCode) throw new InvalidOperationException(data.error ?? data.code ?? "LLM isteği başarısız (HTTP " + (int)res.StatusCode + ")");
                     return data.content ?? data.text ?? "";
                 }
             }

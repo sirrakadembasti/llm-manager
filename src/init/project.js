@@ -82,11 +82,20 @@ export function initLLMProject({
     }
   }
   let targetFramework;
+  let targetFamily;
   if (type === 'dotnet') {
     for (const name of fs.readdirSync(cwd).filter(name => name.endsWith('.csproj'))) {
       const full = path.join(cwd, name);
       let content = fs.readFileSync(full, 'utf8');
-      targetFramework = content.match(/<TargetFramework(?:Version)?>([^<]+)/)?.[1] || 'compatible C# 7.3';
+      targetFramework = content.match(/<TargetFramework(?:Version|s)?>([^<]+)/)?.[1]?.trim();
+      if (targetFramework) {
+        const targets = targetFramework.split(';');
+        targetFamily = targets.some(target => /^v4\.|^net4\d/.test(target))
+          ? 'netfx'
+          : targets.some(target => /^netcoreapp|^net(?:[5-9]|[1-9]\d)\./.test(target))
+            ? 'modern'
+            : 'unknown';
+      }
       if (/<Compile\s+Include=/.test(content) && !/Compile\s+Include="LlmClient.cs"/.test(content)) {
         content = content.replace(/<ItemGroup[^>]*>/, '$&\n    <Compile Include="LlmClient.cs" />');
         if (/<TargetFrameworkVersion>/.test(content))
@@ -101,5 +110,17 @@ export function initLLMProject({
       }
     }
   }
-  return { type, esm, createdFiles, scriptAdded, journal, ...(targetFramework ? { targetFramework } : {}) };
+  if (type === 'dotnet' && !targetFramework) {
+    targetFamily =
+      fs.existsSync(path.join(cwd, 'Web.config')) && fs.existsSync(path.join(cwd, 'Global.asax')) ? 'netfx' : 'unknown';
+    targetFramework = targetFamily === 'netfx' ? '.NET Framework 4.x' : 'C# 7.3 (hedef bilinmiyor)';
+  }
+  return {
+    type,
+    esm,
+    createdFiles,
+    scriptAdded,
+    journal,
+    ...(targetFramework ? { targetFramework, targetFamily } : {})
+  };
 }

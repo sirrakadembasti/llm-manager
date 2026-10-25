@@ -141,7 +141,7 @@ export async function runInteractiveInit({
       journal
     });
 
-    if (initRes.targetFramework) logger('Hedef çatı: ' + initRes.targetFramework);
+    if (initRes.targetFramework) logger('Hedef çatı: ' + initRes.targetFramework + ' (' + initRes.targetFamily + ')');
     if (injectRes.reason) logger(injectRes.reason);
     logger('\n[Adım 2/4] Oluşturulan dosyalar ve kod eklemeleri:');
     if (initRes.createdFiles.length > 0) {

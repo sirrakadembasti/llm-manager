@@ -166,12 +166,12 @@ export function verifyIntegration({
   }
 
   if (type === 'nextjs')
-    for (const rel of filesToSyntaxCheck) {
+    for (const rel of new Set(filesToSyntaxCheck)) {
       if (/runtime\s*=\s*['"]edge['"]/.test(fs.readFileSync(path.join(cwd, rel), 'utf8')))
         warnings.push(rel + ': Edge runtime desteklenmez; runtime=nodejs kullanın.');
     }
   let syntaxFailure = null;
-  for (const rel of filesToSyntaxCheck) {
+  for (const rel of new Set(filesToSyntaxCheck)) {
     const ext = path.extname(rel).toLowerCase();
     const full = path.join(cwd, rel);
     void ext;
