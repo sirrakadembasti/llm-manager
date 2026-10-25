@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { readEnv, upsertEnv, ensureGitignore } from '../envFile.js';
 import { detectProjectType, isEsmProject } from './detect.js';
 import { createChangeJournal } from './journal.js';
+import { resolveInitOrigins } from './origins.js';
 import express from './templates/express.js';
 import spa from './templates/spa.js';
 import nextjs from './templates/nextjs.js';
@@ -37,6 +38,7 @@ export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
   password,
+  allowedOrigins,
   force = false,
   journal = createChangeJournal(cwd)
 } = {}) {
@@ -44,6 +46,7 @@ export function initLLMProject({
   const esm = isEsmProject(cwd, type);
   const envPath = path.join(cwd, '.env');
   const env = readEnv(envPath);
+  const origins = ['spa', 'tauri'].includes(type) ? resolveInitOrigins(cwd, allowedOrigins) : '';
   password ??= env.LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
   const token = env.LLM_CHAT_TOKENS || crypto.randomBytes(24).toString('base64url');
   journal.capture(envPath);
@@ -57,7 +60,8 @@ export function initLLMProject({
   if (['spa', 'tauri'].includes(type)) {
     journal.capture(path.join(cwd, '.env.local'));
     upsertEnv(path.join(cwd, '.env.local'), { VITE_LLM_CHAT_TOKEN: token.split(',')[0] });
-    upsertEnv(envPath, { LLM_ALLOWED_ORIGINS: env.LLM_ALLOWED_ORIGINS || 'http://localhost:5173' });
+    if (origins || allowedOrigins !== undefined || env.LLM_ALLOWED_ORIGINS !== undefined)
+      upsertEnv(envPath, { LLM_ALLOWED_ORIGINS: origins });
   }
   const files = templates[type]({ cwd, PKG, esm, fs });
   const createdFiles = [];

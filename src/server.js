@@ -49,7 +49,8 @@ export async function createStandaloneServer({
   if (originsSet.size > 0) {
     app.use((req, res, next) => {
       const origin = req.get('Origin');
-      const isChat = req.path === '/api/llm/chat' || req.path === '/chat';
+      const chatPath = `${managerOptions.apiPath || '/api/llm'}/chat`;
+      const isChat = req.path === chatPath || req.path === `${chatPath}/`;
 
       if (originsSet.has('*')) {
         if (isChat) {

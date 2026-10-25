@@ -13,6 +13,7 @@ import { injectIntoEntryFile } from './inject.js';
 import { verifyIntegration, formatVerificationReport } from './verify.js';
 import { probeAndOpenBrowser } from './probe.js';
 import { createChangeJournal } from './journal.js';
+import { resolveInitOrigins } from './origins.js';
 function isDeclined(answer) {
   const normalized = String(answer ?? '')
     .trim()
@@ -24,6 +25,7 @@ export async function runInteractiveInit({
   cwd = process.cwd(),
   type,
   password,
+  allowedOrigins,
   port = 8010,
   force = false,
   yes = false,
@@ -109,7 +111,16 @@ export async function runInteractiveInit({
       }
     }
     // Adım 2: Dosya Oluşturma, Otomatik Kod Ekleme ve Kontrol Onayı
-    const initRes = initLLMProject({ cwd, type: detectedType, password, force, journal });
+    if (['spa', 'tauri'].includes(detectedType)) {
+      allowedOrigins = resolveInitOrigins(cwd, allowedOrigins);
+      if (!allowedOrigins && !yes) {
+        allowedOrigins = await promptUser(
+          'İzin verilen istemci origin adresi (ör. http://localhost:3000; boş: CORS kapalı): '
+        );
+      }
+      if (!allowedOrigins) logger('CORS kapalı; istemci origin adresini LLM_ALLOWED_ORIGINS ile ayarlayabilirsiniz.');
+    }
+    const initRes = initLLMProject({ cwd, type: detectedType, password, allowedOrigins, force, journal });
     if (detectedType === 'nextjs') await configureNext({ cwd, journal, promptUser, yes, logger, packageName: PKG });
     const injectRes = injectIntoEntryFile({ cwd, type: detectedType, entryFile, esm: initRes.esm, journal });
 

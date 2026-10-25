@@ -168,6 +168,7 @@ if (isInit) {
   const result = await runInteractiveInit({
     type: initType,
     password: process.env.LLM_ADMIN_PASSWORD,
+    allowedOrigins: process.env.LLM_ALLOWED_ORIGINS,
     port: Number(process.env.PORT) || 8010,
     force,
     yes,

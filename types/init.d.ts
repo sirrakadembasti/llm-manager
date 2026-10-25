@@ -43,6 +43,7 @@ export interface InitProjectOptions {
   cwd?: string;
   type?: ProjectType;
   password?: string;
+  allowedOrigins?: string | string[];
   force?: boolean;
   journal?: ChangeJournal;
 }

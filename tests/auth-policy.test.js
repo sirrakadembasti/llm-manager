@@ -108,6 +108,7 @@ test('init probe starts with generated chat token and explicit development origi
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'probe-auth-'));
   let probe;
   try {
+    fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ devDependencies: { vite: '^7' } }));
     initLLMProject({ cwd, type: 'spa', password: 'probe-password' });
     const env = readEnv(path.join(cwd, '.env'));
     probe = await probeAndOpenBrowser({ cwd, port: 0, password: 'probe-password', openBrowser: false });
