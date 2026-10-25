@@ -1,6 +1,7 @@
 import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { loadStandaloneServer } from './standalone.js';
 import { readEnv } from '../envFile.js';
 function openDefaultBrowser(url) {
   try {
@@ -53,7 +54,7 @@ export async function probeAndOpenBrowser({
   }
 
   if (!ok && startServerIfNeeded === true) {
-    const { createStandaloneServer } = await import('../server.js');
+    const { createStandaloneServer } = await loadStandaloneServer(cwd);
     let srvInstance;
     try {
       srvInstance = await createStandaloneServer({

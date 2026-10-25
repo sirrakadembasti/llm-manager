@@ -193,7 +193,8 @@ if (isInit) {
     fail('Parola gerekli: --password <parola> verin veya LLM_ADMIN_PASSWORD ortam değişkenini ayarlayın.');
   }
 
-  const { createStandaloneServer } = await import('../src/server.js');
+  const { loadStandaloneServer } = await import('../src/init/standalone.js');
+  const { createStandaloneServer } = await loadStandaloneServer();
   const serverInstance = await createStandaloneServer({
     host,
     port: Number(process.env.PORT) || 8010,

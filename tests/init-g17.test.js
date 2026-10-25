@@ -94,14 +94,35 @@ test('ESM syntax TS host in CommonJS package imports explicit JS helper and comp
 test('unknown and ambiguous projects give Turkish explicit-type guidance', () =>
   fixture(async cwd => {
     fs.writeFileSync(path.join(cwd, 'package.json'), '{}');
-    await assert.rejects(runInteractiveInit({ cwd, yes: true }), /Proje.*--type/);
+    await assert.rejects(
+      runInteractiveInit({
+        installRunner() {
+          assert.fail('Unexpected network installer');
+        },
+        cwd,
+        yes: true
+      }),
+      /Proje.*--type/
+    );
     fs.writeFileSync(path.join(cwd, 'App.csproj'), '<Project />');
-    await assert.rejects(runInteractiveInit({ cwd, yes: true }), /Node ve \.NET birlikte bulundu: --type/);
+    await assert.rejects(
+      runInteractiveInit({
+        installRunner() {
+          assert.fail('Unexpected network installer');
+        },
+        cwd,
+        yes: true
+      }),
+      /Node ve \.NET birlikte bulundu: --type/
+    );
     for (const choice of ['node', 'dotnet']) {
       fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ dependencies: { express: '*' } }));
       const logs = [];
       let inspected = false;
       const result = await runInteractiveInit({
+        installRunner() {
+          assert.fail('Unexpected network installer');
+        },
         cwd,
         askQuestion: question => {
           if (question.includes('Node veya')) return choice;
@@ -134,6 +155,9 @@ test('wizard infers TS ESM syntax without changing the CommonJS helper format', 
     fs.writeFileSync(path.join(cwd, 'server.ts'), host);
     let inspected = false;
     const result = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       logger: () => {},
       askQuestion: question => {

@@ -98,8 +98,12 @@ for (const scenario of ['refusal', 'interactive verification failure', 'automati
         yes: scenario === 'automatic verification failure',
         openBrowser: false,
         logger: () => {},
+        installRunner() {
+          assert.fail('Rollback fixture must not run network installers');
+        },
         askQuestion(prompt) {
           prompts.push(prompt);
+          if (prompt.includes('Express projeye')) return 'h';
           if (prompt.includes('iç doğrulama adımına')) {
             assert.notDeepEqual(snapshot(cwd), before);
             return scenario === 'refusal' ? 'h' : 'e';

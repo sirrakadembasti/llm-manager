@@ -1,5 +1,6 @@
 import { packageInstalled, checkSource } from './compiler.js';
 import { PKG } from './project.js';
+import { INSTALL_SPEC, EXPRESS_SPEC, needsHostPackage, standalonePrerequisite } from './standalone.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { detectProjectType, detectEntryFile } from './detect.js';
@@ -38,12 +39,19 @@ export function verifyIntegration({
   const normalizedEntry = entryFile ? entryFile.replace(/\\/g, '/').replace(/^\.\//, '') : null;
   const checks = [];
   const warnings = [];
-  if (!['python', 'dotnet', 'spa', 'tauri'].includes(type))
+  if (needsHostPackage(cwd, type))
     checks.push({
       id: 'package_installed',
       title: 'Host Paket Kurulumu',
       ok: packageInstalled(cwd, PKG),
-      solution: 'npm install github:sirrakadembasti/llm-manager komutunu host projede çalıştırın.'
+      solution: 'npm install ' + INSTALL_SPEC + ' komutunu host projede çalıştırın.'
+    });
+  if (needsHostPackage(cwd, type) && packageInstalled(cwd, PKG))
+    checks.push({
+      id: 'standalone_express',
+      title: 'Bağımsız Sunucu Express Önkoşulu',
+      ok: standalonePrerequisite(cwd),
+      solution: 'Host projede npm install ' + EXPRESS_SPEC + ' çalıştırın.'
     });
   const ignored = fs.existsSync(path.join(cwd, '.gitignore'))
     ? fs

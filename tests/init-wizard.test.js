@@ -219,7 +219,7 @@ test('verifyIntegration ve formatVerificationReport: başarılı kurulum, eksik 
     assert.equal(okReport.ok, true);
     assert.equal(okReport.type, 'express');
     assert.equal(okReport.entryFile, 'server.js');
-    assert.equal(okReport.checks.length, 6);
+    assert.equal(okReport.checks.length, 7);
     assert.equal(okReport.checks.find(check => check.id === 'secrets_ignored').ok, true);
     assert.ok(okReport.checks.every(c => c.ok));
 
@@ -350,6 +350,9 @@ test('runInteractiveInit: onay verildiğinde 4 aşamalı uçtan uca kurulum, can
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.symlinkSync(path.resolve('.'), target, 'junction');
     const result = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       password: 'testPass123',
       port: 0,
@@ -408,6 +411,9 @@ test('runInteractiveInit: 2. aşamada kullanıcı hayır dediğinde rollback ça
     const openedUrls = [];
 
     const result = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       port: 0,
       autoCloseServer: true,

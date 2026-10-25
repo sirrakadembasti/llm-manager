@@ -110,12 +110,24 @@ test('transaction rollback restores generated, forced, env, scripts and empty di
     fs.writeFileSync(path.join(cwd, 'llm.js'), '// previous helper\n');
     const before = snapshot();
     // -y fails closed on missing host package and rolls back all scaffold changes.
-    const res = await runInteractiveInit({ cwd, yes: true, force: true, openBrowser: false, logger: () => {} });
+    const res = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
+      cwd,
+      yes: true,
+      force: true,
+      openBrowser: false,
+      logger: () => {}
+    });
     assert.equal(res.ok, false);
     assert.equal(res.rolledBack, true);
     assert.deepEqual(snapshot(), before);
     const answers = ['e', 'h', 'h']; // detect, decline dependency installation, decline scaffold
     const decline = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       type: 'nextjs',
       force: true,

@@ -8,6 +8,11 @@ import { createLLMManager, mountLLMManagement } from '../src/index.js';
 import { initLLMProject, runInteractiveInit } from '../src/init.js';
 import { readEnv } from '../src/envFile.js';
 import { createStandaloneServer } from '../src/server.js';
+function installHostFixture(cwd) {
+  const target = path.join(cwd, 'node_modules/@sirrakadembasti/llm-manager');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.symlinkSync(path.resolve('.'), target, process.platform === 'win32' ? 'junction' : 'dir');
+}
 
 test('G02: Web profile writes require configured admin authentication and warn only once', async () => {
   let writes = 0;
@@ -95,7 +100,11 @@ test('G06: non-Vite interactive init asks for the actual origin and persists it'
   const questions = [];
   try {
     fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ type: 'module' }));
+    installHostFixture(cwd);
     const result = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       type: 'spa',
       port: 0,
@@ -211,7 +220,11 @@ test('G04/G05: init -y generates ignored random credentials without logging them
   const logs = [];
   try {
     fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ type: 'module' }));
+    installHostFixture(cwd);
     const result = await runInteractiveInit({
+      installRunner() {
+        assert.fail('Unexpected network installer');
+      },
       cwd,
       type: 'spa',
       yes: true,

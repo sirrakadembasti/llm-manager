@@ -96,6 +96,12 @@ export interface InteractiveInitOptions extends InitProjectOptions {
   askQuestion?: (prompt: string) => string | Promise<string>;
   logger?: (message: string) => void;
   browserOpener?: ProbeOptions['browserOpener'];
+  /** Host dependency installer; defaults to execFileSync. Installation is outside scaffold rollback. */
+  installRunner?: (
+    command: string,
+    args: string[],
+    options: { cwd: string; stdio: 'inherit'; shell: boolean }
+  ) => unknown;
 }
 export type InteractiveInitResult =
   | { aborted: true; step: 'detect' }

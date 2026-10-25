@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { configureNext } from './next-config.js';
 import { execFileSync } from 'node:child_process';
 import { packageInstalled } from './compiler.js';
+import { INSTALL_SPEC, EXPRESS_SPEC, needsHostPackage, standalonePrerequisite } from './standalone.js';
 import { PKG } from './project.js';
 import readline from 'node:readline/promises';
 import crypto from 'node:crypto';
@@ -33,7 +34,8 @@ export async function runInteractiveInit({
   autoCloseServer = false,
   askQuestion,
   logger = console.log,
-  browserOpener
+  browserOpener,
+  installRunner = execFileSync
 } = {}) {
   password ??= readEnv(path.join(cwd, '.env')).LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
   const journal = createChangeJournal(cwd);
@@ -93,22 +95,31 @@ export async function runInteractiveInit({
     }
 
     // Dependency installation is an explicit prerequisite, outside scaffold rollback.
-    if (!['python', 'dotnet', 'spa', 'tauri'].includes(detectedType) && !packageInstalled(cwd, PKG)) {
-      logger(
-        'Host paketi eksik. npm install github:sirrakadembasti/llm-manager çalıştırın. Paket kurulumu, package-lock ve node_modules sonraki scaffold rollback sırasında korunur.'
-      );
-      if (!yes) {
-        const answer = await promptUser('Paket projeye kurulsun mu? (e/H): ');
-        if (/^(e|evet|y|yes)$/i.test(String(answer).trim())) {
-          const version = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url))).version;
-          if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/.test(version)) throw new Error('Invalid package version');
-          execFileSync('npm', ['install', 'github:sirrakadembasti/llm-manager#v' + version], {
-            cwd,
-            stdio: 'inherit',
-            shell: process.platform === 'win32'
-          });
+    if (needsHostPackage(cwd, detectedType)) {
+      const install = async (spec, label) => {
+        logger('Host kurulumu, package-lock ve node_modules scaffold geri alma işleminde korunur.');
+        if (yes) {
+          logger('Host projede npm install ' + spec + ' çalıştırın.');
+          return false;
+        }
+        const answer = await promptUser(label + ' (npm install ' + spec + ')? (e/H): ');
+        if (!/^(e|evet|y|yes)$/i.test(String(answer).trim())) return false;
+        installRunner('npm', ['install', spec], { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+        return true;
+      };
+      if (!packageInstalled(cwd, PKG) && (await install(INSTALL_SPEC, 'Paket projeye kurulsun mu'))) {
+        if (!packageInstalled(cwd, PKG))
+          throw new Error('Paket kurulumu doğrulanamadı; host node_modules klasörünü kontrol edin.');
+      }
+      if (packageInstalled(cwd, PKG) && !standalonePrerequisite(cwd)) {
+        logger('Canlı yoklama ve bağımsız yönetim sunucusu için desteklenen Express gerekir.');
+        if (await install(EXPRESS_SPEC, 'Express projeye kurulsun mu')) {
+          if (!standalonePrerequisite(cwd))
+            throw new Error('Express kurulumu doğrulanamadı; host bağımlılıklarını kontrol edin.');
         }
       }
+    } else if (['spa', 'tauri'].includes(detectedType)) {
+      logger('HTTP istemcisi: yönetim sunucusunu Node host projesinde ayrıca kurup başlatın.');
     }
     // Adım 2: Dosya Oluşturma, Otomatik Kod Ekleme ve Kontrol Onayı
     if (['spa', 'tauri'].includes(detectedType)) {
@@ -172,6 +183,7 @@ export async function runInteractiveInit({
       password,
       openBrowser,
       autoCloseStartedServer: autoCloseServer,
+      startServerIfNeeded: !(['spa', 'tauri'].includes(detectedType) && !needsHostPackage(cwd, detectedType)),
       browserOpener
     });
 
@@ -182,7 +194,7 @@ export async function runInteractiveInit({
     }
 
     return {
-      ok: probe.ok,
+      ok: probe.ok || (['spa', 'tauri'].includes(detectedType) && !needsHostPackage(cwd, detectedType)),
       type: detectedType,
       entryFile,
       initRes,
