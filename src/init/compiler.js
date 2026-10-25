@@ -32,7 +32,7 @@ export function checkSource(cwd, rel, warnings) {
         full
       ]);
     }
-    warnings.push(`${rel}: Python unavailable; syntax was not verified.`);
+    warnings.push(`${rel}: Python bulunamadı; sözdizimi kontrolü atlandı.`);
     return null;
   }
   if (ext === '.cs') {

@@ -112,7 +112,7 @@ Yönetim sunucusu yalnız `127.0.0.1` üzerinde rastgele port dinler. Oturumluk 
 Üretilen `llm_client.py`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` ortam değişkenlerini okur. `ask_llm('Merhaba')` çağrısı 330 saniyelik istemci zaman aşımı kullanır. HTTP hataları `LLMError` içinde `status` ve `code` ile iletilir. Süreç ortamını servis yöneticinizden sağlayın; Python standart kütüphanesi `.env` dosyasını otomatik yüklemez.
 
 > [!WARNING]
-> Ayrı sürekli Node sunucusu gerekir; [dağıtım kılavuzunu](DEPLOY.md) kullanın. Admin parolasını Python istemcisine vermeyin. Python varsa doğrulama `py_compile` kullanır; yoksa derleme kontrolü atlandı diye raporlanır.
+> Ayrı sürekli Node sunucusu gerekir; [dağıtım kılavuzunu](DEPLOY.md) kullanın. Admin parolasını Python istemcisine vermeyin. Python/py varsa doğrulama, `py_compile` ile aynı ayrıştırıcıyı kullanan `compile()` kontrolünü `__pycache__` oluşturmadan çalıştırır; yoksa Türkçe uyarıyla atlanır. JSON olmayan veya nesne içermeyen HTTP hata gövdeleri Türkçe `LLMError` mesajına dönüştürülür; sunucunun `error`/`code` alanları ve HTTP durumu korunur.
 
 ## .NET ve .NET Framework
 

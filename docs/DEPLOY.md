@@ -163,7 +163,7 @@ curl -f http://localhost:8010/api/llm/health
 ```json
 {
   "ok": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "hasActiveProfile": true,
   "requestId": "c1f7a0b3-4e89-4a92-9b2f-7634f18d53b2"
 }
@@ -173,16 +173,24 @@ curl -f http://localhost:8010/api/llm/health
 
 ## 6. Yedekleme ve Kurtarma
 
-Tüm durum `/data` klasöründe iki dosyada tutulur:
+Profil ve anahtar durumu `/data` klasöründe şu iki dosyada tutulur:
 1. `llm-profiles.json`: Şifreli profil tanımları ve ayarlar.
 2. `llm-encryption.key`: AES-256-GCM profil şifreleme anahtarı.
+
+Kullanım günlükleri ve anahtar döndürmenin `.bak`/`.old-<tarih>` yedekleri de bu dizinde bulunabilir; tam yedekleme politikanıza bunları da dahil edin.
 
 > [!CAUTION]
 > `llm-encryption.key` kaybedilirse profillerdeki API anahtarlarının şifresi **kesinlikle çözülemez**. Bu iki dosyayı her zaman birlikte yedekleyin.
 
 ## Sürekli Node servisi: PM2
 
-Paketin host proje altında kurulduğu ve `.env` dosyasının hazır olduğu dizinde:
+PM2, systemd ve NSSM ile tek başına CLI çalıştırmak için Node.js ≥22.12.0, host projede manager paketi ve desteklenen Express gerekir. Express core kullanımında isteğe bağlıdır; bu servis örneklerinde zorunludur. Host proje dizininde önce:
+
+```bash
+npm install github:sirrakadembasti/llm-manager "express@^4.19.2"
+```
+
+Dockerfile bu önkoşulu imaja kurar. Host projenin `.env` dosyası hazırken aynı dizinde:
 
 ```bash
 npm install -g pm2

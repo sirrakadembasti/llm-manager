@@ -28,8 +28,13 @@ def ask_llm(prompt: str, system: str = "") -> str:
         try:
             data = json.loads(error.read().decode("utf-8"))
         except (ValueError, UnicodeError):
-            data = {"error": str(error)}
-        raise LLMError(data.get("error", str(error)), data.get("code"), error.code) from error
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        message = data.get("error")
+        if not isinstance(message, str) or not message.strip():
+            message = f"LLM isteği başarısız (HTTP {error.code})."
+        raise LLMError(message, data.get("code"), error.code) from error
 `
   };
 }
