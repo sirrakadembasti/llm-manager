@@ -4,7 +4,7 @@
 > **Hazırlayan bakış açısı:** Yazılım mimarı + kıdemli geliştirici incelemesi (2026-10-22, sürüm v1.0.0, commit `2a204c1`).
 > **Kardeş belge:** [YOL_HARITASI_1_TEKNIK_MIMARI.md](YOL_HARITASI_1_TEKNIK_MIMARI.md) (mimari, kalite, eksik özellikler).
 
-> **Güncel durum — 2026-10-25:** FAZ 0'ın G01–G07/G24 ve FAZ 1'in 12 görev kartı uygulandı ve denetlendi. Kanıtlar: [FAZ 0 raporu](YH2_FAZ0_DENETIM_2026-10-25.md), [FAZ 1 raporu](YH2_FAZ1_DENETIM_2026-10-25.md). Son tam paket 276/276, kapsam %92,94 satır / %85,13 dal; görev ve genel incelemeler onaylı. Aşağıdaki başlangıç bulguları 2026-10-22 durumunu anlatır; FAZ 2 bu notla kapatılmaz.
+> **Güncel durum — 2026-10-26:** FAZ 0, FAZ 1 ve FAZ 2 kartları uygulandı ve denetlendi. Kanıtlar: [FAZ 0 raporu](YH2_FAZ0_DENETIM_2026-10-25.md), [FAZ 1 raporu](YH2_FAZ1_DENETIM_2026-10-25.md), [FAZ 2 raporu](YH2_FAZ2_DENETIM_2026-10-26.md). Son tam paket 283/283, kapsam %93,03 satır / %85,33 dal; görev ve genel incelemeler onaylı. Aşağıdaki başlangıç bulguları 2026-10-22 durumunu anlatır. Yayın/push yapılmadı.
 
 ---
 
@@ -414,8 +414,8 @@ Her kartta şu alanlar var: **Dosyalar**, **Sorun**, **Yapılacaklar** (adım ad
 - [x] Faz 0 sır denetimi: Express ESM/CJS, SPA, Next, Nuxt, SvelteKit, Electron, .NET, Python ve Tauri yardımcılarında parola yalnız `.env` içinde; `.gitignore` güncel. Otomatik onaylı SPA kurulumu ve logları ayrıca test edildi.
 - [x] Faz 1 sonunda: Express ESM, Express CJS ve Express 5 host'larında gerçek HTTP ile `/llm` 200 ve `POST /api/llm/profiles` 201 dönüyor (`tests/integration/hosts.test.js`, son tam pakette geçti).
 - [x] Faz 1 sonunda: Async dosya deposu ve async host/Map depo kabul senaryoları dahil tam test paketi 276/276 geçti.
-- [ ] Faz 2 sonunda: README ↔ ENTEGRASYON ↔ kod arasında çelişki yok. XFactor araması temiz.
-- [ ] Her faz sonunda `npm test` yeşil, CHANGELOG `[Unreleased]` güncel ve `GEMINI.md` "Durum" bölümü güncellendi.
+- [x] Faz 2 sonunda: README ↔ ENTEGRASYON ↔ kod dört kartın kabul kapsamıyla hizalı; XFactor kalıntı araması temiz. MiMo açıklaması sağlayıcıya göre gösterilir; genel incelemenin dört bulgusu kapatıldı. Kanıt: FAZ 2 denetim raporu.
+- [x] Her faz sonunda tam test paketi yeşil, CHANGELOG `[Unreleased]` güncel ve `GEMINI.md` "Durum" bölümü güncellendi. FAZ 2 son seri kapsam koşusu 283/283; npm test betiğinin aynı dosya kümeleri, Node seçenekleri yolların önünde kullanıldı.
 - [x] FAZ 0 sonunda `npm test` 195/195, lint/typecheck/format kontrolleri yeşil; CHANGELOG ve GEMINI güncel. Sonraki fazların kapanışı ayrıdır.
 - [x] FAZ 1 sonunda `npm run test:coverage -- --test-concurrency=1` 276/276, sıfır hata/atlama; lint/typecheck/format ve `dogrulama.mjs` yeşil. CHANGELOG ve GEMINI güncel; genel incelemenin iki G14 bulgusu kapatıldı. Sürüm zaten yerel 2.0.0 olduğundan yeniden major artırılmadı.
 
