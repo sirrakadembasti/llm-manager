@@ -6,6 +6,17 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(1, ms));
 }
 
+// Exclusive creation can transiently deny access on Windows. Never claim ownership
+// or inspect/remove a lock on this path; preserve the first denial if retries fail.
+function accessRetryDelay(error, state, deadline) {
+  if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error.code)) return null;
+  state.error ||= error;
+  const delays = [10, 20, 40, 80];
+  const remaining = deadline - Date.now();
+  if (state.attempts >= delays.length || remaining <= 0) throw state.error;
+  return Math.min(delays[state.attempts++], remaining);
+}
+
 function isPidAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -49,11 +60,18 @@ export function robustRenameSync(source, target) {
 
 export function withFileLockSync(lockPath, fn, { timeoutMs = 5000, retryIntervalMs = 50 } = {}) {
   const deadline = Date.now() + timeoutMs;
+  const accessRetry = { attempts: 0, error: null };
   while (true) {
     let fd;
     try {
       fd = fs.openSync(lockPath, 'wx');
     } catch (err) {
+      const delay = accessRetryDelay(err, accessRetry, deadline);
+      if (delay !== null) {
+        sleepSync(delay);
+        if (Date.now() >= deadline) throw accessRetry.error;
+        continue;
+      }
       if (err.code === 'ENOENT') {
         fs.mkdirSync(path.dirname(lockPath), { recursive: true });
         continue;
@@ -97,11 +115,18 @@ export function withFileLockSync(lockPath, fn, { timeoutMs = 5000, retryInterval
 
 export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryIntervalMs = 10 } = {}) {
   const deadline = Date.now() + timeoutMs;
+  const accessRetry = { attempts: 0, error: null };
   while (true) {
     let fd;
     try {
       fd = await fs.promises.open(lockPath, 'wx', 0o600);
     } catch (err) {
+      const delay = accessRetryDelay(err, accessRetry, deadline);
+      if (delay !== null) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        if (Date.now() >= deadline) throw accessRetry.error;
+        continue;
+      }
       if (err.code === 'ENOENT') {
         await fs.promises.mkdir(path.dirname(lockPath), { recursive: true });
         continue;
