@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Added
+- Kısa model testinde boş `length` ve yalnız reasoning içeren `stop` yanıtları ayrı regresyonlarla doğrulandı; kalıcı `passed` kaydı, sohbet hatası ve özel düşünce içeriğinin sızmaması korundu (YH2-G21).
 - Transaction rollback için dosya ağacı, SHA-256 bayt özeti ve izin anlık görüntüsü regresyonları eklendi; kullanıcı reddi, başarısız doğrulama, zorunlu üzerine yazma ve host kurulumunun korunması doğrulandı (YH2-G12).
 - Üretilen CommonJS yardımcısının geçişli ESM grafiğini senkron yüklemesi, kurulum hatalarını senkron iletmesi ve hatadan sonra yeniden kurulabilmesi gerçek CJS süreç testiyle güvenceye alındı (YH2-G10).
 - Express eklentisinin kendi JSON ayrıştırıcısı gerçek HTTP kabul testleriyle doğrulandı: geç bağlanan host ayrıştırıcısı, önceden ayrıştırılmış gövde, 400/413 JSON hataları, auth sırası ve özel gövde sınırı (YH2-G11).

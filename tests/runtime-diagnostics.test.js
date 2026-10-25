@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createLLMProfileStore } from '../src/profileStore.js';
 import { generateProfileResponse, executeWithRetry } from '../src/runtime.js';
 import { createLLMManager } from '../src/core.js';
 const profile = {
@@ -12,29 +16,88 @@ const profile = {
   apiKey: 'fixture'
 };
 
-test('quick diagnostics accept valid truncated/reasoning responses while conversation rejects them', async () => {
-  const original = globalThis.fetch;
-  globalThis.fetch = async () =>
-    Response.json({
-      choices: [{ finish_reason: 'length', message: { content: '', reasoning_content: 'private thought' } }]
-    });
-  try {
-    const raw = await generateProfileResponse([], profile, { acceptTruncated: true, raw: true });
-    assert.equal(raw.truncated, true);
-    assert.equal(raw.content, '');
-    await assert.rejects(
-      () => generateProfileResponse([], profile),
-      error => error.code === 'LLM_TRUNCATED'
-    );
-    const store = { get: async () => profile, recordTest: async () => profile };
-    const manager = createLLMManager({ store });
-    const result = await manager.handle({ method: 'POST', path: '/profiles/p/test', body: { mode: 'quick' } });
-    assert.equal(result.status, 200);
-    assert.equal(result.body.truncated, true);
-  } finally {
-    globalThis.fetch = original;
+// Removing either acceptTruncated branch must fail its independent fixture.
+for (const fixture of [
+  {
+    name: 'length with empty content and no reasoning',
+    finish: 'length',
+    reasoning: undefined,
+    code: 'LLM_TRUNCATED',
+    status: 422
+  },
+  {
+    name: 'stop with reasoning only',
+    finish: 'stop',
+    reasoning: 'PRIVATE_REASONING_SENTINEL',
+    code: 'LLM_EMPTY_RESPONSE',
+    status: 502
   }
-});
+]) {
+  test(`quick diagnostics persist passed for ${fixture.name} without exposing reasoning`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-quick-'));
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: fixture.finish,
+            message: { content: '', ...(fixture.reasoning ? { reasoning_content: fixture.reasoning } : {}) }
+          }
+        ],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+      });
+    try {
+      const options = { filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) };
+      const store = createLLMProfileStore(options);
+      const saved = await store.save({ ...profile, id: undefined, revision: undefined, name: 'Reasoning fixture' });
+      const raw = await generateProfileResponse([], saved, { acceptTruncated: true, raw: true });
+      assert.equal(raw.truncated, true);
+      assert.equal(raw.content, '');
+      assert.equal(raw.finishReason, fixture.finish);
+      assert.equal(raw.usage.totalTokens, 5);
+      assert.equal('reasoning' in raw, false);
+      assert.equal(await generateProfileResponse([], saved, { acceptTruncated: true }), '');
+      await assert.rejects(
+        () => generateProfileResponse([], saved),
+        error => error.code === fixture.code
+      );
+
+      const manager = createLLMManager({ store, rateLimit: false, retry: false });
+      const quick = await manager.handle({
+        method: 'POST',
+        path: `/profiles/${saved.id}/test`,
+        body: { mode: 'quick' }
+      });
+      assert.equal(quick.status, 200);
+      assert.equal(quick.body.ok, true);
+      assert.equal(quick.body.truncated, true);
+      assert.equal(
+        quick.body.message,
+        'Bağlantı ve kimlik doğrulandı (model düşünme nedeniyle yanıtı kısa kesti; sohbet testini çalıştırın).'
+      );
+      const reloaded = createLLMProfileStore(options);
+      assert.equal((await reloaded.get(saved.id)).lastTests.quick.status, 'passed');
+
+      const conversation = await manager.handle({
+        method: 'POST',
+        path: `/profiles/${saved.id}/test`,
+        body: { mode: 'conversation' }
+      });
+      assert.equal(conversation.status, fixture.status);
+      assert.equal(conversation.body.code, fixture.code);
+      const persisted = await reloaded.get(saved.id);
+      assert.equal(persisted.lastTests.quick.status, 'passed');
+      assert.equal(persisted.lastTests.conversation.status, 'failed');
+      assert.equal(persisted.lastTests.conversation.code, fixture.code);
+      for (const value of [raw, quick.body, conversation.body, fs.readFileSync(options.filePath, 'utf8')]) {
+        assert.equal(JSON.stringify(value).includes('PRIVATE_REASONING_SENTINEL'), false);
+      }
+    } finally {
+      globalThis.fetch = original;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
 
 test('provider Retry-After header reaches retry policy', async () => {
   const original = globalThis.fetch;
