@@ -1,146 +1,126 @@
-# 5 Senaryoda Kolay Entegrasyon Kılavuzu (`npx llm-manager init`)
+# Entegrasyon Kılavuzu
 
-Kaynak koduna sahip olduğunuz herhangi bir projeye `llm-manager` eklemek için **import yollarını veya ayarları ezberlemenize gerek yoktur.**
-
-Etkileşimli kurulum sihirbazı (`npx llm-manager init`) 4 adımda kurulumu uçtan uca tamamlar:
-1. **Algılama ve Onay:** Projenizin tipini (`express`, `spa`, `nextjs`, `electron`, `python`) ve ana giriş dosyasını (`server.js`, `src/App.jsx`, `main.py` vb.) otomatik tespit edip onayınızı alır.
-2. **Otomatik Kod Ekleme ve Geri Alma (Rollback) Güvenliği:** Hazır `llm.js` (veya `llm_client.py`) dosyasını oluşturur, ana dosyanıza gerekli `import` ve bağlantı satırlarını otomatik ekler ve eklenen satırları ekranda gösterir. Onay vermezseniz (`h`) ana dosyanızı tek tuşla eski haline döndürür.
-3. **Otomatik İç Kontrol:** Veri klasörü iznini, yardımcı dosyaları, ana dosya bağlantılarını ve sözdizimini (syntax) otomatik denetler; hata varsa Türkçe nedenini ve çözüm komutunu yazar.
-4. **Canlı `/llm` Yoklaması ve Tarayıcı Açma:** Yönetim sunucusunu canlı yoklar (çalışmıyorsa otomatik başlatır) ve varsayılan tarayıcınızda `http://127.0.0.1:8010/llm` yönetim ekranını otomatik açar.
-
----
-
-## Ortak Kurulum (Tüm Projeler İçin 2 Komut)
-
-Kendi projenizin klasöründe terminali açın ve şu 2 komutu çalıştırın:
+Paket: `@sirrakadembasti/llm-manager`; komut adı: `llm-manager`. Node.js >=22.12 gerekir. npm üzerindeki başka sahipli `llm-manager` paketi bu proje değildir. Depodan kurduktan sonra yerel komutu kullanın:
 
 ```bash
-# 1. Paketi projenize kurun
 npm install github:sirrakadembasti/llm-manager
-
-# 2. Etkileşimli kurulum sihirbazını çalıştırın (tüm soruları otomatik onaylamak için -y ekleyebilirsiniz)
-npx llm-manager init --password 12345
+npx llm-manager init
 ```
 
----
+Henüz yayımlanmamış bir sürüm etiketini varmış gibi kullanmayın. `init -y` doğrulama başarısızsa scaffold değişikliklerini geri alır. Eksik paket kurulumu ayrı bir onaylı önkoşuldur; kurulumun `node_modules` ve lockfile değişiklikleri daha sonraki scaffold geri alımına dahil değildir.
 
-## Senaryo 1: Express.js Sunucu Uygulaması
+1.x'ten 2.0'a geçerken önce `npm uninstall llm-manager`, ardından yukarıdaki yeni paket kurulumunu çalıştırın. Import ve require yollarını `@sirrakadembasti/llm-manager` (alt modüller için `/core`, `/init` vb.) olarak güncelleyin. CLI komutu, `data/`, şifreleme anahtarı ve kayıtlı profiller korunur. Yerel 2.0.0 sürümü henüz bir npm yayını veya Git etiketi olduğu anlamına gelmez.
 
-`npx llm-manager init` komutu projenizin ana dizininde **`llm.js`** dosyasını otomatik oluşturur (projeniz eski `require` kullansa da yeni `import` kullansa da otomatik uyum sağlar).
+SPA/Tauri sihirbazı yalnız Vite algıladığında `http://localhost:5173` origin'ini seçer. Diğer projelerde açık origin sorulur; `-y` ile adres verilmezse CORS kapalıdır. `LLM_ALLOWED_ORIGINS` veya `--cors https://uygulamaniz.example` ile adres verin. Init API'si `allowedOrigins` seçeneğini kabul eder; sihirbaz wildcard origin üretmez veya kabul etmez.
 
-### Hangi dosyaya ne yapıştıracağım?
-Kendi projenizin ana sunucu dosyasını (**`server.js`**, **`app.js`** veya **`index.js`**) açın:
+## Desteklenen ortamlar
+
+| Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
+|---|---|---|---|---|
+| Express 4/5 ESM/CJS, TypeScript | express | Kalıcı disk/host store ile | Hayır | Evet |
+| React/Vue/Vite/Angular/Svelte SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
+| Next.js App Router | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
+| Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
+| SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |
+| Electron | electron | Ana süreç, userData deposu | Hayır | Ana süreç |
+| Tauri | tauri | HTTP istemcisi | Evet | Hayır |
+| Fastify/Koa/Hono/NestJS | fastify/koa/hono/nestjs | Host auth adaptörüyle | Hayır | Hayır; elle bağlantı |
+| Python | python | HTTP istemcisi | Evet | Yardımcı import |
+| .NET/.NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
+
+Tanımlanamayan projede `--type` açıkça seçilmelidir. `dist/`, `build/`, `out/`, `.next/` ve `lib/` derleme çıktıları enjeksiyon hedefi değildir.
+
+## Kimlikler ve veri deposu
+
+| Kimlik | Yetki | Saklama |
+|---|---|---|
+| Basic admin veya host principal `{ isAdmin: true }` | Yönetim + sohbet | Sunucu ortamı/session |
+| Bearer `LLM_CHAT_TOKEN` | Yalnız `POST /api/llm/chat` | Sunucu veya yalnız geliştirme amaçlı tarayıcı |
+
+Kurulum güçlü rastgele admin parolası üretir; `.env` içinde `LLM_ADMIN_PASSWORD` olarak saklar. Sohbet belirteçleri sunucuda `LLM_CHAT_TOKENS`, istemcide `LLM_CHAT_TOKEN` üzerinden okunur. SPA geliştirmesi `.env.local` içindeki `VITE_LLM_CHAT_TOKEN` değerini kullanır. Tarayıcıya giden tüm değerler herkese açıktır; üretimde kendi backend'inizi kullanın. Kaynak koda admin parolası koymayın.
+
+Tüm dosya deposu metotları Promise döndürür; çağrılarda `await` kullanın. Host deposu aynı metotlarda senkron değer veya Promise döndürebilir. Yerel diskte süreç kilidi desteklenir; NFS/SMB için güvence verilmez. Windows'ta 0600 POSIX izinleri yeterli erişim sınırı değildir; veri ve anahtarı yalnız servis hesabının eriştiği klasörde saklayın. Anahtar kaybedilirse şifreli profiller kurtarılamaz.
+
+## Express
 
 ```js
 import express from 'express';
-import { setupLLM, askLLM } from './llm.js'; // <-- 1. BUNU EKLEYİN
-
+import { mountLLMManagement } from '@sirrakadembasti/llm-manager';
 const app = express();
-app.use(express.json());
-
-setupLLM(app); // <-- 2. BUNU EKLEYİN (/llm yönetim ekranı açılır)
-
-// 3. Kendi endpoint'inizde yapay zekaya soru sorun:
-app.post('/ozetle', async (req, res) => {
-  const cevap = await askLLM(`Şu metni özetle: ${req.body.metin}`);
-  res.json({ ozet: cevap });
+const llm = mountLLMManagement(app, {
+  dataDir: './data',
+  adminPassword: process.env.LLM_ADMIN_PASSWORD,
+  chatTokens: process.env.LLM_CHAT_TOKENS
 });
-
 app.listen(3000);
-```
-* **API Anahtarı Nereden Girilir?** Tarayıcıdan `http://localhost:3000/llm` adresine girip (`admin` / `12345`) API anahtarınızı ve modelinizi seçin.
-
----
-
-## Senaryo 2: Tek Sayfalık (React, Vue, Vite) veya Statik Web Uygulaması
-
-`npx llm-manager init` komutu **`src/llm.js`** (veya `llm.js`) dosyasını oluşturur ve `package.json` içine `"llm"` komutunu ekler.
-
-### Nasıl çalıştırılır ve hangi dosyaya yapıştırılır?
-
-**Adım 1:** Terminalde yönetim servisini başlatın:
-```bash
-npm run llm
-```
-*(Tarayıcıdan `http://127.0.0.1:8010/llm` adresine girip API anahtarınızı bir kez kaydedin ve etkinleştirin.)*
-
-**Adım 2:** Kendi React/Vue/JS bileşen dosyanızı (ör. **`src/App.jsx`** veya **`main.js`**) açın ve doğrudan `askLLM` çağırın:
-```js
-import { askLLM } from './llm.js'; // <-- 1. BUNU EKLEYİN
-
-async function butonaTiklandi() {
-  const cevap = await askLLM('Bana kısa bir fıkra anlat.'); // <-- 2. TEK SATIRLA ÇAĞIRIN
-  console.log(cevap);
-}
+// Sunucu kodunda: await llm.ask('Merhaba');
 ```
 
----
+> [!WARNING]
+> `requireAuth` host session middleware'iyle de verilebilir. Yönetim için `req.user.isAdmin === true` gerekir. Eklenti kendi JSON ayrıştırıcısını auth sonrasında bağlar. `trust proxy` ve `req.ip` doğruluğu hostun sorumluluğudur. CJS şablonu Node >=22.12 üzerinde senkron `require(esm)` kullanır ve rotaları host 404 katmanından önce bağlar.
 
-## Senaryo 3: Full-Stack Uygulamalar (Next.js, Nuxt 3, SvelteKit)
-
-`npx llm-manager init` komutu Next.js, Nuxt veya SvelteKit projenizi otomatik tanır ve **3 dosyayı kendi otomatik oluşturur**:
-* **Next.js:** `llm.js`, `app/llm/[[...slug]]/route.js`, `app/api/llm/[...slug]/route.js`
-* **Nuxt 3:** `llm.js`, `server/routes/llm/[...slug].js`, `server/api/llm/[...slug].js` (ve `app.vue` / `pages/index.vue` içine `<script setup>` altına `import { askLLM }` ekler)
-* **SvelteKit:** `src/lib/llm.js`, `src/routes/llm/[...slug]/+server.js`, `src/routes/api/llm/[...slug]/+server.js` (ve `src/routes/+page.svelte` içine `import { askLLM }` ekler)
-
-### Hangi dosyaya ne yapıştıracağım?
-Rotalar ve ana sayfa import'u otomatik eklendiği için sadece kullanmak istediğiniz yerde şunu yazın:
+## SPA ve Tauri
 
 ```js
-const cevap = await askLLM('Bu siparişi özetle');
-```
-* **API Anahtarı Nereden Girilir?** Uygulamanız çalışırken `http://localhost:3000/llm` adresine girip profilinizi kaydedin.
-
----
-
-## Senaryo 4: C# (.NET Core / ASP.NET MVC / .NET MVP / WinForms / WPF) ve Python Uygulamaları
-
-### A) C# / .NET Core / ASP.NET MVC / .NET MVP Projeleri
-C# projenizin (`.csproj`, `.sln`, `Program.cs`, `Startup.cs`, `Form1.cs`) bulunduğu klasörde `npx github:sirrakadembasti/llm-manager init` çalıştırdığınızda:
-1. **`LlmClient.cs`** dosyasını otomatik oluşturur (ekstra NuGet paketi gerektirmez, standart `HttpClient` kullanır).
-2. **`Program.cs`** (veya `Startup.cs` / `Controllers/HomeController.cs` / `Form1.cs`) dosyanıza `using LlmManager;` satırını otomatik ekler.
-3. Yönetim servisini ayağa kaldırıp tarayıcıda `/llm` sayfasını açar.
-
-**C# kodunuzda (Controller, Presenter, Form veya Service içinde) tek satırla kullanım:**
-```csharp
-using LlmManager;
-
-string cevap = await LlmClient.AskAsync("Merhaba, bu metni özetle!");
+const response = await fetch('http://127.0.0.1:8010/api/llm/chat', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-LLM-CSRF': '1',
+    Authorization: `Bearer ${import.meta.env.VITE_LLM_CHAT_TOKEN}`
+  },
+  body: JSON.stringify({ prompt: 'Merhaba' })
+});
+const result = await response.json();
 ```
 
-### B) Python (Flask, FastAPI, Django) Projeleri
-Python projenizin klasöründe `npx github:sirrakadembasti/llm-manager init` çalıştırdığınızda **`llm_client.py`** dosyası otomatik oluşturulur ve **`main.py` / `app.py`** dosyanıza `from llm_client import ask_llm` otomatik eklenir:
+> [!WARNING]
+> Ayrı yönetim sunucusunu paket kurulduktan sonra `npx llm-manager` ile çalıştırın; parola `.env` veya servis ortamından okunur. Açık origin listesi (`LLM_ALLOWED_ORIGINS`) kullanın. `--cors *` yalnız sohbet rotası için, credentials olmadan çalışır. Tauri Electron IPC kullanmaz; HTTP istemcisidir. Masaüstü paketine gömülü belirteç de herkese açıktır.
 
-```python
-from llm_client import ask_llm
+## Next.js
 
-cevap = ask_llm("Merhaba, nasılsın?")
-print(cevap)
-```
+Üretilen yardımcı ve route handler dosyaları sunucuda çalışır. `app/actions/llm.js` örnek Server Action sağlar. Yardımcı hiçbir `'use client'` bileşenine eklenmez. `@/*` alias'ı varsayılmaz; rota importları göreli yoldur. `next.config` içinde `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; uygun nesne biçimlerinde sihirbaz onayınızla ekler, aksi halde talimat verir.
 
----
+> [!WARNING]
+> Node runtime gerekir; Edge desteklenmez. Vercel/Netlify gibi ortamlarda varsayılan dosya deposu kalıcı değildir veya yazılamaz. Kalıcı disk ya da async host deposu kullanın. `llm.fetch(request)` için admin kimliği/`authorize` yapılandırılmamışsa yönetim kapalı kalır.
 
-## Senaryo 5: Masaüstü Uygulamaları (Electron / Tauri)
+## Nuxt ve SvelteKit
 
-`npx llm-manager init` komutu projenizde **`llm.js`** dosyasını oluşturur ve `package.json` içine `"llm"` komutunu ekler.
+Nuxt yardımcısı `server/utils/llm.js`; SvelteKit yardımcısı `src/lib/server/llm.js` altındadır. Yönetim route handler'ları bu modülleri kullanır. `.vue` ve `.svelte` sayfalarına sunucu importu eklenmez. Örnek `/api/ask` rotaları sunucu tarafı kullanım içindir; üretimde uygulamanızın kullanıcı yetkisini bu çağrıdan önce doğrulayın.
 
-### Hangi dosyaya ne yapıştıracağım?
+> [!WARNING]
+> Node sunucu adaptörü, admin auth ve kalıcı store gerekir. İstemciye sunucu modülü veya admin parolası taşımayın. Serverless dağıtımda host deposu kullanın.
 
-**Adım 1 (API Anahtarı Girme):** Terminalde `npm run llm` çalıştırıp `http://127.0.0.1:8010/llm` ekranından API anahtarınızı kaydedin (veriler `./data` klasörüne şifreli kaydedilir).
+## Fastify, Koa, Hono ve NestJS
 
-**Adım 2:** Electron ana dosyanızı (**`main.js`**) açın:
-```js
-import { ipcMain } from 'electron';
-import { registerLLMIpc, askLLM } from './llm.js'; // <-- 1. BUNU EKLEYİN
+Bu tipler tanınır ve yardımcı dosya hazırlanır; host girişine otomatik framework kodu yazılmaz. Web `Request` sağlayan hostlarda `llm.fetch(request)` kullanın. Diğerlerinde method/path/body ve doğrulanmış principal ile `llm.handle(...)` çağırıp status/body sonucunu framework yanıtına aktarın.
 
-registerLLMIpc(ipcMain); // <-- 2. BUNU EKLEYİN (Ön yüzden 'llm:ask' kanalını açar)
-```
+> [!WARNING]
+> `handle()` güvenilir host API'sidir; kendi başına HTTP kimliği doğrulamaz. Session/token doğrulamasını ve admin/sohbet yetki ayrımını host adaptöründe uygulayın. Doğrulanmamış istekleri doğrudan `handle()` veya `ask()` içine vermeyin.
 
-* **Electron penceresinden (Renderer) çağırmak için:**
-  ```js
-  const cevap = await ipcRenderer.invoke('llm:ask', 'Merhaba!');
-  ```
-* **Doğrudan `main.js` içinden çağırmak için:**
-  ```js
-  const cevap = await askLLM('Merhaba!');
-  ```
+## Electron
+
+Ana süreç yardımcısı `app.getPath('userData')/llm` deposunu kullanır; `app.whenReady()` sonrasında çağrılır. `registerLLMIpc(ipcMain)` sohbet çağrılarını kaydeder. Üretilen `preload.cjs` dosyasını BrowserWindow `webPreferences.preload` olarak bağlayın; renderer `window.llm.ask(prompt)` kullanır. Ana süreçte `openLLMPanel()` yerel yönetim penceresi açar.
+
+> [!WARNING]
+> `contextIsolation: true`, `nodeIntegration: false` korunmalıdır. Uzak/güvenilmeyen sayfalara sohbet IPC yetkisi vermeyin. Yönetim penceresinin rastgele admin parolası ana süreçte kalır; preload yalnız sınırlı sohbet arayüzü sunar.
+
+## Python
+
+Üretilen `llm_client.py`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` ortam değişkenlerini okur. `ask_llm('Merhaba')` çağrısı 330 saniyelik istemci zaman aşımı kullanır. HTTP hataları `LLMError` içinde `status` ve `code` ile iletilir. Süreç ortamını servis yöneticinizden sağlayın; Python standart kütüphanesi `.env` dosyasını otomatik yüklemez.
+
+> [!WARNING]
+> Ayrı sürekli Node sunucusu gerekir; [dağıtım kılavuzunu](DEPLOY.md) kullanın. Admin parolasını Python istemcisine vermeyin. Python varsa doğrulama `py_compile` kullanır; yoksa derleme kontrolü atlandı diye raporlanır.
+
+## .NET ve .NET Framework
+
+`LlmClient.cs`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` kullanır. JSON için framework ile uyumlu serializer ve C# 7.3 sözdizimi üretir. Eski csproj'larda gerekli Compile ve framework referansları journal üzerinden eklenir. `await LlmClient.AskAsync("Merhaba")` ile çağrılır.
+
+> [!WARNING]
+> Ayrı sürekli Node sunucusu ve sohbet belirteci gerekir. İstemcinin `.env` yüklemesini beklemeyin; servis ortamını yapılandırın. .NET SDK/derleyici yoksa doğrulama derleme başarısı iddia etmez; atlanan kontrolü açıkça gösterir.
+
+## Doğrulama ve geri alma
+
+Dosya yazımları journal ile izlenir. Kullanıcı kod ekleme adımını reddederse ya da doğrulama başarısızken geri almayı seçerse env, gitignore, package script, oluşturulan yardımcılar ve değiştirilen giriş/config dosyaları eski içerik/izinlerine döner; yalnız bu işlemde oluşan boş klasörler kaldırılır. `-y` doğrulama başarısızlığında otomatik geri alır.
+
+Gerçek derleyici varsa kullanılır. Derleyici bulunmadığında kontrol atlanmış olarak gösterilir; bu derleme/üretim uyumluluğu kanıtı değildir. Canlı probe yönetim sayfası ve katalog yanıtını doğrular, sağlayıcının ücretli üretim API'sini çağırmaz.

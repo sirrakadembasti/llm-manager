@@ -5,10 +5,34 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Security
+- YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
+
+### Fixed
+- FAZ 0 kabul kapsamı Express CommonJS/Tauri sır kontrolleri, Web yazma yetkisi ve gerçek yerel scoped npm kurulumu/CLI sürümü testleriyle genişletildi (G02/G04/G05/G07). Paket adı uyarısı README ve CLI başına taşındı; geçiş adımları entegrasyon kılavuzuna eklendi.
+
+### 2.0 mimari tamamlama
+- **BREAKING:** Paket kimliği `@sirrakadembasti/llm-manager`, yerel hedef sürüm 2.0.0; CLI adı korunur. Bu değişiklik npm yayını veya Git etiketi oluşturmaz.
+- **BREAKING:** Dosya deposu tüm metotlarda Promise döndürür; FIFO yazma kuyruğu, async I/O, 5 saniyelik süreç kilidi, Windows rename retry ve zorunlu önceki sürüm yedeği kullanır. Host depoları senkron/async uyumunu korur.
+- Web fetch adaptörü varsayılan olarak kapalı auth politikası, ortak Basic/Bearer principal ve auth hız sınırı kullanır; Express kendi JSON ayrıştırıcısını auth ardından bağlar. Sırlar kod/log/istemci paketine yazılmaz.
+- Init sorumluluklara göre <=300 satırlık modüllere bölündü; eski yol re-export köprüsü, transaction rollback, sunucu tarafı framework sınırları ve gerçek derleyici/atlanan kontrol raporu eklendi.
+- Tipler gerçek API ile hizalandı; Express 4 ESM/CJS ve Express 5 gerçek host/junction testleri eklendi. Node alt sınırı roadmap'te izin verilen >=22.12 seçeneğine alındı; undici 7'nin >=20.18.1 gereksinimi karşılanır ve CJS require(esm) desteklenir.
+- Katalog 2026-10-24 tarihinde resmî kaynaklarla doğrulandı; doğrulanamayan öneriler kaldırıldı. Güncel reasoning modellerinin desteklenen eşlemeleri ve kısa test truncation kabulü eklendi.
+- Yedek profil sıralı çoklu seçimi, tüm dinamik arayüz çevirileri, kullanılabilir silme onayı ve gelişmiş seçenekleri temizleme düzeltildi. Loglar yalnız sayısal usage alanlarını kabul eder; içerik/sırlar maskelenir. Usage I/O asenkron oldu.
+- Retry-After ve toplam timeout/iptal bütçesi uygulanır; eski domain purpose değerleri deprecated eşlemelerle korunur, kullanılmayan özel generate bayrakları kaldırılır.
+- Node dotenv ayrıştırıcısıyla uyumlu parola yazımı, yinelenen env anahtarlarını güncelleme ve SSE okuyucu/Web yanıt iptalinde üst akış temizliği düzeltildi.
+
+
+### Düzeltildi
+- Anahtar yönetimi testlerinin proje .env dosyasından etkilenmesi önlendi; CLI testleri geçici çalışma dizininde ve shell içermeyen argüman dizileriyle çalışıyor. Son tam test paketi 182/182 geçti.
+
+### Denetim
+- YH1'in 32 görev kartının kaynak/test karşılaştırması ve tamamlanan kabul kriterleri docs/roadmap/YH1_DENETIM_2026-10-24.md dosyasına kaydedildi. B4 test izolasyonu ve anahtar yönetimi kabul kriterleri tamamlandı.
+
 ### Eklendi
 - Güvenlik süreç dokümantasyonu (`SECURITY.md`, `CONTRIBUTING.md`, `docs/THREAT_MODEL.md`, `.github/workflows/ci.yml`): Güvenlik açığı bildirme süreci (`SECURITY.md`), katkı ve kod kalitesi kuralları (`CONTRIBUTING.md`), kapsamlı tehdit modeli (`docs/THREAT_MODEL.md`: korunan varlıklar, SSRF, CSRF, sır sızıntısı, rate limit ve maliyet kontrolü) ve CI iş akışında `npm audit --omit=dev` denetimi eklendi; `undici` 7.30.1 sürümüne güncellenerek 0 zafiyet doğrulandı (YH1-F5).
-- Paket metaverisi ve uyumluluk genişletmesi (`package.json`, `.github/workflows/ci.yml`, `tests/package-metadata.test.js`): `engines.node` `>=20.12.0` olarak genişletildi (AbortSignal.any ve process.loadEnvFile tam desteklenir; CJS dinamik import ile uyumludur); `keywords`, `author`, `sideEffects: false` ve `publishConfig: { access: 'public' }` metaverileri eklendi; CI iş akışına `npm pack --dry-run` ile `tests/`, `data/` ve `.env` dosyalarının pakete dahil edilmediğini doğrulayan güvenlik denetimi eklendi (YH1-F4).
-- Test kapsam ölçümü (`package.json`): `npm run test:coverage` komutu (`node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=70`) eklendi; çekirdek modüller için %93+ satır ve %81+ dal kapsamı doğrulandı (YH1-F3).
+- Paket metaverisi ve uyumluluk (`package.json`, `.github/workflows/ci.yml`, `tests/package-metadata.test.js`): `engines.node` `>=22.12.0`; CJS require(esm) ve undici gereksinimleri karşılanır. `keywords`, `author`, `sideEffects: false`, `publishConfig: { access: 'public' }` ve CI paket içerik kontrolü eklendi; tests/, data/ ve gerçek .env paketlenmez (YH1-F4).
+- Test kapsam ölçümü (`package.json`): yalnız src dosyaları ölçülür; %80 satır/%70 dal kapıları uygulanır. Son sonuç %91,44 satır/%81,27 dal; hedef çekirdek modüllerin her biri %85 satırı aşar (YH1-F3).
 - Kullanıcı arayüzü geliştirmeleri (`public/llm.html`, `public/llm-ui.js`, `src/core.js`, `src/index.js`, `public/i18n/`): `homeUrl` seçeneği ile ana sayfaya dön bağlantısı özelleştirme (`data-home-url`); profil çoğaltma / klonlama işlevi (`cloneProfile`, "Klonla" düğmesi); silme işleminde erişilebilir onay modalı (`<dialog id="confirm-dialog">` ve `showConfirm`); form alanlarına `aria-describedby` doğrulama/ipucu bağları (`timeout-hint`, `max-tokens-hint`, `api-key-status`, `provider-note`, `message`) eklendi (YH1-E3).
 - Çoklu dil desteği ve mesaj sözlüğü (`src/messages.js`, `public/i18n/tr.json`, `public/i18n/en.json`, `README.en.md`, `src/core.js`, `src/index.js`, `types/`): Türkçe ve İngilizce UI sözlükleri (`public/i18n/`); standart tipli hata mesajları için `MESSAGES` ve `getErrorMessage(code, locale)` fonksiyonu; `createUiAssets({ locale: 'tr' | 'en' })` ile sunucu tarafı HTML `<html lang="...">`, `data-locale`, `data-i18n` ve `data-i18n-placeholder` etiket ön oluşturma; `public/llm-ui.js` istemci tarafı dinamik çeviri fonksiyonları (`t`, `translateDom`); `mountLLMManagement({ locale })` ve Web standart `fetchHandler({ locale })` desteği; tam İngilizce dokümantasyon (`README.en.md`) eklendi (YH1-E2).
 - Deneme sohbeti (Playground) paneli (`public/llm.html`, `public/llm-ui.js`): Yönetim arayüzüne model deneme kartı eklendi; profil seçimi (varsayılan etkin profil), isteğe bağlı sistem talimatı, kullanıcı mesajı alanı, SSE akışlı (streaming) veya standart yanıt görüntüleme (`textContent`), yanıt süresi, token kullanımı ve durma nedeni gösterimi; temizleme ve form güvenliği (YH1-E1).

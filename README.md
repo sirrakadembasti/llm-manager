@@ -1,6 +1,8 @@
 # LLM Manager
 
-Node.js 22.23.2+ ve Express için bağımsız sağlayıcı/profil yönetimi eklentisi.
+> npm'deki `llm-manager` paketi bu projeyle ilgili değildir. Bu projenin paket adı `@sirrakadembasti/llm-manager` olur. Çıplak `npx llm-manager` komutlarını yalnız bu paket projeye kurulduktan sonra kullanın.
+
+Node.js 22.12+ ve Express için bağımsız sağlayıcı/profil yönetimi eklentisi.
 Herhangi bir host uygulamaya, Docker, frontend framework veya veritabanı gerektirmeden eklenir. Node/npm gerekir.
 Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 
@@ -9,11 +11,11 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 > Sürüm geçmişi için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın. Yazma isteklerinde CSRF başlığı
 > `X-LLM-CSRF: 1` olmalıdır.
 
-- 20 hazır sağlayıcı kataloğu (varsayılan model listeleri ve bölgesel uç noktalarla) + özel OpenAI uyumlu sağlayıcı; listeden model seçme, elle API adresi/model girme veya sağlayıcıdan model listesini getirme.
+- Hazır sağlayıcı kataloğu (varsayılan model listeleri ve bölgesel uç noktalarla) + özel OpenAI uyumlu sağlayıcı; listeden model seçme, elle API adresi/model girme veya sağlayıcıdan model listesini getirme.
 - Profil ekleme/düzenleme/silme ve tek etkin profil; mevcut API anahtarını koruma ve 3 durumlu şifreli anahtar rozeti/durum bildirimi.
 - AES-256-GCM (12 bayt IV ve 16 bayt doğrulama etiketi zorunluluğu) ile şifreli anahtarlar, güvenli atomik dosya yazımı, revizyon denetimi.
 - Yanıt süresi: 5–300 saniye, varsayılan 120 saniye. Token bütçesi: 256–32768,
-  varsayılan 8192. Düşünme: otomatik/açık/kapalı (MiMo).
+  varsayılan 8192. Düşünme: otomatik/açık/kapalı (destekleyen sağlayıcılarda).
 - Kısa bağlantı testi ve ayrı sohbet testi; süre, zaman, hata kodu ve iki testin
   ayrı tarihçesi (sağlayıcı, adres, model veya anahtar değişmediği sürece korunur). Başarı, test anını gösterir; uygulama üretim kabulü değildir.
 - Yönetici yetkisi, CSRF başlığı, güvenlik ve önbellek başlıkları (`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy`), HTTPS sağlayıcı adresi, gerçek DNS/socket bağlantısında özel IPv4/IPv6 engelleme; sağlayıcı hata metinlerini/anahtarları gizleme.
@@ -55,6 +57,22 @@ API anahtarlarınızı yalnız arayüzden girin. `data/` altındaki profil ve ş
 anahtarı dosyalarını kaynak depoya eklemeyin. Profil dosyasını **ve şifreleme
 anahtarını** birlikte yedekleyin.
 
+### Anahtar Yönetimi, Döndürme ve Şifreli Yedekleme
+
+> [!WARNING]
+> **Anahtar kaybedilirse profiller kurtarılamaz!** `data/` altındaki `llm-encryption.key` dosyasını `llm-profiles.json` ile birlikte mutlaka yedekleyin.
+
+```sh
+# 1. Şifreleme anahtarını döndürme (yeni anahtar üretir, tüm kayıtlı API anahtarlarını yeni anahtarla yeniden şifreler, eski anahtarı yedekler):
+npx llm-manager key rotate
+
+# 2. Profilleri şifreli taşınabilir yedek dosyası olarak dışa aktarma (belirlediğiniz parola ile scrypt/AES-GCM):
+npx llm-manager export --out yedek.json --password yedek-parolasi
+
+# 3. Şifreli yedekten profilleri içe aktarma:
+npx llm-manager import yedek.json --password yedek-parolasi
+```
+
 ## Başka uygulamaya entegrasyon (Sıfır Ayar)
 
 Paketi kurun:
@@ -67,7 +85,7 @@ npm install github:sirrakadembasti/llm-manager
 
 ```js
 import express from 'express';
-import { mountLLMManagement } from 'llm-manager';
+import { mountLLMManagement } from '@sirrakadembasti/llm-manager';
 
 const app = express();
 app.use(express.json({ limit: '32kb' }));
@@ -95,7 +113,7 @@ yazma API'lerinde `X-LLM-CSRF: 1` başlığını ister.
 
 ### Express dışı (Next.js, Nuxt, SvelteKit, Vue/React SPA, C#/.NET, Python, Masaüstü) entegrasyonlar
 
-Projenizin klasöründe `npx llm-manager init --password 12345` komutunu çalıştırdığınızda sihirbaz projenizin mimarisini ve ana dosyasını otomatik algılar, onayınızla bağlantı kodlarını ilgili dosyalara yazar, iç doğrulama (syntax & bağlantı kontrolü) yapar ve `/llm` yönetim ekranını tarayıcıda otomatik açar:
+Paket projeye kurulduktan sonra projenizin klasöründe `npx llm-manager init` komutunu çalıştırdığınızda sihirbaz projenizin mimarisini ve ana dosyasını otomatik algılar, onayınızla bağlantı kodlarını ilgili dosyalara yazar, iç doğrulama (syntax & bağlantı kontrolü) yapar ve `/llm` yönetim ekranını tarayıcıda otomatik açar. Parola verilmezse güçlü rastgele parola üretilir ve yalnız `.env` dosyasına kaydedilir:
 
 | Uygulama Türü | Algılama (`--type`) | Otomatik Oluşturulan Dosya | Otomatik Eklendiği Ana Dosya | Nasıl Soru Sorulur? |
 | --- | --- | --- | --- | --- |
@@ -111,9 +129,9 @@ Projenizin klasöründe `npx llm-manager init --password 12345` komutunu çalı�
 Tüm senaryoların sade ve adım adım açıklamaları için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 
 ```js
-import { createLLMManager } from 'llm-manager/core';
+import { createLLMManager } from '@sirrakadembasti/llm-manager/core';
 
-const llm = createLLMManager(); // data/ klasörü ve şifreleme anahtarı otomatik hazırlanır
+const llm = createLLMManager({ adminPassword: process.env.LLM_ADMIN_PASSWORD }); // data/ ve anahtar otomatik hazırlanır
 
 // Doğrudan soru sorma:
 const cevap = await llm.ask('Merhaba!');
@@ -150,7 +168,7 @@ kullanıyorsanız aynı güvenlik ve revizyon sözleşmesini uygulayın.
 
 ## Gecikme ve dış sebepler
 
-MiMo otomatik ayarında `purpose: 'manager'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); üretim ajanları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
+MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
 Bu, sağlayıcının hızını garanti etmez. Kota/429, sağlayıcı yoğunluğu/5xx, API
 yetkisi/401–403, DNS/proxy/ağ ve modelin boş/kesilmiş yanıtı ayrı hata kodlarıyla
 raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullanılır.
@@ -160,11 +178,11 @@ raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullan
 ## Dosya yapısı ve paket alt yolları
 
 - `llm-manager` (`src/index.js`): Express adaptörü (`mountLLMManagement`) ve temel API'ler.
-- `llm-manager/core` (`src/core.js`): Framework-bağımsız çekirdek (`createLLMManager`, `createUiAssets`).
-- `llm-manager/init` (`src/init.js`): Etkileşimli kurulum sihirbazı, otomatik kod enjeksiyonu, iç doğrulama ve canlı `/llm` yoklaması (`runInteractiveInit`, `initLLMProject`, `detectProjectType`, `detectEntryFile`, `injectIntoEntryFile`, `verifyIntegration`, `formatVerificationReport`, `probeAndOpenBrowser`).
-- `llm-manager/setup` (`src/setup.js`): Şifreleme anahtarı üretimi ve doğrulaması (`ensureLLMEncryptionKey`).
-- `llm-manager/runtime` (`src/runtime.js`): Sağlayıcı istek oluşturma, model çağrısı ve hata sınıflandırma.
-- `llm-manager/transport` (`src/providerTransport.js`): SSRF ve DNS rebinding korumalı HTTPS taşıyıcısı (`providerFetch`, `createPublicLookup`).
+- `@sirrakadembasti/llm-manager/core` (`src/core.js`): Framework-bağımsız çekirdek (`createLLMManager`, `createUiAssets`).
+- `@sirrakadembasti/llm-manager/init` (`src/init.js`): Etkileşimli kurulum sihirbazı, otomatik kod enjeksiyonu, iç doğrulama ve canlı `/llm` yoklaması (`runInteractiveInit`, `initLLMProject`, `detectProjectType`, `detectEntryFile`, `injectIntoEntryFile`, `verifyIntegration`, `formatVerificationReport`, `probeAndOpenBrowser`).
+- `@sirrakadembasti/llm-manager/setup` (`src/setup.js`): Şifreleme anahtarı üretimi ve doğrulaması (`ensureLLMEncryptionKey`).
+- `@sirrakadembasti/llm-manager/runtime` (`src/runtime.js`): Sağlayıcı istek oluşturma, model çağrısı ve hata sınıflandırma.
+- `@sirrakadembasti/llm-manager/transport` (`src/providerTransport.js`): SSRF ve DNS rebinding korumalı HTTPS taşıyıcısı (`providerFetch`, `createPublicLookup`).
 - `bin/`: CLI girişi (`npx llm-manager`). `public/`: bağımsız yönetim sayfası.
 - `examples/`: güvenli yerel başlatma örneği (SHA-256 sabit zamanlı Basic Auth). `tests/`: host projesini import etmeyen bağımsız kontroller.
 
@@ -188,3 +206,47 @@ Profil güncellemede `revision`, silme ve etkinleştirmede JSON gövdesindeki `r
 
 MIT lisansı ([LICENSE](LICENSE)). [Semantic Versioning](https://semver.org/lang/tr/) izlenir;
 sürüm yayını için `npm run release:patch|minor|major` çalıştırın (test, sürüm artışı ve git etiketi).
+
+### Web ve sohbet kimlik doğrulaması
+
+`createLLMManager({ adminPassword: process.env.LLM_ADMIN_PASSWORD, chatTokens: process.env.LLM_CHAT_TOKENS })` Web adaptörünü korur. `/llm`, betik ve yönetim API'si admin kimliği gerektirir. Yapılandırma yoksa `AUTH_NOT_CONFIGURED` ile kapalı kalır. `authorize: async request => principal | null` ile host kimliği kullanılabilir; `fetch(request, options)` çağrısındaki seçenekler varsayılanları ezer.
+
+| Kimlik | Erişim | Saklama |
+|---|---|---|
+| Basic admin veya host principal (`isAdmin: true`) | Yönetim ve sohbet | Sunucuda ortam değişkeni/session |
+| Bearer sohbet belirteci (`LLM_CHAT_TOKENS`) | Yalnız POST /chat; admin override alanları uygulanmaz | Üretimde kendi backend'inizde |
+
+SPA/Tauri kurulumunda Vite algılanırsa geliştirme origin'i `http://localhost:5173` olur. Diğer projelerde sihirbaz origin adresini sorar; `-y` modunda açık adres verilmediyse CORS kapalı kalır. `LLM_ALLOWED_ORIGINS` veya init API'sindeki `allowedOrigins` ile açık http/https origin listesi verin. Sihirbaz `*` kabul etmez.
+
+Tarayıcıya gönderilen değerler herkese açıktır. SPA geliştirme belirteci yalnız sohbet içindir. `chatAccess: 'admin'` Bearer sohbet erişimini de engeller. `insecureNoAuth: true` yalnız açıkça istenen güvensiz yerel kullanım içindir. `ask()` ve `handle()` host koduna yönelik güvenilir API'lerdir; HTTP erişim kontrolü adaptörlerde yapılır.
+
+Kurulum parolayı `.env` içinde, SPA sohbet belirtecini `.env.local` içinde saklar; `.gitignore` gerekli sır dosyalarını dışlar. Parola kaynak koda veya npm script'ine yazılmaz. Tekrarlanan kurulum mevcut üretilmiş kimlik bilgilerini korur.
+
+## 1.x'ten 2.0'a geçiş
+
+npm üzerindeki `llm-manager` paketi bu projeyle ilgili değildir. Yukarıdaki çıplak `npx llm-manager` komutları yalnız bu proje hosta kurulduktan sonra yerel bin için kullanılır. Çalışma ağacındaki 2.0 sürümü, bir npm yayını veya Git etiketi yayımlandığı anlamına gelmez.
+
+```bash
+npm uninstall llm-manager
+npm install github:sirrakadembasti/llm-manager
+```
+
+Importları `@sirrakadembasti/llm-manager` adına taşıyın. CLI adı ve `data/`/anahtar dosyaları değişmez. Dosya deposunun tüm metotlarını `await` edin. Sihirbaz senkron API'sini `/init` alt yolundan alın; kökteki eski async sarmalayıcılar deprecated olarak kalır. Host depoları senkron veya Promise döndürebilir.
+
+| Depo metodu | Dönüş |
+|---|---|
+| `list()` | `{ version, activeId, profiles }` |
+| `get(id)`, `getActive()` | İç profil veya null; yalnız sunucu tarafı anahtar |
+| `save(input)` | Sır içermeyen genel profil |
+| `remove(id, revision)`, `activate(id, revision)` | Güncel liste |
+| `recordTest(id, status, expectedRevision, details)` | Genel profil veya revizyon değiştiyse null |
+
+Dosya deposu her dönüşü Promise ile sağlar; host deposu `T | Promise<T>` kullanabilir. Güncelleme/silme/etkinleştirme revizyon denetimi yapar; `PROFILE_CONFLICT` 409 ve `PROFILE_NOT_FOUND` 404 hataları aynı sözleşmeyle korunmalıdır. Yerel diskte çok süreçli kullanım dosya kilidiyle desteklenir; NFS/SMB için garanti verilmez. Anahtar önceliği açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyasıdır. `ensureLLMEncryptionKey` varsayılan olarak `.env` yazmaz; eski davranış yalnız deprecated `writeEnv: true` seçeneğidir.
+
+`purpose` artık `quick | diagnostic | default` kullanır; eski `manager` ve `production` değerleri bir kez uyarılarak eşlenir. `useManagedProfile` ve `allowMockFallback` artık custom generate adaptörlerine aktarılmaz. `ask()` varsayılan olarak string; `{ raw: true }` ile kullanım ve finishReason içeren sonuç döndürür. HTTP sohbeti SSE için `{ stream: true }` kabul eder.
+
+Katalog tarihi **2026-10-24**; resmi kaynaklarla doğrulanmayan model önerileri kaldırıldı. Güncel hesap listeniz için **Modelleri getir** kullanın; [kaynak kayıtları](docs/roadmap/CATALOG_SOURCES_2026-10-24.md) model/transport sınırlarını açıklar. Düşünme ayarı destekleyen sağlayıcılarda görünür; her model düşünmeyi kapatmayı desteklemez. Güncel Claude Opus/Fable modellerinde kapatma isteği açık doğrulama hatası verir.
+
+Arayüz `locale: 'tr' | 'en'` ve `homeUrl` seçeneklerini destekler. Yedek profil seçimi sırasını korur; geçiş yalnız retryable hatalarda gerçekleşir. Toplam retry/fallback bütçesi profil timeout'unu aşmaz. İsteğe bağlı `usageLog: true` içerik kaydetmeden aylık JSONL istatistiği tutar; `/usage?month=YYYY-MM` admin erişimi ister. `logger` kancası request-id ile ilişkilidir ve içerik/sırları maskeler. `/health` sır içermez, `health: false` ile kapatılır.
+
+Tüm yeni entegrasyon ayrıntıları ve desteklenen ortamlar [entegrasyon kılavuzundadır](docs/ENTEGRASYON.md). Docker, PM2, systemd ve Windows hizmet örnekleri [dağıtım kılavuzundadır](docs/DEPLOY.md).

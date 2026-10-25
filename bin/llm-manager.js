@@ -4,6 +4,9 @@ import { runInteractiveInit } from '../src/init.js';
 
 const HELP = `llm-manager - bağımsız LLM profil yönetimi sunucusu ve kurulum sihirbazı
 
+Bu komutlar yalnız @sirrakadembasti/llm-manager projeye kurulduktan sonra kullanılır.
+npm'deki llm-manager paketi bu projeyle ilgili değildir.
+
 Kullanım:
   npx llm-manager init [seçenekler]         Etkileşimli kurulum sihirbazını çalıştırır ve /llm ekranını açar
   npx llm-manager --password <parola>       Yönetim sunucusunu (/llm) başlatır

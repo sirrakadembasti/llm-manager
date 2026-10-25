@@ -20,6 +20,8 @@
 6. README'yi bağımsız kullanıma göre güncelle, testleri çalıştır.
 
 ## Durum (2026-10-19)
+- 2026-10-25 YH2 FAZ 0 kabul denetimi tamamlandı: G01–G07/G24, 195/195 test, lint/typecheck/format ve doğrulama betiği geçti. Express sohbet Bearer 403, Vite dışı açık origin seçimi, özel API yolu CORS ve boş origin iptali düzeltildi. Kullanıcı mevcut YH1 çalışmasının da commitlenmesini onayladı; yayın/push yok. Kanıt: docs/roadmap/YH2_FAZ0_DENETIM_2026-10-25.md. Sonraki iş YH2 FAZ 1'in ayrı kabul denetimi.
+- 2026-10-25 güncel durum: YH1'in 32 kartı kaynak ve kabul testleriyle denetlendi; auth/init/async store/B4/tipler/arayüz/Express5 açıkları tamamlandı. Yerel 2.0.0 scoped paket, Node>=22.12; 182/182 test, src kapsamı %91,44 satır/%81,27 dal, lint/typecheck yeşil ve üretim audit 0. Ayrıntılı güncel kanıt: docs/roadmap/YH1_DENETIM_2026-10-24.md. Docker build/run ve uzak CI matrisi çalıştırılmadı; yayın/push yok. Aşağıdaki eski tarihli notlar tarihçedir.
 - Düzeltme listesi 1-6 ve ek geliştirmeler TAMAMLANDI. Sürüm: **v1.0.0** (etiket `33de7d7`), paket adı `llm-manager`, lisans MIT.
 - GitHub: https://github.com/sirrakadembasti/llm-manager (branch `main`, remote `origin`).
 - Sürümleme: SemVer + CHANGELOG.md (Keep a Changelog). Yayın: değişiklikleri `[Unreleased]` altına yaz, commit et, `npm run release:patch|minor|major`, `git push origin main --follow-tags`.
@@ -29,8 +31,8 @@
 ## Mimari inceleme ve yol haritaları (2026-10-22)
 - `docs/roadmap/` altında iki yol haritası var: YH1 (teknik/mimari, A–F fazları) ve YH2 (vaat ↔ gerçek, G01–G26). Uygulama sırası YH2 §5'te.
 - Doğrulanmış kritik bulgular (`node docs/roadmap/dogrulama.mjs`): `chatAccess:false` sohbeti kapatmıyor, `llm.fetch` kimlik doğrulamasız (Next/Nuxt/SvelteKit rotaları açık), async store bozuk, gövde ayrıştırıcı sırası, SPA şablonu admin parolasını tarayıcıya gömüyor, init parolayı koda/package.json'a yazıyor ve `.gitignore` güncellemiyor, `--cors *` + credentials, npm'de `llm-manager` adı başkasına ait.
-- Sonraki iş: YH2 Faz 0 (G03 → G02 → G04+G05 → G06 → G01+G24 → G07).
-- **Karar (kullanıcı onayı, 2026-10-23):** Paket adı `@sirrakadembasti/llm-manager` olacak; kırıcı değişiklik → **v2.0.0** (Faz 0 + Faz 1 sonunda yayımlanır). CLI komutu `llm-manager` ve GitHub deposu değişmez. Uygulama: YH2-G07. G07 uygulanana kadar `package.json#name` hâlâ `llm-manager`.
+- YH2 Faz 0 (G03 → G02 → G04+G05 → G06 → G01+G24 → G07) 2026-10-25 kabul denetimiyle tamamlandı; sonraki iş FAZ 1 kartlarını ayrı ayrı denetlemek.
+- **Karar (kullanıcı onayı, 2026-10-23; yerel uygulama 2026-10-25):** Paket adı `@sirrakadembasti/llm-manager`, yerel sürüm **2.0.0**. CLI komutu `llm-manager` ve GitHub deposu değişmez. G07'nin yerel scoped kurulum testi geçti; bu bir uzak npm yayını veya Git etiketi değildir.
 
 ## Tamamlanan ek geliştirmeler (2026-10-19)
 - Tüm kaynak (`src/*`), arayüz (`public/*`), örnek (`examples/*`) ve test (`tests/*`) dosyalarındaki sıkıştırılmış kodların okunabilir hale getirilmesi ve `public/llm.html` içindeki mükerrer stil bloklarının birleştirilmesi.
@@ -69,3 +71,6 @@
 - YH1-F4: Paket metaverisi ve uyumluluk (`engines.node: >=20.12.0`, `keywords`, `author`, `sideEffects: false`, `publishConfig`, `npm pack --dry-run` denetimi, 114 test).
 - YH1-F5: Güvenlik dokümantasyonu ve denetimi (`SECURITY.md`, `CONTRIBUTING.md`, `docs/THREAT_MODEL.md`, `npm audit --omit=dev`, 118 test).
 
+
+- 2026-10-24 YH1 denetimi: docs/roadmap/YH1_DENETIM_2026-10-24.md; eksik init/auth/async store/Express 5 kabul kriterleri tespit edildi. Sandbox dışı test: 120/121; B4 ve kalite kapıları henüz tamamlanmadı.
+- 2026-10-24 ek doğrulama: B4 testleri geçici env/cwd ile izole edildi; sandbox dışı npm test 121/121 geçti. YH1 kabul kriterlerinin tamamı henüz sağlanmadı.
