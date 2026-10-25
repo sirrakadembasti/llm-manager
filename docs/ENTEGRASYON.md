@@ -75,7 +75,7 @@ const result = await response.json();
 ```
 
 > [!WARNING]
-> Ayrı yönetim sunucusunu paket kurulduktan sonra `npx llm-manager` ile çalıştırın; parola `.env` veya servis ortamından okunur. Açık origin listesi (`LLM_ALLOWED_ORIGINS`) kullanın. `--cors *` yalnız sohbet rotası için, credentials olmadan çalışır. Tauri Electron IPC kullanmaz; HTTP istemcisidir. Masaüstü paketine gömülü belirteç de herkese açıktır.
+> Ayrı yönetim sunucusunu paket kurulduktan sonra `npm run llm` (veya `npx llm-manager`) ile ayrı süreçte çalıştırın; parola `.env` veya servis ortamından okunur. Açık origin listesi (`LLM_ALLOWED_ORIGINS`) kullanın. `--cors *` yalnız sohbet rotası için, credentials olmadan çalışır. Tauri'nin Rust arka ucuna Node modülü eklenmez; Tauri Electron IPC kullanmaz, HTTP istemcisidir. Masaüstü paketine gömülü belirteç de herkese açıktır.
 
 ## Next.js
 
@@ -101,6 +101,8 @@ Bu tipler tanınır ve yardımcı dosya hazırlanır; host girişine otomatik fr
 ## Electron
 
 Ana süreç yardımcısı `app.getPath('userData')/llm` deposunu kullanır; `app.whenReady()` sonrasında çağrılır. `registerLLMIpc(ipcMain)` sohbet çağrılarını kaydeder. Üretilen `preload.cjs` dosyasını BrowserWindow `webPreferences.preload` olarak bağlayın; renderer `window.llm.ask(prompt)` kullanır. Ana süreçte `openLLMPanel()` yerel yönetim penceresi açar.
+
+Yönetim sunucusu yalnız `127.0.0.1` üzerinde rastgele port dinler. Oturumluk parola yalnız bu pencerenin aynı HTTP origin'ine ait, proxy olmayan Basic challenge için ana süreçten sağlanır; URL'ye veya renderer koduna yazılmaz. Dış navigasyon/yönlendirme ve yeni pencere açma engellenir. Mevcut `preload.cjs` zorla üretimde de korunur; sohbet IPC seçeneklerinden yalnız metin `system` aktarılır.
 
 > [!WARNING]
 > `contextIsolation: true`, `nodeIntegration: false` korunmalıdır. Uzak/güvenilmeyen sayfalara sohbet IPC yetkisi vermeyin. Yönetim penceresinin rastgele admin parolası ana süreçte kalır; preload yalnız sınırlı sohbet arayüzü sunar.

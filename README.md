@@ -124,7 +124,8 @@ Paket projeye kurulduktan sonra projenizin klasöründe `npx llm-manager init` k
 | **SvelteKit** | `sveltekit` | `src/lib/llm.js` + `+server.js` rotaları | `src/routes/+page.svelte` | `await askLLM('Merhaba')` |
 | **C# (.NET Core / MVC / MVP / Desktop)** | `dotnet` | `LlmClient.cs` | `Program.cs` / `Startup.cs` / `HomeController.cs` / `Form1.cs` | `await LlmClient.AskAsync("Merhaba")` |
 | **Python** (Flask, FastAPI, Django) | `python` | `llm_client.py` | `main.py` / `app.py` / `manage.py` | `ask_llm("Merhaba")` |
-| **Masaüstü (Electron / Tauri)** | `electron` | `llm.js` | `main.js` / `electron/main.js` | `await askLLM('Merhaba')` / `ipcRenderer.invoke('llm:ask', ...)` |
+| **Masaüstü (Electron)** | `electron` | `llm.js` + `preload.cjs` | `main.js` / `electron/main.js` | `await window.llm.ask('Merhaba')` (preload ile) |
+| **Tauri: HTTP istemcisi (yönetim sunucusu ayrı süreç)** | `tauri` | `llm.js` | SPA istemcisi | `await askLLM('Merhaba')`; sunucu: `npm run llm` |
 
 Tüm senaryoların sade ve adım adım açıklamaları için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 
