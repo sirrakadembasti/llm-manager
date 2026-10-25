@@ -11,7 +11,7 @@ Windows, Linux ve macOS üzerinde aynı kaynak kodu kullanır.
 > Sürüm geçmişi için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın. Yazma isteklerinde CSRF başlığı
 > `X-LLM-CSRF: 1` olmalıdır.
 
-- Hazır sağlayıcı kataloğu (varsayılan model listeleri ve bölgesel uç noktalarla) + özel OpenAI uyumlu sağlayıcı; listeden model seçme, elle API adresi/model girme veya sağlayıcıdan model listesini getirme.
+- Hazır sağlayıcı kataloğu (varsayılan model listeleri ve bölgesel uç noktalarla; katalog tarihi: 2026-10; güncel liste için **Modelleri getir** kullanın) + özel OpenAI uyumlu sağlayıcı; listeden model seçme, elle API adresi/model girme veya sağlayıcıdan model listesini getirme.
 - Profil ekleme/düzenleme/silme ve tek etkin profil; mevcut API anahtarını koruma ve 3 durumlu şifreli anahtar rozeti/durum bildirimi.
 - AES-256-GCM (12 bayt IV ve 16 bayt doğrulama etiketi zorunluluğu) ile şifreli anahtarlar, güvenli atomik dosya yazımı, revizyon denetimi.
 - Yanıt süresi: 5–300 saniye, varsayılan 120 saniye. Token bütçesi: 256–32768,

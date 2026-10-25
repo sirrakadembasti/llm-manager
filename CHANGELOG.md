@@ -18,6 +18,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 
 ### Fixed
+- README'deki varsayılan model listelerine katalog tarihi ve güncel liste için **Modelleri getir** talimatı eklendi; tarih katalog metadatasına bağlı regresyonla korundu (YH2-G23).
 - Nötr sohbet testi, diagnostic/default amaçları ve eski amaç başına tek uyarı regresyonlarla korundu; `useManagedProfile` ve `allowMockFallback` custom generate adaptörlerine artık iletilmiyor. Arayüz ve README eski uygulamaya özgü metinlerden arındırıldı (YH2-G22).
 - .NET 4.0/net40 ve belirsiz eski hedeflerde NuGet gerektirmeyen TPL/HttpWebRequest istemcisi üretilir; 330 saniyelik sınır, gövde okuma sırasında iptal ve Türkçe JSON hataları korunur. SDK net48 ve zaten kayıtlı yardımcılar için assembly referansları bağımsız tamamlanır; örtük kaynak dahil etme, tekrarlanabilirlik ve tam geri alma doğrulanır (YH2-G14).
 - Next yapılandırmasında regex veya bölme sözdizimi güvenle yorumlanamadığında dosya değiştirilmeden elle `serverExternalPackages` talimatı verilir (YH2-G18).
