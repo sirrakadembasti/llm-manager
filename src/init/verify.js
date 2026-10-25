@@ -165,11 +165,27 @@ export function verifyIntegration({
     filesToSyntaxCheck.push(normalizedEntry);
   }
 
-  if (type === 'nextjs')
-    for (const rel of new Set(filesToSyntaxCheck)) {
-      if (/runtime\s*=\s*['"]edge['"]/.test(fs.readFileSync(path.join(cwd, rel), 'utf8')))
-        warnings.push(rel + ': Edge runtime desteklenmez; runtime=nodejs kullanın.');
+  if (type === 'nextjs') {
+    const edgeFiles = new Set(filesToSyntaxCheck);
+    for (const rel of filesToSyntaxCheck) {
+      const root = rel.startsWith('src/app/') ? 'src/app' : rel.startsWith('app/') ? 'app' : null;
+      if (!root) continue;
+      let dir = path.posix.dirname(rel);
+      while (dir === root || dir.startsWith(root + '/')) {
+        for (const ext of ['js', 'jsx', 'ts', 'tsx']) {
+          const layout = `${dir}/layout.${ext}`;
+          if (fs.existsSync(path.join(cwd, layout))) edgeFiles.add(layout);
+        }
+        dir = path.posix.dirname(dir);
+      }
     }
+    for (const rel of edgeFiles) {
+      if (/runtime\s*=\s*['"]edge['"]/.test(fs.readFileSync(path.join(cwd, rel), 'utf8')))
+        warnings.push(
+          rel + ': Edge runtime desteklenmez; paket node:fs ve undici gerektirir; runtime=nodejs kullanın.'
+        );
+    }
+  }
   let syntaxFailure = null;
   for (const rel of new Set(filesToSyntaxCheck)) {
     const ext = path.extname(rel).toLowerCase();

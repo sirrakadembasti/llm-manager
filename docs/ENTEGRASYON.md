@@ -82,7 +82,9 @@ const result = await response.json();
 Üretilen yardımcı ve route handler dosyaları sunucuda çalışır. `app/actions/llm.js` örnek Server Action sağlar. Host projede `server-only` paketi kuruluysa yardımcının ilk satırına `import 'server-only';` eklenir; sihirbaz bu bağımlılığı kurmaz. Doğrulama örnek action dosyasının da var ve dolu olmasını denetler. Yardımcı hiçbir `'use client'` bileşenine eklenmez. `@/*` alias'ı varsayılmaz; rota importları göreli yoldur. `next.config` içinde `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; uygun nesne biçimlerinde sihirbaz onayınızla ekler, aksi halde talimat verir.
 
 > [!WARNING]
-> Node runtime gerekir; Edge desteklenmez. Vercel/Netlify gibi ortamlarda varsayılan dosya deposu kalıcı değildir veya yazılamaz. Kalıcı disk ya da async host deposu kullanın. `llm.fetch(request)` için admin kimliği/`authorize` yapılandırılmamışsa yönetim kapalı kalır.
+> Node runtime gerekir; paket `node:fs` ve `undici` gerektirdiği için Edge desteklenmez. Üretilen route handler dosyaları `runtime = 'nodejs'` kullanır; Server Action ve giriş dosyasının bağlı olduğu üst `app/layout.*` veya `src/app/layout.*` dosyalarında da Edge seçilmediğini kontrol edin. Vercel/Netlify gibi ortamlarda varsayılan dosya deposu kalıcı değildir veya yazılamaz. Kalıcı disk ya da async host deposu (`store`) kullanın. `llm.fetch(request)` için admin kimliği/`authorize` yapılandırılmamışsa yönetim kapalı kalır.
+
+Sihirbaz `next.config.js`, `.mjs` ve `.ts` içindeki basit nesne exportlarını ve değişmeden export edilen `nextConfig` nesnesini destekler. Mevcut literal `serverExternalPackages` dizisine paketi onayınızla ekler; yorumlar ve başka alanlardaki paket adları bu ayarın yerine geçmez. Wrapper, spread veya dinamik dizi gibi belirsiz biçimleri çalıştırmaz ya da değiştirmez; elle ekleme talimatı verir. Mevcut dış paketleri koruyun.
 
 ## Nuxt ve SvelteKit
 
