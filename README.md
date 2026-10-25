@@ -33,7 +33,7 @@ npx github:sirrakadembasti/llm-manager init --password guclu-parola
 npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
 ```
 
-Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
+Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
 
 ### Kaynaktan
 
@@ -56,6 +56,8 @@ npm start
 API anahtarlarınızı yalnız arayüzden girin. `data/` altındaki profil ve şifreleme
 anahtarı dosyalarını kaynak depoya eklemeyin. Profil dosyasını **ve şifreleme
 anahtarını** birlikte yedekleyin.
+
+Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun.
 
 ### Anahtar Yönetimi, Döndürme ve Şifreli Yedekleme
 
@@ -117,15 +119,18 @@ Paket projeye kurulduktan sonra projenizin klasöründe `npx llm-manager init` k
 
 | Uygulama Türü | Algılama (`--type`) | Otomatik Oluşturulan Dosya | Otomatik Eklendiği Ana Dosya | Nasıl Soru Sorulur? |
 | --- | --- | --- | --- | --- |
-| **Express.js Sunucu** (ESM & CommonJS) | `express` | `llm.js` | `server.js` / `app.js` / `index.js` | `await askLLM('Merhaba')` |
-| **SPA / Statik Web** (React, Vue `.vue`, Vite) | `spa` | `src/llm.js` | `src/App.vue` / `src/App.jsx` / `src/main.ts` | `await askLLM('Merhaba')` |
-| **Next.js** (App Router) | `nextjs` | `llm.js` + `app/llm` & `app/api/llm` | `app/page.js` / `src/app/page.tsx` | `await askLLM('Merhaba')` |
-| **Nuxt 3** | `nuxt` | `server/utils/llm.js` + `server/api/llm` & `server/routes/llm` | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
-| **SvelteKit** | `sveltekit` | `src/lib/server/llm.js` + `+server.js` rotaları | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
-| **C# (.NET Core / MVC / MVP / Desktop)** | `dotnet` | `LlmClient.cs` | `Program.cs` / `Startup.cs` / `HomeController.cs` / `Form1.cs` | `await LlmClient.AskAsync("Merhaba")` |
-| **Python** (Flask, FastAPI, Django) | `python` | `llm_client.py` | `main.py` / `app.py` / `manage.py` | `ask_llm("Merhaba")` |
-| **Masaüstü (Electron)** | `electron` | `llm.js` + `preload.cjs` | `main.js` / `electron/main.js` | `await window.llm.ask('Merhaba')` (preload ile) |
-| **Tauri: HTTP istemcisi (yönetim sunucusu ayrı süreç)** | `tauri` | `llm.js` | SPA istemcisi | `await askLLM('Merhaba')`; sunucu: `npm run llm` |
+| Express | `express` | `llm.js` | `server.js` / `app.js` / `index.js` | `await askLLM('Merhaba')` |
+| SPA | `spa` | `src/llm.js` | `src/App.vue` / `src/App.jsx` / `src/main.ts` | `await askLLM('Merhaba')` |
+| Next.js | `nextjs` | `llm.js` + `app/llm` & `app/api/llm` | `app/page.js` / `src/app/page.tsx` | `await askLLM('Merhaba')` |
+| Nuxt | `nuxt` | `server/utils/llm.js` + `server/api/llm` & `server/routes/llm` | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
+| SvelteKit | `sveltekit` | `src/lib/server/llm.js` + `+server.js` rotaları | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
+| Electron | `electron` | `llm.js` + `preload.cjs` | `main.js` / `electron/main.js` | `await window.llm.ask('Merhaba')` (preload ile) |
+| Tauri | `tauri` | `llm.js` | SPA istemcisi | `await askLLM('Merhaba')`; sunucu: `npm run llm` |
+| Fastify, Koa, Hono ve NestJS | `fastify/koa/hono/nestjs` | `llm.js` | Elle bağlantı; otomatik framework enjeksiyonu yok | Sunucuda `llm.fetch(request)` / `llm.handle(...)` |
+| Python | `python` | `llm_client.py` | `main.py` / `app.py` / `manage.py` | `ask_llm("Merhaba")` |
+| .NET ve .NET Framework | `dotnet` | `LlmClient.cs` | `Program.cs` / `Startup.cs` / `HomeController.cs` / `Form1.cs` | `await LlmClient.AskAsync("Merhaba")` |
+
+Express ESM/CommonJS ve TypeScript, SPA React/Vue/Vite/Angular/Svelte, Next.js App Router, Nuxt 3; Python Flask/FastAPI/Django ve .NET web/masaüstü hostları için kullanılır. `fastify/koa/hono/nestjs` grubunda CLI için tek tipi seçin (ör. `--type hono`).
 
 .NET 4.0 çağıranları `Task` devamlarını (`ContinueWith`) kullanır; tablodaki `await` örneği modern/4.5+ hedefler içindir. Hedefe göre istemci seçimi [entegrasyon kılavuzunda](docs/ENTEGRASYON.md#net-ve-net-framework) açıklanır.
 
@@ -142,6 +147,23 @@ const cevap = await llm.ask('Merhaba!');
 // Next.js / SvelteKit / Hono standart Web Request -> Response adaptörü:
 const response = await llm.fetch(request);
 ```
+
+## Desteklenen ortamlar matrisi
+
+| Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
+| --- | --- | --- | --- | --- |
+| Express | express | Kalıcı disk/host store ile | Hayır | Evet |
+| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
+| Next.js | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
+| Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
+| SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |
+| Electron | electron | Ana süreç, userData deposu | Hayır | Ana süreç |
+| Tauri | tauri | HTTP istemcisi | Evet | Hayır |
+| Fastify, Koa, Hono ve NestJS | fastify/koa/hono/nestjs | Host auth adaptörüyle | Hayır | Hayır; elle bağlantı |
+| Python | python | HTTP istemcisi | Evet | Yardımcı import |
+| .NET ve .NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
+
+Sunucusuz dağıtım için Node runtime ve kalıcı host deposu gerekir; Edge desteklenmez. SPA/Tauri/Python/.NET istemcileri ayrı çalışan yönetim sunucusuna HTTP ile bağlanır. Express isteğe bağlı peer bağımlılıktır; Express adaptörü veya CLI yönetim sunucusu için ayrıca kurulu olmalıdır. Paketsiz statik SPA yalnız HTTP istemcisi üretir; `npm run llm` için Node hostunda paket ve Express kurulumu gerekir.
 
 ## API ve depo sözleşmesi
 

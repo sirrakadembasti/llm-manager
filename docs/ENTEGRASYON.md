@@ -16,19 +16,23 @@ SPA/Tauri sihirbazı yalnız Vite algıladığında `http://localhost:5173` orig
 ## Desteklenen ortamlar
 
 | Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
-|---|---|---|---|---|
-| Express 4/5 ESM/CJS, TypeScript | express | Kalıcı disk/host store ile | Hayır | Evet |
-| React/Vue/Vite/Angular/Svelte SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
-| Next.js App Router | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
+| --- | --- | --- | --- | --- |
+| Express | express | Kalıcı disk/host store ile | Hayır | Evet |
+| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
+| Next.js | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
 | Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
 | SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |
 | Electron | electron | Ana süreç, userData deposu | Hayır | Ana süreç |
 | Tauri | tauri | HTTP istemcisi | Evet | Hayır |
-| Fastify/Koa/Hono/NestJS | fastify/koa/hono/nestjs | Host auth adaptörüyle | Hayır | Hayır; elle bağlantı |
+| Fastify, Koa, Hono ve NestJS | fastify/koa/hono/nestjs | Host auth adaptörüyle | Hayır | Hayır; elle bağlantı |
 | Python | python | HTTP istemcisi | Evet | Yardımcı import |
-| .NET/.NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
+| .NET ve .NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
+
+Express 4/5 ESM/CJS ve TypeScript; SPA için React/Vue/Vite/Angular/Svelte; Next.js için App Router desteklenir. `fastify/koa/hono/nestjs` tek bir CLI değeri değildir; bu gruptan bir tipi (`--type hono` gibi) seçin.
 
 Tanımlanamayan projede `--type` açıkça seçilmelidir. `dist/`, `build/`, `out/`, `.next/` ve `lib/` derleme çıktıları enjeksiyon hedefi değildir.
+
+Express isteğe bağlı peer bağımlılıktır; Express adaptörü veya CLI yönetim sunucusu için ayrıca kurulur. Paketsiz statik SPA yalnız HTTP istemcisidir; `npm run llm` komutu Node hostunda paket ve Express kurulumu gerektirir.
 
 ## Kimlikler ve veri deposu
 
@@ -39,7 +43,7 @@ Tanımlanamayan projede `--type` açıkça seçilmelidir. `dist/`, `build/`, `ou
 
 Kurulum güçlü rastgele admin parolası üretir; `.env` içinde `LLM_ADMIN_PASSWORD` olarak saklar. Sohbet belirteçleri sunucuda `LLM_CHAT_TOKENS`, istemcide `LLM_CHAT_TOKEN` üzerinden okunur. SPA geliştirmesi `.env.local` içindeki `VITE_LLM_CHAT_TOKEN` değerini kullanır. Tarayıcıya giden tüm değerler herkese açıktır; üretimde kendi backend'inizi kullanın. Kaynak koda admin parolası koymayın.
 
-Tüm dosya deposu metotları Promise döndürür; çağrılarda `await` kullanın. Host deposu aynı metotlarda senkron değer veya Promise döndürebilir. Yerel diskte süreç kilidi desteklenir; NFS/SMB için güvence verilmez. Windows'ta 0600 POSIX izinleri yeterli erişim sınırı değildir; veri ve anahtarı yalnız servis hesabının eriştiği klasörde saklayın. Anahtar kaybedilirse şifreli profiller kurtarılamaz.
+Tüm dosya deposu metotları Promise döndürür; çağrılarda `await` kullanın. Host deposu aynı metotlarda senkron değer veya Promise döndürebilir. Yerel diskte süreç kilidi desteklenir; NFS/SMB için güvence verilmez. Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun. Anahtar kaybedilirse şifreli profiller kurtarılamaz.
 
 ## Express
 
@@ -57,9 +61,14 @@ app.listen(3000);
 ```
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Basic admin veya host session; sohbet için Bearer belirteci de kullanılabilir.
+> **Çalışma:** Yerel veya kalıcı disk/host store ile üretim Node sunucusu.
+> **Sunucusuz:** Node runtime + host store gerekir; Edge desteklenmez.
+> **Ayrı süreç:** Gerekmez; Express hostuna bağlanır.
 > `requireAuth` host session middleware'iyle de verilebilir. Yönetim için `req.user.isAdmin === true` gerekir. Eklenti kendi JSON ayrıştırıcısını auth sonrasında bağlar. `trust proxy` ve `req.ip` doğruluğu hostun sorumluluğudur. CJS şablonu Node >=22.12 üzerinde senkron `require(esm)` kullanır ve rotaları host 404 katmanından önce bağlar.
 
-## SPA ve Tauri
+## SPA
 
 ```js
 const response = await fetch('http://127.0.0.1:8010/api/llm/chat', {
@@ -75,6 +84,11 @@ const result = await response.json();
 ```
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Yalnız sohbet Bearer belirteci; admin kimliği tarayıcıya verilmez.
+> **Çalışma:** Yerel geliştirme; üretimde kendi backend’iniz üzerinden.
+> **Sunucusuz:** Statik istemci uygundur; yönetim sunucusu sürekli Node ve kalıcı depo ister.
+> **Ayrı süreç:** Gerekir; ayrı Node yönetim sunucusu.
 > Ayrı yönetim sunucusunu paket kurulduktan sonra `npm run llm` (veya `npx llm-manager`) ile ayrı süreçte çalıştırın; parola `.env` veya servis ortamından okunur. Açık origin listesi (`LLM_ALLOWED_ORIGINS`) kullanın. `--cors *` yalnız sohbet rotası için, credentials olmadan çalışır. Tauri'nin Rust arka ucuna Node modülü eklenmez; Tauri Electron IPC kullanmaz, HTTP istemcisidir. Masaüstü paketine gömülü belirteç de herkese açıktır.
 
 ## Next.js
@@ -82,23 +96,38 @@ const result = await response.json();
 Üretilen yardımcı ve route handler dosyaları sunucuda çalışır. `app/actions/llm.js` örnek Server Action sağlar. Host projede `server-only` paketi kuruluysa yardımcının ilk satırına `import 'server-only';` eklenir; sihirbaz bu bağımlılığı kurmaz. Doğrulama örnek action dosyasının da var ve dolu olmasını denetler. Yardımcı hiçbir `'use client'` bileşenine eklenmez. `@/*` alias'ı varsayılmaz; rota importları göreli yoldur. `next.config` içinde `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; uygun nesne biçimlerinde sihirbaz onayınızla ekler, aksi halde talimat verir.
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Basic admin veya host authorize; sohbet Bearer belirteci.
+> **Çalışma:** Yerel veya Node runtime üzerinde üretim.
+> **Sunucusuz:** Kalıcı host store gerekir; Edge desteklenmez.
+> **Ayrı süreç:** Gerekmez; Node uygulamasında çalışır.
 > Node runtime gerekir; paket `node:fs` ve `undici` gerektirdiği için Edge desteklenmez. Üretilen route handler dosyaları `runtime = 'nodejs'` kullanır; Server Action ve giriş dosyasının bağlı olduğu üst `app/layout.*` veya `src/app/layout.*` dosyalarında da Edge seçilmediğini kontrol edin. Vercel/Netlify gibi ortamlarda varsayılan dosya deposu kalıcı değildir veya yazılamaz. Kalıcı disk ya da async host deposu (`store`) kullanın. `llm.fetch(request)` için admin kimliği/`authorize` yapılandırılmamışsa yönetim kapalı kalır.
 
 Sihirbaz `next.config.js`, `.mjs` ve `.ts` içindeki basit nesne exportlarını ve değişmeden export edilen `nextConfig` nesnesini destekler. Mevcut literal `serverExternalPackages` dizisine paketi onayınızla ekler; yorumlar ve başka alanlardaki paket adları bu ayarın yerine geçmez. Wrapper, spread veya dinamik dizi gibi belirsiz biçimleri çalıştırmaz ya da değiştirmez; elle ekleme talimatı verir. Mevcut dış paketleri koruyun.
 
-## Nuxt ve SvelteKit
+## Nuxt
 
 Nuxt yardımcısı `server/utils/llm.js`; SvelteKit yardımcısı `src/lib/server/llm.js` altındadır. Yönetim route handler'ları bu modülleri kullanır. `.vue` ve `.svelte` sayfalarına sunucu importu eklenmez. SvelteKit `src/routes/api/ask/+server.js` örneği POST isteğini, gövdesini ve kimlik bilgilerini koruyarak `llm.fetch` üzerinden kimlik doğrulamalı `/api/llm/chat` politikasına iletir; doğrudan ücretli üretim çağrısı açmaz. Doğrulama bu örnek dosyanın da var ve dolu olmasını denetler. Next Server Action örneği host kullanıcı yetkilendirmesi yapılandırılana kadar kapalıdır.
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Admin auth/host principal; sohbet Bearer belirteci.
+> **Çalışma:** Yerel veya üretim Node sunucusu.
+> **Sunucusuz:** Node adaptörü + kalıcı host store gerekir; Edge desteklenmez.
+> **Ayrı süreç:** Gerekmez; Node hostunda çalışır.
 > Node sunucu adaptörü, admin auth ve kalıcı store gerekir. İstemciye sunucu modülü veya admin parolası taşımayın. Serverless dağıtımda host deposu kullanın.
 
-## Fastify, Koa, Hono ve NestJS
+## SvelteKit
 
-Bu tipler tanınır ve yardımcı dosya hazırlanır; host girişine otomatik framework kodu yazılmaz. Web `Request` sağlayan hostlarda `llm.fetch(request)` kullanın. Diğerlerinde method/path/body ve doğrulanmış principal ile `llm.handle(...)` çağırıp status/body sonucunu framework yanıtına aktarın.
+Sunucu yardımcısı `src/lib/server/llm.js` ve `+server.js` rotaları kullanılır. Nuxt bölümündeki kimlik doğrulamalı ask delegasyonu ve istemci modülü sınırları geçerlidir.
 
 > [!WARNING]
-> `handle()` güvenilir host API'sidir; kendi başına HTTP kimliği doğrulamaz. Session/token doğrulamasını ve admin/sohbet yetki ayrımını host adaptöründe uygulayın. Doğrulanmamış istekleri doğrudan `handle()` veya `ask()` içine vermeyin.
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Admin auth/host principal; sohbet Bearer belirteci.
+> **Çalışma:** Yerel veya üretim Node adaptörü.
+> **Sunucusuz:** Node adaptörü + kalıcı host store gerekir; Edge desteklenmez.
+> **Ayrı süreç:** Gerekmez; Node hostunda çalışır.
+> İstemci bileşenine sunucu modülü eklenmez.
 
 ## Electron
 
@@ -107,13 +136,47 @@ Ana süreç yardımcısı `app.getPath('userData')/llm` deposunu kullanır; `app
 Yönetim sunucusu yalnız `127.0.0.1` üzerinde rastgele port dinler. Oturumluk parola yalnız bu pencerenin aynı HTTP origin'ine ait, proxy olmayan Basic challenge için ana süreçten sağlanır; URL'ye veya renderer koduna yazılmaz. Dış navigasyon/yönlendirme ve yeni pencere açma engellenir. Mevcut `preload.cjs` zorla üretimde de korunur; sohbet IPC seçeneklerinden yalnız metin `system` aktarılır.
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Ana süreçte oturumluk Basic admin; renderer yalnız sınırlı sohbet IPC.
+> **Çalışma:** Yerel masaüstü; dağıtılan uygulamada userData deposu.
+> **Sunucusuz:** Uygun değildir; Electron ana süreci gerekir.
+> **Ayrı süreç:** Ek yönetim süreci gerekmez; ana süreçte çalışır.
 > `contextIsolation: true`, `nodeIntegration: false` korunmalıdır. Uzak/güvenilmeyen sayfalara sohbet IPC yetkisi vermeyin. Yönetim penceresinin rastgele admin parolası ana süreçte kalır; preload yalnız sınırlı sohbet arayüzü sunar.
+
+## Tauri
+
+Tauri Rust arka ucuna Node modülü eklenmez; SPA bölümündeki HTTP sohbet istemcisini kullanır. Yönetim sunucusu ayrı Node hostunda çalışır.
+
+> [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Sohbet Bearer belirteci; yönetim Basic admin kimliği ayrı sunucuda.
+> **Çalışma:** Yerel masaüstü veya üretimde kendi backend’iniz üzerinden.
+> **Sunucusuz:** Tauri istemcisi sunucusuz değildir; sunucu sürekli Node ve kalıcı depo ister.
+> **Ayrı süreç:** Gerekir; ayrı Node yönetim sunucusu.
+> Masaüstü paketine gömülü sohbet belirteci herkese açıktır; üretimde kimliği kendi backend’inizde doğrulayın.
+
+## Fastify, Koa, Hono ve NestJS
+
+Bu tipler tanınır ve yardımcı dosya hazırlanır; host girişine otomatik framework kodu yazılmaz. Web `Request` sağlayan hostlarda `llm.fetch(request)` kullanın. Diğerlerinde method/path/body ve doğrulanmış principal ile `llm.handle(...)` çağırıp status/body sonucunu framework yanıtına aktarın.
+
+> [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** Host session/token doğrulaması; yönetim ve sohbet yetkilerini host ayırır.
+> **Çalışma:** Yerel veya üretim Node hostu.
+> **Sunucusuz:** Node runtime + kalıcı host store gerekir; Edge desteklenmez.
+> **Ayrı süreç:** Gerekmez; elle host adaptörüne bağlanır.
+> `handle()` güvenilir host API'sidir; kendi başına HTTP kimliği doğrulamaz. Session/token doğrulamasını ve admin/sohbet yetki ayrımını host adaptöründe uygulayın. Doğrulanmamış istekleri doğrudan `handle()` veya `ask()` içine vermeyin.
 
 ## Python
 
 Üretilen `llm_client.py`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` ortam değişkenlerini okur. `ask_llm('Merhaba')` çağrısı 330 saniyelik istemci zaman aşımı kullanır. HTTP hataları `LLMError` içinde `status` ve `code` ile iletilir. Süreç ortamını servis yöneticinizden sağlayın; Python standart kütüphanesi `.env` dosyasını otomatik yüklemez.
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** LLM_CHAT_TOKEN sohbet Bearer belirteci; admin parolası verilmez.
+> **Çalışma:** Yerel veya üretim HTTP istemcisi.
+> **Sunucusuz:** İstemci uygun olabilir; yönetim sunucusu sürekli Node ve kalıcı depo ister.
+> **Ayrı süreç:** Gerekir; ayrı Node yönetim sunucusu.
 > Ayrı sürekli Node sunucusu gerekir; [dağıtım kılavuzunu](DEPLOY.md) kullanın. Admin parolasını Python istemcisine vermeyin. Python/py varsa doğrulama, `py_compile` ile aynı ayrıştırıcıyı kullanan `compile()` kontrolünü `__pycache__` oluşturmadan çalıştırır; yoksa Türkçe uyarıyla atlanır. JSON olmayan veya nesne içermeyen HTTP hata gövdeleri Türkçe `LLMError` mesajına dönüştürülür; sunucunun `error`/`code` alanları ve HTTP durumu korunur.
 
 ## .NET ve .NET Framework
@@ -123,6 +186,11 @@ Yönetim sunucusu yalnız `127.0.0.1` üzerinde rastgele port dinler. Oturumluk 
 Modern/4.5+ çağıranlarda `await LlmClient.AskAsync("Merhaba")` kullanılır; .NET 4.0 çağıranları `Task` devamlarını (`ContinueWith`) kullanabilir. Gerekli framework referansları, yardımcı zaten kayıtlı olsa da journal üzerinden tamamlanır; SDK projelerinin örtük kaynak dahil etmesi korunur. Mevcut `LlmClient.cs` varsayılan olarak korunur; yeniden üretmek için `--force` gerekir.
 
 > [!WARNING]
+> **Güvenlik ve sınırlar**
+> **Kimlik:** LLM_CHAT_TOKEN sohbet Bearer belirteci; admin parolası verilmez.
+> **Çalışma:** Yerel/masaüstü veya üretim HTTP istemcisi.
+> **Sunucusuz:** İstemci uygun olabilir; yönetim sunucusu sürekli Node ve kalıcı depo ister.
+> **Ayrı süreç:** Gerekir; ayrı Node yönetim sunucusu.
 > Ayrı sürekli Node sunucusu ve sohbet belirteci gerekir. İstemcinin `.env` yüklemesini beklemeyin; servis ortamını yapılandırın. Kurulu .NET SDK ile yardımcı yalıtılmış projede derlenir; bu, host projesinin kendi hedefiyle tam derlendiği anlamına gelmez. SDK yokluğu ve proje bağlamı gerektiren host C# kontrollerinin atlanması açıkça bildirilir.
 
 ## Doğrulama ve geri alma
