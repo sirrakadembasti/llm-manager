@@ -10,7 +10,8 @@ function configEdit(source, packageName) {
     tokens.push({ text: match[0], start: match.index, end: match.index + match[0].length });
   }
   const text = tokens.map(t => t.text);
-  if (text.includes('`')) return null;
+  // Slash syntax may be a regex literal or division; neither belongs to this literal subset.
+  if (text.includes('`') || text.includes('/')) return null;
   const joined = text.join(' ');
   const prefix =
     /^(?:import type \{ NextConfig \} from ['"]next['"] ; )?(?:export default |module \. exports = |(?:const|let|var) nextConfig (?:: NextConfig )?= )\{/;

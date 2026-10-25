@@ -17,6 +17,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 
 ### Fixed
+- Next yapılandırmasında regex veya bölme sözdizimi güvenle yorumlanamadığında dosya değiştirilmeden elle `serverExternalPackages` talimatı verilir (YH2-G18).
 - Next yapılandırmasında yorum ve alakasız metinler gerçek `serverExternalPackages` ayarı sayılmaz; basit nesne/diziler onayla ve geri alınabilir biçimde güncellenir. İlgili üst layout dosyalarındaki Edge runtime için `node:fs`/`undici` gerekçeli uyarı verilir (YH2-G18).
 - Python istemcisi JSON olmayan/nesne olmayan HTTP hatalarında Türkçe `LLMError` üretir, `code`/`status` bilgisini korur; gerçek yerel HTTP regresyonu ve dağıtımın Express önkoşulu belgelendi (YH2-G19).
 - .NET hedef ailesi modern/netfx olarak gösterilir; Web Forms hedefi algılanır. Ortak NuGet gerektirmeyen C# 7.3 istemcisi geçersiz/boş JSON için Türkçe hata verir; kurulu SDK ile yardımcı dosya yalıtılmış çevrimdışı projede derlenir, host dosyalarının proje bağlamı gereksinimi açıkça belirtilir (YH2-G14).

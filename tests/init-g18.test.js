@@ -15,6 +15,12 @@ async function configCase(original, extension, answer, check) {
     const file = path.join(cwd, `next.config.${extension}`);
     fs.writeFileSync(file, original);
     const journal = createChangeJournal(cwd);
+    let writes = 0;
+    const write = journal.write;
+    journal.write = (...args) => {
+      writes++;
+      return write(...args);
+    };
     const messages = [];
     let prompts = 0;
     await configureNext({
@@ -27,7 +33,7 @@ async function configCase(original, extension, answer, check) {
         return answer;
       }
     });
-    check(fs.readFileSync(file, 'utf8'), messages, prompts);
+    check(fs.readFileSync(file, 'utf8'), messages, prompts, writes);
     journal.rollback();
     assert.equal(fs.readFileSync(file, 'utf8'), original);
   } finally {
@@ -75,6 +81,20 @@ test('Next recognizes existing literal array without prompting', async () => {
       assert.equal(messages.length, 0);
     }
   );
+});
+
+test('Next regex literal cannot impersonate an external packages property', async () => {
+  const original = `export default { pattern: /a, serverExternalPackages: ['${packageName}'], tail: x/ };`;
+  const context = { module: { exports: {} } };
+  runInNewContext(original.replace('export default', 'module.exports ='), context);
+  assert.deepEqual(Object.keys(context.module.exports), ['pattern']);
+  assert.equal(context.module.exports.serverExternalPackages, undefined);
+  await configCase(original, 'mjs', 'e', (content, messages, prompts, writes) => {
+    assert.equal(content, original);
+    assert.equal(prompts, 0);
+    assert.equal(writes, 0);
+    assert.match(messages.join('\n'), /serverExternalPackages/);
+  });
 });
 
 test('Next relative imports work with and without a configured alias', () => {
