@@ -14,13 +14,18 @@ function getExpectedHelperFiles(cwd, type) {
     const llmRel = baseDir ? `${baseDir}/llm.js` : 'llm.js';
     const apiRouteRel = `${baseDir ? `${baseDir}/` : ''}app/api/llm/[...slug]/route.js`;
     const pageRouteRel = `${baseDir ? `${baseDir}/` : ''}app/llm/[[...slug]]/route.js`;
-    return [llmRel, apiRouteRel, pageRouteRel];
+    return [llmRel, apiRouteRel, pageRouteRel, `${baseDir ? `${baseDir}/` : ''}app/actions/llm.js`];
   }
   if (type === 'nuxt') {
     return ['server/utils/llm.js', 'server/api/llm/[...slug].js', 'server/routes/llm/[...slug].js'];
   }
   if (type === 'sveltekit') {
-    return ['src/lib/server/llm.js', 'src/routes/api/llm/[...slug]/+server.js', 'src/routes/llm/[...slug]/+server.js'];
+    return [
+      'src/lib/server/llm.js',
+      'src/routes/api/llm/[...slug]/+server.js',
+      'src/routes/llm/[...slug]/+server.js',
+      'src/routes/api/ask/+server.js'
+    ];
   }
   return ['llm.js'];
 }

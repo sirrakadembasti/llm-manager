@@ -79,14 +79,14 @@ const result = await response.json();
 
 ## Next.js
 
-Üretilen yardımcı ve route handler dosyaları sunucuda çalışır. `app/actions/llm.js` örnek Server Action sağlar. Yardımcı hiçbir `'use client'` bileşenine eklenmez. `@/*` alias'ı varsayılmaz; rota importları göreli yoldur. `next.config` içinde `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; uygun nesne biçimlerinde sihirbaz onayınızla ekler, aksi halde talimat verir.
+Üretilen yardımcı ve route handler dosyaları sunucuda çalışır. `app/actions/llm.js` örnek Server Action sağlar. Host projede `server-only` paketi kuruluysa yardımcının ilk satırına `import 'server-only';` eklenir; sihirbaz bu bağımlılığı kurmaz. Doğrulama örnek action dosyasının da var ve dolu olmasını denetler. Yardımcı hiçbir `'use client'` bileşenine eklenmez. `@/*` alias'ı varsayılmaz; rota importları göreli yoldur. `next.config` içinde `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; uygun nesne biçimlerinde sihirbaz onayınızla ekler, aksi halde talimat verir.
 
 > [!WARNING]
 > Node runtime gerekir; Edge desteklenmez. Vercel/Netlify gibi ortamlarda varsayılan dosya deposu kalıcı değildir veya yazılamaz. Kalıcı disk ya da async host deposu kullanın. `llm.fetch(request)` için admin kimliği/`authorize` yapılandırılmamışsa yönetim kapalı kalır.
 
 ## Nuxt ve SvelteKit
 
-Nuxt yardımcısı `server/utils/llm.js`; SvelteKit yardımcısı `src/lib/server/llm.js` altındadır. Yönetim route handler'ları bu modülleri kullanır. `.vue` ve `.svelte` sayfalarına sunucu importu eklenmez. Örnek `/api/ask` rotaları sunucu tarafı kullanım içindir; üretimde uygulamanızın kullanıcı yetkisini bu çağrıdan önce doğrulayın.
+Nuxt yardımcısı `server/utils/llm.js`; SvelteKit yardımcısı `src/lib/server/llm.js` altındadır. Yönetim route handler'ları bu modülleri kullanır. `.vue` ve `.svelte` sayfalarına sunucu importu eklenmez. SvelteKit `src/routes/api/ask/+server.js` örneği POST isteğini, gövdesini ve kimlik bilgilerini koruyarak `llm.fetch` üzerinden kimlik doğrulamalı `/api/llm/chat` politikasına iletir; doğrudan ücretli üretim çağrısı açmaz. Doğrulama bu örnek dosyanın da var ve dolu olmasını denetler. Next Server Action örneği host kullanıcı yetkilendirmesi yapılandırılana kadar kapalıdır.
 
 > [!WARNING]
 > Node sunucu adaptörü, admin auth ve kalıcı store gerekir. İstemciye sunucu modülü veya admin parolası taşımayın. Serverless dağıtımda host deposu kullanın.
