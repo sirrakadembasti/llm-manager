@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Added
+- Transaction rollback için dosya ağacı, SHA-256 bayt özeti ve izin anlık görüntüsü regresyonları eklendi; kullanıcı reddi, başarısız doğrulama, zorunlu üzerine yazma ve host kurulumunun korunması doğrulandı (YH2-G12).
 - Üretilen CommonJS yardımcısının geçişli ESM grafiğini senkron yüklemesi, kurulum hatalarını senkron iletmesi ve hatadan sonra yeniden kurulabilmesi gerçek CJS süreç testiyle güvenceye alındı (YH2-G10).
 - Express eklentisinin kendi JSON ayrıştırıcısı gerçek HTTP kabul testleriyle doğrulandı: geç bağlanan host ayrıştırıcısı, önceden ayrıştırılmış gövde, 400/413 JSON hataları, auth sırası ve özel gövde sınırı (YH2-G11).
 - Async host deposu sözleşmesi metot/dönüş/hata tablosuyla belgelendi; güvenli DTO ve revizyon denetimli Map örneği ile async CRUD, test ve sohbet regresyonları eklendi (YH2-G08).
