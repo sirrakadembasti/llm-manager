@@ -94,7 +94,7 @@
   "form.thinking_auto": "Automatic",
   "form.thinking_enabled": "Enabled",
   "form.thinking_disabled": "Disabled",
-  "form.thinking_hint": "Controls reasoning for supported models (OpenAI o-series, Anthropic, Gemini, Qwen, MiMo).",
+  "form.thinking_hint": "Automatic mode disables reasoning in tests and uses the model default for normal calls.",
   "form.default": "Default (empty)",
   "form.default_text": "Default (text)",
   "form.stop_placeholder": "e.g. STOP, END",

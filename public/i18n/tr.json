@@ -94,7 +94,7 @@
   "form.thinking_auto": "Otomatik",
   "form.thinking_enabled": "Açık",
   "form.thinking_disabled": "Kapalı",
-  "form.thinking_hint": "Destekleyen modellerde (OpenAI o-serisi, Anthropic, Gemini, Qwen, MiMo) düşünme/akıl yürütme davranışını belirler.",
+  "form.thinking_hint": "Otomatik mod; testlerde düşünmeyi kapatır, normal çağrılarda modelin varsayılanını kullanır.",
   "form.default": "Varsayılan (boş)",
   "form.default_text": "Varsayılan (metin)",
   "form.stop_placeholder": "Örn: STOP, END",

@@ -202,7 +202,7 @@ kalıcı depolama ve şifreleme hostun sorumluluğundadır.
 
 ## Gecikme ve dış sebepler
 
-MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
+MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); `purpose: 'default'` uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
 Bu, sağlayıcının hızını garanti etmez. Kota/429, sağlayıcı yoğunluğu/5xx, API
 yetkisi/401–403, DNS/proxy/ağ ve modelin boş/kesilmiş yanıtı ayrı hata kodlarıyla
 raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullanılır.
@@ -234,7 +234,7 @@ Profil güncellemede `revision`, silme ve etkinleştirmede JSON gövdesindeki `r
 - **Kurumsal Proxy (`proxyUrl` / `LLM_HTTPS_PROXY`):** Şirket içi ağlarda dış API isteklerini bir HTTPS vekili üzerinden geçirmek için `proxyUrl` seçeneği desteklenir. Proxy kullanıldığında DNS çözümü vekil sunucuda yapıldığı için yerel soket düzeyindeki DNS filtresi devre dışı kalır. Bu güvenlik ödünleşimini dengelemek adına eklenti, proxy üzerinden çıkış yapılacak hedef adresleri katalogdaki **bilinen resmi sağlayıcı alan adları** ve açıkça izin verilen `allowedHosts` listesiyle sınırlandırır (`LLM_DNS_BLOCKED`).
 - **Yerel / LAN Model Sunucuları (`allowedPrivateHosts` / `LLM_ALLOWED_PRIVATE_HOSTS`):** Yerel ağdaki Ollama, LM Studio veya vLLM sunucularına (`http://192.168.1.50:11434`, `http://ollama.lan`) bağlanmak için `allowedPrivateHosts: ['192.168.1.50:11434', 'ollama.lan']` seçeneği kullanılır. Yalnızca bu açık listedeki adresler için özel IP ve HTTP protokolüne izin verilir; diğer tüm hedeflerde genel HTTPS zorunluluğu ve SSRF koruması aktif kalır.
 
-`mountLLMManagement` için isteğe bağlı `testMessages(mode, profile)` ve `validateTestReply(reply, {mode, profile})` parametreleri host uygulamasına özgü test sağlar. Varsayılan sohbet örneği değiştirilmediyse Manager örneği kalır. Sır içeren iç profili loglamayın. Anahtarlar otomatik olarak başka hizmete taşınmaz.
+`mountLLMManagement` için isteğe bağlı `testMessages(mode, profile)` ve `validateTestReply(reply, {mode, profile})` parametreleri host uygulamasına özgü test sağlar. Varsayılan sohbet testi, web uygulamalarında kimlik doğrulama güvenliğini soran nötr bir örnek kullanır. Sır içeren iç profili loglamayın. Anahtarlar otomatik olarak başka hizmete taşınmaz.
 
 ## Lisans ve sürümleme
 
@@ -277,7 +277,7 @@ Importları `@sirrakadembasti/llm-manager` adına taşıyın. CLI adı ve `data/
 
 Dosya deposu her dönüşü Promise ile sağlar; host deposu `T | Promise<T>` kullanabilir. Güncelleme/silme/etkinleştirme revizyon denetimi yapar; `PROFILE_CONFLICT` 409 ve `PROFILE_NOT_FOUND` 404 hataları aynı sözleşmeyle korunmalıdır. Yerel diskte çok süreçli kullanım dosya kilidiyle desteklenir; NFS/SMB için garanti verilmez. Anahtar önceliği açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyasıdır. `ensureLLMEncryptionKey` varsayılan olarak `.env` yazmaz; eski davranış yalnız deprecated `writeEnv: true` seçeneğidir.
 
-`purpose` artık `quick | diagnostic | default` kullanır; eski `manager` ve `production` değerleri bir kez uyarılarak eşlenir. `useManagedProfile` ve `allowMockFallback` artık custom generate adaptörlerine aktarılmaz. `ask()` varsayılan olarak string; `{ raw: true }` ile kullanım ve finishReason içeren sonuç döndürür. HTTP sohbeti SSE için `{ stream: true }` kabul eder.
+`purpose` artık `quick | diagnostic | default` kullanır; eski `manager` ve `production` değerleri her eski ad için bir kez uyarılarak eşlenir. Kaldırılan eski seçenek alanları artık custom generate adaptörlerine aktarılmaz. `ask()` varsayılan olarak string; `{ raw: true }` ile kullanım ve finishReason içeren sonuç döndürür. HTTP sohbeti SSE için `{ stream: true }` kabul eder.
 
 Katalog tarihi **2026-10-24**; resmi kaynaklarla doğrulanmayan model önerileri kaldırıldı. Güncel hesap listeniz için **Modelleri getir** kullanın; [kaynak kayıtları](docs/roadmap/CATALOG_SOURCES_2026-10-24.md) model/transport sınırlarını açıklar. Düşünme ayarı destekleyen sağlayıcılarda görünür; her model düşünmeyi kapatmayı desteklemez. Güncel Claude Opus/Fable modellerinde kapatma isteği açık doğrulama hatası verir.
 
