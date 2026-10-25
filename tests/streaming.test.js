@@ -85,10 +85,7 @@ test('YH1-C4: llm.stream() yields deltas and done event with usage for OpenAI, A
   const { url: mockUrl } = await mock.start();
   const tempDir = createTempDir();
 
-  const manager = createLLMManager({
-    dataDir: tempDir,
-    allowLocalHttp: true
-  });
+  const manager = createLLMManager({ insecureNoAuth: true, dataDir: tempDir, allowLocalHttp: true });
 
   // 1. OpenAI streaming
   const openAiProf = await manager.handle({
@@ -188,10 +185,7 @@ test('YH1-C4: Web Standard llm.fetch(Request) handles POST /chat with stream: tr
   const { url: mockUrl } = await mock.start();
   const tempDir = createTempDir();
 
-  const manager = createLLMManager({
-    dataDir: tempDir,
-    allowLocalHttp: true
-  });
+  const manager = createLLMManager({ insecureNoAuth: true, dataDir: tempDir, allowLocalHttp: true });
 
   const p = await manager.handle({
     method: 'POST',
@@ -309,6 +303,7 @@ test('YH1-C4: Express mountLLMManagement handles POST /chat with stream: true an
 test('YH1-C4: Mid-stream error emits event: error and client signal cancels stream', async () => {
   const tempDir = createTempDir();
   const manager = createLLMManager({
+    insecureNoAuth: true,
     dataDir: tempDir,
     generateStream: async function* (_messages, _options) {
       yield { type: 'delta', text: 'First part...' };

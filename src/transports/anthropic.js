@@ -63,14 +63,25 @@ export default {
       body.system = systemText;
     }
 
-    if (opts.thinking === 'enabled') {
+    const adaptive = /^claude-(?:(?:opus|sonnet|haiku)-5-5|fable-5-1)(?:-|$)/.test(profile.model || '');
+    if (adaptive && opts.thinking === 'enabled') {
+      body.thinking = { type: 'adaptive' };
+    } else if (adaptive && opts.thinking === 'disabled') {
+      if (/^claude-(?:opus|fable)-/.test(profile.model)) {
+        throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Bu modelde düşünme kapatılamaz.', {
+          status: 400,
+          retryable: false
+        });
+      }
+      body.thinking = { type: profile.model.startsWith('claude-sonnet-') ? 'between_tools' : 'disabled' };
+    } else if (opts.thinking === 'enabled') {
       const maxTokens = opts.maxOutputTokens || 8192;
       const budgetTokens = Math.min(2048, maxTokens - 1);
       body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
     }
 
-    if (opts.temperature !== undefined && opts.thinking !== 'enabled') body.temperature = opts.temperature;
-    if (opts.topP !== undefined) body.top_p = opts.topP;
+    if (opts.temperature !== undefined && opts.thinking !== 'enabled' && !adaptive) body.temperature = opts.temperature;
+    if (opts.topP !== undefined && opts.thinking !== 'enabled' && !adaptive) body.top_p = opts.topP;
     if (opts.stop) body.stop_sequences = Array.isArray(opts.stop) ? opts.stop : [opts.stop];
 
     return body;

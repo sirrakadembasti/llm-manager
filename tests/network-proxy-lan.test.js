@@ -73,7 +73,6 @@ test('YH1-C9: Ollama catalog entry exists with default models and LAN note', () 
   assert.equal(ollama.baseURL, 'http://localhost:11434/v1');
   assert.equal(ollama.transport, 'openai');
   assert.ok(Array.isArray(ollama.models));
-  assert.ok(ollama.models.includes('llama3.2'));
-  assert.ok(ollama.models.includes('deepseek-r1'));
+  assert.ok(ollama.models.includes('gpt-oss:20b'), 'Officially verified Ollama Chat Completions example is offered');
   assert.ok(ollama.note, 'Ollama should have a configuration note');
 });

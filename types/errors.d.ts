@@ -3,32 +3,45 @@ export type LLMErrorCode =
   | 'PROFILE_INVALID'
   | 'PROFILE_NOT_FOUND'
   | 'PROFILE_CONFLICT'
-  | 'STORE_LOCKED'
-  | 'STORE_CORRUPT'
-  | 'STORE_VERSION_UNSUPPORTED'
   | 'MESSAGES_INVALID'
-  | 'BODY_TOO_LARGE'
-  | 'BODY_INVALID'
   | 'PURPOSE_INVALID'
+  | 'TEST_MODE_INVALID'
+  | 'TEST_IN_PROGRESS'
   | 'ACTIVE_PROFILE_MISSING'
-  | 'CHAT_DISABLED'
-  | 'FORBIDDEN'
-  | 'RATE_LIMITED'
-  | 'CSRF_REQUIRED'
-  | 'LLM_ERROR'
-  | 'LLM_EMPTY_RESPONSE'
-  | 'LLM_CONTENT_FILTERED'
-  | 'LLM_UPSTREAM_UNAVAILABLE'
   | 'LLM_NETWORK'
   | 'LLM_DNS_BLOCKED'
   | 'LLM_RESPONSE_TOO_LARGE'
   | 'LLM_TIMEOUT'
-  | 'LLM_ABORTED';
+  | 'LLM_ABORTED'
+  | 'LLM_PROVIDER_ERROR'
+  | 'LLM_RATE_LIMIT'
+  | 'LLM_BILLING'
+  | 'LLM_FORBIDDEN'
+  | 'LLM_AUTH'
+  | 'LLM_REQUEST_REJECTED'
+  | 'LLM_EMPTY_RESPONSE'
+  | 'LLM_TRUNCATED'
+  | 'LLM_CONTENT_FILTERED'
+  | 'LLM_UPSTREAM_UNAVAILABLE'
+  | 'AI_CREDENTIAL_ENDPOINT_MISMATCH'
+  | 'STORE_VERSION_UNSUPPORTED'
+  | 'STORE_CORRUPT'
+  | 'STORE_LOCKED'
+  | 'RATE_LIMITED'
+  | 'BODY_INVALID'
+  | 'BODY_TOO_LARGE'
+  | 'AUTH_NOT_CONFIGURED'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'CHAT_DISABLED'
+  | 'HEALTH_DISABLED'
+  | 'API_KEY_REQUIRED'
+  | 'PARAMS_INVALID';
 
 export class LLMError extends Error {
   code: LLMErrorCode | string;
-  status: number;
-  retryable: boolean;
+  status?: number;
+  retryable?: boolean;
   upstreamStatus?: number;
   cause?: unknown;
 
@@ -44,6 +57,6 @@ export class LLMError extends Error {
   );
 }
 
-export const ErrorCodes: Readonly<Record<LLMErrorCode, LLMErrorCode>>;
+export const ErrorCodes: Readonly<{ [Code in LLMErrorCode]: Code }>;
 
-export function isLLMError(error: unknown): error is LLMError;
+export function isLLMError(error: unknown, code?: LLMErrorCode | string): error is LLMError;

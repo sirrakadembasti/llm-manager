@@ -16,6 +16,7 @@ function createTempDir(prefix = 'llm-runtime-') {
 test('YH1-C1: message count, total chars, single message chars and role whitelist validation', async () => {
   const tempDir = createTempDir();
   const manager = createLLMManager({
+    insecureNoAuth: true,
     dataDir: tempDir,
     limits: {
       maxMessages: 3,
@@ -111,6 +112,7 @@ test('YH1-C1: message count, total chars, single message chars and role whitelis
 test('YH1-C1 & D1: llm.fetch enforces body size limits, invalid JSON, and propagates x-request-id', async () => {
   const tempDir = createTempDir();
   const manager = createLLMManager({
+    insecureNoAuth: true,
     dataDir: tempDir,
     limits: {
       maxBodyBytes: 100
@@ -156,6 +158,7 @@ test('YH1-C2: chatOverrides permissions - non-admin cannot override profileId, t
   let invokedOptions = null;
 
   const manager = createLLMManager({
+    insecureNoAuth: true,
     dataDir: tempDir,
     chatOverrides: 'admin', // default
     generate: async (messages, options) => {
@@ -244,6 +247,7 @@ test('YH1-C3: rate limiting on /chat and Basic Auth brute-force', async () => {
   // 2. Core rate limiting on /chat
   const tempDir = createTempDir();
   const manager = createLLMManager({
+    insecureNoAuth: true,
     dataDir: tempDir,
     rateLimit: {
       chatPerMinute: 2,

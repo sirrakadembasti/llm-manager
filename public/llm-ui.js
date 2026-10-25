@@ -24,6 +24,10 @@ function translateDom() {
       el.textContent = i18n[key];
     }
   }
+  for (const el of document.querySelectorAll('[data-i18n-aria-label]')) {
+    const key = el.getAttribute('data-i18n-aria-label');
+    if (key && i18n[key]) el.setAttribute('aria-label', t(key));
+  }
   for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
     const key = typeof el.getAttribute === 'function' ? el.getAttribute('data-i18n-placeholder') : null;
     if (key && i18n[key]) {
@@ -57,7 +61,11 @@ async function request(path, options = {}) {
     timer = setTimeout(
       () => {
         controller.abort();
-        reject(new Error('İstek zaman aşımına uğradı. Profil zaman sınırını ve bağlantıyı kontrol edin.'));
+        reject(
+          new Error(
+            t('dynamic.timeout', {}, 'İstek zaman aşımına uğradı. Profil zaman sınırını ve bağlantıyı kontrol edin.')
+          )
+        );
       },
       Math.min(330000, Math.max(1000, Number(timeoutMs) || 330000))
     );
@@ -86,14 +94,15 @@ async function request(path, options = {}) {
         if (!response.ok) {
           const fallback =
             response.status === 401
-              ? 'Oturum sona erdi. Yeniden giriş yapın.'
-              : `Sunucu isteği başarısız (HTTP ${response.status}).`;
+              ? t('dynamic.session_expired', {}, 'Oturum sona erdi. Yeniden giriş yapın.')
+              : t('dynamic.http_error', { status: response.status });
           const detail = typeof body?.error === 'string' ? body.error : fallback;
           throw new Error(
-            `${detail}${body?.code ? ` · Kod: ${body.code}` : ''}${supportId ? ` · Destek kimliği: ${supportId}` : ''}`
+            `${detail}${body?.code ? ` · ${t('dynamic.error_code', { code: body.code })}` : ''}${supportId ? ` · ${t('dynamic.support', { id: supportId })}` : ''}`
           );
         }
-        if (!body || typeof body !== 'object') throw new Error('Sunucu geçerli JSON yanıtı döndürmedi.');
+        if (!body || typeof body !== 'object')
+          throw new Error(t('dynamic.invalid_json', {}, 'Sunucu geçerli JSON yanıtı döndürmedi.'));
         return body;
       })()
     ]);
@@ -103,7 +112,8 @@ async function request(path, options = {}) {
 }
 
 function lockControls() {
-  for (const control of document.querySelectorAll('button, input, select')) {
+  for (const control of document.querySelectorAll('button, input, select, textarea')) {
+    if (control.closest?.('#confirm-dialog')) continue;
     if (!disabledBefore.has(control)) disabledBefore.set(control, control.disabled);
     control.disabled = true;
   }
@@ -116,17 +126,20 @@ async function operation(label, action) {
   stateVersion++;
   lockControls();
   const started = Date.now();
-  const progress = () => message(`${label}… ${((Date.now() - started) / 1000).toFixed(1)} sn`);
+  const progress = () => message(`${label}… ${((Date.now() - started) / 1000).toFixed(1)} ${t('dynamic.seconds')}`);
   progress();
   const timer = setInterval(progress, 1000);
   try {
     const result = await action();
     clearInterval(timer);
-    if (result) message(`${result} · Süre: ${((Date.now() - started) / 1000).toFixed(1)} sn`);
+    if (result) message(`${result} · ${t('dynamic.elapsed', { seconds: ((Date.now() - started) / 1000).toFixed(1) })}`);
     else message('');
   } catch (error) {
     clearInterval(timer);
-    message(`${error.message} · Süre: ${((Date.now() - started) / 1000).toFixed(1)} sn`, true);
+    message(
+      `${error.message} · ${t('dynamic.elapsed', { seconds: ((Date.now() - started) / 1000).toFixed(1) })}`,
+      true
+    );
   } finally {
     clearInterval(timer);
     pending = false;
@@ -184,7 +197,7 @@ function populateModels(models) {
   }
   const customOption = document.createElement('option');
   customOption.value = '';
-  customOption.textContent = 'Özel model kimliği (elle ekleyin / düzenleyin)';
+  customOption.textContent = t('dynamic.custom_model', {}, 'Özel model kimliği (elle ekleyin / düzenleyin)');
   select.append(customOption);
   syncModelSelect();
 }
@@ -205,7 +218,7 @@ function updateApiKeyFieldState() {
   if (!editingProfile || !editingProfile.hasApiKey) {
     input.required = true;
     input.className = '';
-    input.placeholder = 'API anahtarını girin';
+    input.placeholder = t('dynamic.key_placeholder', {}, 'API anahtarını girin');
     if (badge) badge.hidden = true;
     if (status) status.hidden = true;
     return;
@@ -226,43 +239,56 @@ function updateApiKeyFieldState() {
     if (badge) {
       badge.hidden = false;
       badge.className = 'key-badge updating';
-      badge.textContent = '↻ Yeni Anahtar Girildi';
+      badge.textContent = t('dynamic.key_new_badge', {}, '↻ Yeni Anahtar Girildi');
     }
     if (status) {
       status.hidden = false;
       status.className = 'key-status updating';
-      status.textContent =
-        'Yeni API anahtarı girildi. Profili kaydettiğinizde önceki anahtarın üzerine yazılır ve en son girilen bu anahtar şifrelenerek saklanır.';
+      status.textContent = t(
+        'dynamic.key_new_info',
+        {},
+        'Yeni API anahtarı girildi. Profili kaydettiğinizde önceki anahtarın üzerine yazılır ve en son girilen bu anahtar şifrelenerek saklanır.'
+      );
     }
   } else if (targetChanged) {
     input.required = true;
     input.className = 'warning-key';
-    input.placeholder = 'Yeni sağlayıcı/adres için API anahtarını girin';
+    input.placeholder = t('dynamic.key_required_placeholder', {}, 'Yeni sağlayıcı/adres için API anahtarını girin');
     if (badge) {
       badge.hidden = false;
       badge.className = 'key-badge warning';
-      badge.textContent = '! Yeni Anahtar Gerekli';
+      badge.textContent = t('dynamic.key_required_badge', {}, '! Yeni Anahtar Gerekli');
     }
     if (status) {
       status.hidden = false;
       status.className = 'key-status warning';
-      status.textContent =
-        'Sağlayıcı veya API temel adresi değiştirildiği için güvenlik gereği yeni API anahtarı girilmelidir.';
+      status.textContent = t(
+        'dynamic.key_required_info',
+        {},
+        'Sağlayıcı veya API temel adresi değiştirildiği için güvenlik gereği yeni API anahtarı girilmelidir.'
+      );
     }
   } else {
     input.required = false;
     input.className = 'has-saved-key';
-    input.placeholder = 'Kayıtlı anahtar korunur — değiştirmek için yeni anahtar yazın';
+    input.placeholder = t(
+      'dynamic.key_saved_placeholder',
+      {},
+      'Kayıtlı anahtar korunur — değiştirmek için yeni anahtar yazın'
+    );
     if (badge) {
       badge.hidden = false;
       badge.className = 'key-badge saved';
-      badge.textContent = '✓ Anahtar Kayıtlı (Şifreli)';
+      badge.textContent = t('dynamic.key_saved_badge', {}, '✓ Anahtar Kayıtlı (Şifreli)');
     }
     if (status) {
       status.hidden = false;
       status.className = 'key-status saved';
-      status.textContent =
-        'Bu profilde önceden kaydedilmiş şifreli bir API anahtarı var. Boş bırakırsanız mevcut anahtar korunur; yeni bir anahtar yazarsanız en son girilen anahtar kaydedilir.';
+      status.textContent = t(
+        'dynamic.key_saved_info',
+        {},
+        'Bu profilde önceden kaydedilmiş şifreli bir API anahtarı var. Boş bırakırsanız mevcut anahtar korunur; yeni bir anahtar yazarsanız en son girilen anahtar kaydedilir.'
+      );
     }
   }
 }
@@ -273,7 +299,7 @@ function serviceChoices() {
     select = document.createElement('select');
     select.id = 'llm-service';
     select.className = 'sub-select';
-    select.setAttribute('aria-label', 'Hizmet / bölge');
+    select.setAttribute('aria-label', t('dynamic.service_label', {}, 'Hizmet / bölge'));
     $('base-url').before(select);
     select.addEventListener('change', () => {
       if (select.value) {
@@ -287,7 +313,10 @@ function serviceChoices() {
   const endpoints = catalog.find(p => p.id === $('provider').value)?.endpoints || [];
   select.replaceChildren();
   select.hidden = !endpoints.length;
-  for (const item of [...endpoints, { name: 'Özel adres / konsoldaki adres (elle düzenleyin)', baseURL: '' }]) {
+  for (const item of [
+    ...endpoints,
+    { name: t('dynamic.custom_endpoint', {}, 'Özel adres / konsoldaki adres (elle düzenleyin)'), baseURL: '' }
+  ]) {
     const option = document.createElement('option');
     option.value = item.baseURL;
     option.textContent = item.name;
@@ -313,9 +342,29 @@ function providerDefaults() {
   updateApiKeyFieldState();
 }
 
+let fallbackOrder = [];
+function selectedFallbackIds() {
+  const selected = [...($('fallback-profiles')?.options || [])].filter(o => o.selected).map(o => o.value);
+  return [...fallbackOrder.filter(id => selected.includes(id)), ...selected.filter(id => !fallbackOrder.includes(id))];
+}
+function populateFallbacks(selected = [], excludeId = $('profile-id').value) {
+  const select = $('fallback-profiles');
+  if (!select) return;
+  fallbackOrder = selected.filter(id => id !== excludeId && profiles.some(p => p.id === id));
+  select.replaceChildren();
+  for (const profile of profiles.filter(p => p.id !== excludeId)) {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = profile.name;
+    option.selected = fallbackOrder.includes(profile.id);
+    select.append(option);
+  }
+}
+
 function clearForm() {
   editingRevision = undefined;
   editingProfile = null;
+  populateFallbacks([], '');
   $('profile-form').reset();
   $('profile-id').value = '';
   $('api-key').value = '';
@@ -337,6 +386,7 @@ function editProfile(profile) {
     $('provider').append(option);
   }
   $('profile-id').value = profile.id;
+  populateFallbacks(profile.fallbackProfileIds || [], profile.id);
   $('name').value = profile.name;
   $('provider').value = profile.provider;
   $('base-url').value = profile.baseURL;
@@ -369,6 +419,7 @@ function cloneProfile(profile) {
   $('profile-id').value = '';
   editingRevision = undefined;
   editingProfile = null;
+  populateFallbacks(profile.fallbackProfileIds || [], '');
   const suffix = t('profiles.clone_suffix', { name: profile.name }, `${profile.name} (Kopya)`);
   $('name').value = suffix;
   $('provider').value = profile.provider;
@@ -410,12 +461,18 @@ async function showConfirm(promptText) {
         dialog.close();
         resolve(true);
       };
+      const onEscape = e => {
+        e.preventDefault();
+        onCancel();
+      };
       const cleanup = () => {
+        dialog.removeEventListener('cancel', onEscape);
         cancelBtn?.removeEventListener('click', onCancel);
         dialog.removeEventListener('submit', onConfirm);
       };
       cancelBtn?.addEventListener('click', onCancel, { once: true });
       dialog.addEventListener('submit', onConfirm, { once: true });
+      dialog.addEventListener('cancel', onEscape);
       dialog.showModal();
     });
   }
@@ -423,25 +480,36 @@ async function showConfirm(promptText) {
 }
 
 function lastTestText(profile, mode) {
-  const label = mode === 'quick' ? 'Bağlantı testi' : mode === 'conversation' ? 'Sohbet testi' : 'Son test';
+  const label =
+    mode === 'quick'
+      ? t('dynamic.test_quick', {}, 'Bağlantı testi')
+      : mode === 'conversation'
+        ? t('dynamic.test_chat', {}, 'Sohbet testi')
+        : t('dynamic.test_last', {}, 'Son test');
   const test = mode
     ? (profile.lastTests?.[mode] ?? ((profile.lastTest?.mode || 'quick') === mode ? profile.lastTest : null))
     : profile.lastTest;
-  if (!test) return `${label}: Yapılmadı`;
+  if (!test) return t('dynamic.not_run', { label });
   const at = new Date(test.at);
-  const parts = [`${label}: ${test.status === 'passed' ? 'Başarılı' : 'Başarısız'}`];
-  if (!mode && test.mode) parts.push(test.mode === 'conversation' ? 'Sohbet' : 'Hızlı bağlantı');
-  if (Number.isFinite(test.durationMs)) parts.push(`${(test.durationMs / 1000).toFixed(1)} sn`);
-  if (!Number.isNaN(at.getTime())) parts.push(at.toLocaleString('tr-TR'));
-  if (test.code) parts.push(`Kod: ${test.code}`);
-  return `${parts.join(' · ')}. Bu geçmiş sonuç güncel sağlık durumu değildir.`;
+  const parts = [
+    `${label}: ${test.status === 'passed' ? t('dynamic.test_passed', {}, 'Başarılı') : t('dynamic.test_failed', {}, 'Başarısız')}`
+  ];
+  if (!mode && test.mode)
+    parts.push(
+      test.mode === 'conversation'
+        ? t('dynamic.test_chat_short', {}, 'Sohbet')
+        : t('dynamic.test_quick_short', {}, 'Hızlı bağlantı')
+    );
+  if (Number.isFinite(test.durationMs)) parts.push(`${(test.durationMs / 1000).toFixed(1)} ${t('dynamic.seconds')}`);
+  if (!Number.isNaN(at.getTime())) parts.push(at.toLocaleString(document.body.dataset.locale || 'tr'));
+  if (test.code) parts.push(t('dynamic.error_code', { code: test.code }));
+  return `${parts.join(' · ')}. ${t('dynamic.history')}`;
 }
 
 async function testProfile(profile, mode) {
-  let result;
   let failure;
   try {
-    result = await request(`/profiles/${encodeURIComponent(profile.id)}/test`, {
+    await request(`/profiles/${encodeURIComponent(profile.id)}/test`, {
       method: 'POST',
       body: JSON.stringify({ mode }),
       timeoutMs: Math.min(330000, (profile.timeoutMs || 120000) + 30000)
@@ -455,7 +523,7 @@ async function testProfile(profile, mode) {
     if (!failure) failure = error;
   }
   if (failure) throw failure;
-  return result.message || 'Test tamamlandı.';
+  return t('dynamic.test_complete', {}, 'Test tamamlandı.');
 }
 
 function render() {
@@ -468,7 +536,7 @@ function render() {
         { name: active.name, model: active.model, lastTest: lastTestText(active) },
         `Etkin profil: ${active.name} · ${active.model}. ${lastTestText(active)}`
       )
-    : t('app.no_active', {}, 'Etkin profil yok. Manager ve ajanların kullanması için bir profili etkinleştirin.');
+    : t('app.no_active', {}, 'Etkin profil yok. Uygulamanız için bir profili etkinleştirin.');
   const container = $('profiles');
   container.replaceChildren();
   if (!profiles.length) {
@@ -492,7 +560,7 @@ function render() {
 
     const settings = document.createElement('p');
     settings.className = 'muted';
-    settings.textContent = `${t('profiles.timeout_prefix', {}, 'Zaman sınırı')}: ${(profile.timeoutMs ?? 120000) / 1000} sn · ${t('profiles.max_tokens_prefix', {}, 'Çıktı sınırı')}: ${profile.maxOutputTokens ?? 8192} token${profile.thinking && profile.thinking !== 'auto' ? ` · ${t('profiles.thinking_prefix', {}, 'Düşünme')}: ${profile.thinking}` : ''}`;
+    settings.textContent = `${t('profiles.timeout_prefix', {}, 'Zaman sınırı')}: ${(profile.timeoutMs ?? 120000) / 1000} ${t('dynamic.seconds')} · ${t('profiles.max_tokens_prefix', {}, 'Çıktı sınırı')}: ${profile.maxOutputTokens ?? 8192} token${profile.thinking && profile.thinking !== 'auto' ? ` · ${t('profiles.thinking_prefix', {}, 'Düşünme')}: ${profile.thinking}` : ''}`;
 
     const testStatus = document.createElement('div');
     testStatus.className = 'muted';
@@ -523,7 +591,7 @@ function render() {
       async () => {
         await request(`${path}/activate`, { method: 'POST', body: JSON.stringify({ revision: profile.revision }) });
         await loadProfiles();
-        return `${profile.name} etkin.`;
+        return t('dynamic.activated', { name: profile.name });
       }
     );
     activate.disabled = isActive;
@@ -558,8 +626,8 @@ function render() {
         }
         $('model').focus();
         return result.models?.length
-          ? `${result.models.length} model seçeneklere eklendi. Model alanından seçebilirsiniz.`
-          : 'Model bulunamadı; kimliği elle girebilirsiniz.';
+          ? t('dynamic.models_added', { count: result.models.length })
+          : t('dynamic.models_missing', {}, 'Model bulunamadı; kimliği elle girebilirsiniz.');
       }),
       activate,
       button(t('profiles.btn_delete', {}, 'Sil'), 'danger', async () => {
@@ -629,10 +697,18 @@ async function loadProfiles() {
       updateApiKeyFieldState();
     }
   }
+  populateFallbacks(selectedFallbackIds());
   render();
 }
 
 async function init() {
+  for (const control of document.querySelectorAll('input, select, textarea')) {
+    control.addEventListener('invalid', () => {
+      control.setAttribute('aria-invalid', 'true');
+      message(control.validationMessage, true);
+    });
+    control.addEventListener('input', () => control.removeAttribute('aria-invalid'));
+  }
   $('home-link').href = document.body.dataset.homeUrl || '/';
   translateDom();
   const result = await request('/catalog', { timeoutMs: 30000 });
@@ -656,7 +732,7 @@ async function init() {
     updateApiKeyFieldState();
   });
   $('preview-models-btn')?.addEventListener('click', () => {
-    operation('Modeller getiriliyor', async () => {
+    operation(t('dynamic.models_fetching', {}, 'Modeller getiriliyor'), async () => {
       const provider = $('provider').value;
       const baseURL = $('base-url').value;
       const apiKey = $('api-key').value;
@@ -668,9 +744,9 @@ async function init() {
       });
       if (res.models?.length) {
         populateModels(res.models);
-        return `${res.models.length} model listelendi.`;
+        return t('dynamic.models_listed', { count: res.models.length });
       }
-      return 'Model listesi boş döndü.';
+      return t('dynamic.models_empty', {}, 'Model listesi boş döndü.');
     });
   });
   $('model-select')?.addEventListener('change', () => {
@@ -772,7 +848,11 @@ async function init() {
 
         const durationMs = Date.now() - start;
         if (meta) {
-          meta.textContent = `⏱️ ${durationMs} ms · 🔢 ${usage?.totalTokens ? usage.totalTokens.toLocaleString('tr-TR') : '—'} token (${finishReason})`;
+          meta.textContent = t('dynamic.metrics', {
+            duration: durationMs,
+            tokens: usage?.totalTokens ? usage.totalTokens.toLocaleString(document.body.dataset.locale || 'tr') : '—',
+            reason: finishReason
+          });
         }
       } else {
         const res = await request('/chat', {
@@ -782,11 +862,17 @@ async function init() {
         if (output) output.textContent = res.content || res.text || '';
         const durationMs = Date.now() - start;
         if (meta) {
-          meta.textContent = `⏱️ ${durationMs} ms · 🔢 ${res.usage?.totalTokens ? res.usage.totalTokens.toLocaleString('tr-TR') : '—'} token (${res.finishReason || 'stop'})`;
+          meta.textContent = t('dynamic.metrics', {
+            duration: durationMs,
+            tokens: res.usage?.totalTokens
+              ? res.usage.totalTokens.toLocaleString(document.body.dataset.locale || 'tr')
+              : '—',
+            reason: res.finishReason || 'stop'
+          });
         }
       }
     } catch (err) {
-      if (output) output.textContent = `[HATA]: ${err.message}`;
+      if (output) output.textContent = t('dynamic.error', { message: err.message });
       if (meta) meta.textContent = t('playground.failed', {}, 'İstek başarısız oldu.');
     } finally {
       if (sendBtn) sendBtn.disabled = false;
@@ -794,7 +880,7 @@ async function init() {
   });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault();
-    operation('Profil kaydediliyor', async () => {
+    operation(t('dynamic.profile_saving', {}, 'Profil kaydediliyor'), async () => {
       const id = $('profile-id').value;
       const input = {
         name: $('name').value,
@@ -803,7 +889,12 @@ async function init() {
         baseURL: $('base-url').value,
         timeoutMs: Number($('timeout-ms').value),
         maxOutputTokens: Number($('max-output-tokens').value),
-        thinking: $('thinking').value || 'auto'
+        thinking: $('thinking').value || 'auto',
+        fallbackProfileIds: selectedFallbackIds(),
+        temperature: null,
+        topP: null,
+        responseFormat: null,
+        stop: null
       };
       if ($('temperature')?.value !== '') input.temperature = Number($('temperature').value);
       if ($('top-p')?.value !== '') input.topP = Number($('top-p').value);
@@ -816,10 +907,10 @@ async function init() {
       }
       if (id && editingRevision !== undefined) input.revision = editingRevision;
       if (!Number.isInteger(input.timeoutMs) || input.timeoutMs < 5000 || input.timeoutMs > 300000) {
-        throw new Error('Zaman sınırı 5000–300000 ms arasında olmalı.');
+        throw new Error(t('dynamic.timeout_invalid', {}, 'Zaman sınırı 5000–300000 ms arasında olmalı.'));
       }
       if (!Number.isInteger(input.maxOutputTokens) || input.maxOutputTokens < 256 || input.maxOutputTokens > 32768) {
-        throw new Error('Çıktı sınırı 256–32768 token arasında olmalı.');
+        throw new Error(t('dynamic.tokens_invalid', {}, 'Çıktı sınırı 256–32768 token arasında olmalı.'));
       }
       if ($('api-key').value.trim()) input.apiKey = $('api-key').value.trim();
       const saved = await request(id ? `/profiles/${encodeURIComponent(id)}` : '/profiles', {
@@ -831,8 +922,12 @@ async function init() {
       const latestProfile = profiles.find(p => p.id === saved.id) || saved;
       editProfile(latestProfile);
       return input.apiKey
-        ? 'Profil ve yeni API anahtarı şifrelenerek kaydedildi. Bağlantıyı sınayıp etkinleştirin.'
-        : 'Profil güncellendi (mevcut şifreli API anahtarı korundu).';
+        ? t(
+            'dynamic.profile_key_saved',
+            {},
+            'Profil ve yeni API anahtarı şifrelenerek kaydedildi. Bağlantıyı sınayıp etkinleştirin.'
+          )
+        : t('dynamic.profile_updated', {}, 'Profil güncellendi (mevcut şifreli API anahtarı korundu).');
     });
   });
   clearForm();

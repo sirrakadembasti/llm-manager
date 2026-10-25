@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LLM Yönetimi</title>
+  <title data-i18n="app.title">LLM Yönetimi</title>
   <style>
     :root { font-family: system-ui, sans-serif; color: #1e293b; background: #f5f6fb; }
     * { box-sizing: border-box; }
@@ -120,9 +120,9 @@
 </head>
 <body>
   <header>
-    <a id="home-link" href="/">← Ana sayfaya dön</a>
+    <a id="home-link" href="/" data-i18n="app.home">← Ana sayfaya dön</a>
     <h1 data-i18n="app.title">LLM Profil Yönetimi</h1>
-    <div>Sağlayıcı, model ve API anahtarlarını tek yerden yönetin.</div>
+    <div data-i18n="app.subtitle">Sağlayıcı, model ve API anahtarlarını tek yerden yönetin.</div>
   </header>
   <main>
     <p id="message" role="status" aria-live="polite"></p>
@@ -132,11 +132,11 @@
         <strong id="profile-count">—</strong>
       </section>
       <section class="summary-card">
-        <span class="muted" data-i18n="app.summary_active">Manager ve ajanların kullandığı profil</span>
-        <strong id="active-name">Yükleniyor…</strong>
+        <span class="muted" data-i18n="app.summary_active">Uygulamanın kullandığı etkin profil</span>
+        <strong id="active-name" data-i18n="app.loading">Yükleniyor…</strong>
       </section>
     </div>
-    <section id="active-summary" class="active-summary" aria-live="polite">Etkin profil yükleniyor…</section>
+    <section id="active-summary" class="active-summary" aria-live="polite" data-i18n="app.active_loading">Etkin profil yükleniyor…</section>
     <div class="grid">
       <section>
         <h2 id="form-title"><span data-i18n="form.new_title">Yeni profil</span> <span id="catalog-badge" class="muted" style="font-size: 13px; font-weight: normal;"></span></h2>
@@ -151,7 +151,7 @@
           <input id="base-url" type="url" required placeholder="https://api.example.com/v1" aria-describedby="provider-note message">
           <p id="provider-note" class="muted" hidden></p>
           <label for="model" data-i18n="form.model">Model kimliği (listeden seçilebilir veya elle eklenip düzenlenebilir)</label>
-          <select id="model-select" class="sub-select" aria-label="Önerilen modeller"></select>
+          <select id="model-select" class="sub-select" data-i18n-aria-label="form.model_options" aria-label="Önerilen modeller"></select>
           <input id="model" list="known-models" required maxlength="160" data-i18n-placeholder="form.model_placeholder" placeholder="Örn. sağlayıcının güncel model kimliği" aria-describedby="message">
           <button type="button" id="preview-models-btn" class="secondary" data-i18n="form.fetch_models_btn" style="margin-top: 6px; font-size: 13px; padding: 4px 10px;">Modelleri getir (canlı)</button>
           <datalist id="known-models"></datalist>
@@ -176,36 +176,39 @@
           <div id="thinking-field" hidden>
             <label for="thinking" data-i18n="form.thinking">Düşünme (Reasoning) modu</label>
             <select id="thinking">
-              <option value="auto">Otomatik</option>
-              <option value="enabled">Açık</option>
-              <option value="disabled">Kapalı</option>
+              <option value="auto" data-i18n="form.thinking_auto">Otomatik</option>
+              <option value="enabled" data-i18n="form.thinking_enabled">Açık</option>
+              <option value="disabled" data-i18n="form.thinking_disabled">Kapalı</option>
             </select>
-            <p class="muted">Destekleyen modellerde (OpenAI o-serisi, Anthropic, Gemini, Qwen, MiMo) düşünme/akıl yürütme davranışını belirler.</p>
+            <p class="muted" data-i18n="form.thinking_hint">Destekleyen modellerde (OpenAI o-serisi, Anthropic, Gemini, Qwen, MiMo) düşünme/akıl yürütme davranışını belirler.</p>
           </div>
+          <label for="fallback-profiles" data-i18n="dynamic.fallback_label">Yedek profiller</label>
+          <select id="fallback-profiles" multiple size="4" aria-describedby="fallback-hint message"></select>
+          <p id="fallback-hint" class="muted" data-i18n="dynamic.fallback_hint">Birden çok profil seçebilirsiniz.</p>
           <details class="advanced-settings" style="margin-top: 14px;">
             <summary data-i18n="form.advanced_settings" style="cursor: pointer; font-weight: 600; color: #4338ca;">Gelişmiş üretim parametreleri</summary>
             <div class="field-grid" style="margin-top: 10px;">
               <div>
                 <label for="temperature" data-i18n="form.temperature">Sıcaklık (temperature: 0.0–2.0)</label>
-                <input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Varsayılan (boş)">
+                <input id="temperature" type="number" min="0" max="2" step="0.1" data-i18n-placeholder="form.default" placeholder="Varsayılan (boş)" aria-describedby="message">
               </div>
               <div>
                 <label for="top-p" data-i18n="form.top_p">Top-P (0.0–1.0)</label>
-                <input id="top-p" type="number" min="0" max="1" step="0.05" placeholder="Varsayılan (boş)">
+                <input id="top-p" type="number" min="0" max="1" step="0.05" data-i18n-placeholder="form.default" placeholder="Varsayılan (boş)" aria-describedby="message">
               </div>
             </div>
             <div class="field-grid">
               <div>
                 <label for="response-format" data-i18n="form.response_format">Yanıt biçimi</label>
-                <select id="response-format">
-                  <option value="">Varsayılan (metin)</option>
+                <select id="response-format" aria-describedby="message">
+                  <option value="" data-i18n="form.default_text">Varsayılan (metin)</option>
                   <option value="text" data-i18n="form.response_format_text">Düz metin (text)</option>
                   <option value="json" data-i18n="form.response_format_json">Yapılandırılmış JSON (json)</option>
                 </select>
               </div>
               <div>
                 <label for="stop" data-i18n="form.stop">Durdurma dizileri (virgülle ayrılmış)</label>
-                <input id="stop" placeholder="Örn: STOP, END">
+                <input id="stop" data-i18n-placeholder="form.stop_placeholder" placeholder="Örn: STOP, END" aria-describedby="message">
               </div>
             </div>
           </details>
@@ -227,7 +230,7 @@
       <div class="field-grid" style="margin-bottom: 12px;">
         <div>
           <label for="playground-profile" data-i18n="playground.profile_label">Kullanılacak profil</label>
-          <select id="playground-profile"></select>
+          <select id="playground-profile" aria-describedby="message"></select>
         </div>
         <div style="display: flex; align-items: flex-end; padding-bottom: 10px;">
           <label style="margin: 0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
@@ -239,7 +242,7 @@
       <label for="playground-system" data-i18n="playground.system_label">Sistem talimatı (isteğe bağlı)</label>
       <textarea id="playground-system" rows="2" data-i18n-placeholder="playground.system_placeholder" placeholder="Örn: Sen yardımsever bir Türkçe asistansın." style="resize: vertical; margin-bottom: 12px;"></textarea>
       <label for="playground-user" data-i18n="playground.user_label">Kullanıcı mesajı</label>
-      <textarea id="playground-user" rows="3" data-i18n-placeholder="playground.user_placeholder" placeholder="Mesajınızı buraya yazın..." style="resize: vertical; margin-bottom: 12px;" required></textarea>
+      <textarea id="playground-user" rows="3" data-i18n-placeholder="playground.user_placeholder" placeholder="Mesajınızı buraya yazın..." style="resize: vertical; margin-bottom: 12px;" required aria-describedby="message"></textarea>
       <div class="actions">
         <button type="button" id="playground-send-btn" data-i18n="playground.send_btn">Gönder</button>
         <button type="button" id="playground-clear-btn" class="secondary" data-i18n="playground.clear_btn">Temizle</button>
@@ -250,7 +253,7 @@
         <pre id="playground-output"></pre>
       </div>
     </section>
-    <dialog id="confirm-dialog" class="confirm-dialog">
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-msg">
       <form method="dialog">
         <p id="confirm-dialog-msg" style="margin: 0 0 16px; font-weight: 500;"></p>
         <div class="actions" style="margin-top: 14px; justify-content: flex-end;">

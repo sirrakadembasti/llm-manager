@@ -1,6 +1,6 @@
 {
-  "name": "llm-manager",
-  "version": "1.0.0",
+  "name": "@sirrakadembasti/llm-manager",
+  "version": "2.0.0",
   "description": "Reusable authenticated LLM profile management and diagnostics",
   "type": "module",
   "main": "src/index.js",
@@ -25,7 +25,10 @@
       "types": "./types/init.d.ts",
       "default": "./src/init.js"
     },
-    "./setup": "./src/setup.js",
+    "./setup": {
+      "types": "./types/setup.d.ts",
+      "default": "./src/setup.js"
+    },
     "./transport": {
       "types": "./types/transport.d.ts",
       "default": "./src/providerTransport.js"
@@ -53,7 +56,7 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.js tests/**/*.test.js",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=70 tests/*.test.js tests/**/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=src/** --test-coverage-lines=80 --test-coverage-branches=70 tests/*.test.js tests/**/*.test.js",
     "typecheck": "tsc -p types/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check .",
@@ -75,7 +78,7 @@
     }
   },
   "engines": {
-    "node": ">=20.12.0"
+    "node": ">=22.12.0"
   },
   "author": "Sirrakadembasti",
   "keywords": [
@@ -109,6 +112,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.13.0",
     "express": "^4.19.2",
+    "express5": "npm:express@^5.3.0",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
     "typescript": "^7.0.2"

@@ -43,12 +43,12 @@ test('conversation runtime rejects nonempty truncated answers for every transpor
   }
 });
 
-test('runtime controls, credentials and revision fencing survive reload', () => {
+test('runtime controls, credentials and revision fencing survive reload', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-plugin-'));
   try {
     const options = { filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) };
     const store = createLLMProfileStore(options);
-    const profile = store.save({
+    const profile = await store.save({
       name: 'MiMo',
       provider: 'xiaomi_mimo',
       model: 'model',
@@ -57,23 +57,23 @@ test('runtime controls, credentials and revision fencing survive reload', () => 
       timeoutMs: 90000,
       maxOutputTokens: 2048
     });
-    store.activate(profile.id, profile.revision);
-    assert.equal(createLLMProfileStore(options).getActive().timeoutMs, 90000);
-    assert.ok(!JSON.stringify(store.list()).includes('private-key'));
+    await store.activate(profile.id, profile.revision);
+    assert.equal((await createLLMProfileStore(options).getActive()).timeoutMs, 90000);
+    assert.ok(!JSON.stringify(await store.list()).includes('private-key'));
     assert.ok(!fs.readFileSync(options.filePath, 'utf8').includes('private-key'));
-    assert.throws(() => store.save({ ...profile, revision: 'stale', apiKey: '' }), /değiştirildi/);
-    const edited = store.save({ ...profile, name: 'Changed', apiKey: '' });
-    assert.equal(store.recordTest(profile.id, 'passed', profile.revision), null);
-    store.recordTest(profile.id, 'passed', edited.revision, { mode: 'quick', durationMs: 10 });
-    store.recordTest(profile.id, 'failed', edited.revision, {
+    await assert.rejects(() => store.save({ ...profile, revision: 'stale', apiKey: '' }), /değiştirildi/);
+    const edited = await store.save({ ...profile, name: 'Changed', apiKey: '' });
+    assert.equal(await store.recordTest(profile.id, 'passed', profile.revision), null);
+    await store.recordTest(profile.id, 'passed', edited.revision, { mode: 'quick', durationMs: 10 });
+    await store.recordTest(profile.id, 'failed', edited.revision, {
       mode: 'conversation',
       durationMs: 90000,
       code: 'LLM_TIMEOUT'
     });
-    const latest = store.list().profiles[0];
+    const latest = (await store.list()).profiles[0];
     assert.equal(latest.lastTests.quick.status, 'passed');
     assert.equal(latest.lastTests.conversation.code, 'LLM_TIMEOUT');
-    assert.equal(store.getActive().apiKey, 'private-key');
+    assert.equal((await store.getActive()).apiKey, 'private-key');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -117,7 +117,7 @@ test('provider failure classification never returns upstream text or credentials
 test('custom mounted plugin enforces auth/CSRF and stores actual conversation diagnostics', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-plugin-http-'));
   const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'bc'.repeat(32) });
-  const profile = store.save({
+  const profile = await store.save({
     name: 'Test',
     provider: 'custom',
     model: 'test',
@@ -163,9 +163,9 @@ test('custom mounted plugin enforces auth/CSRF and stores actual conversation di
     const result = await response.json();
     assert.equal(result.mode, 'conversation');
     assert.ok(result.durationMs >= 0);
-    assert.equal(calls[0].options.purpose, 'manager');
+    assert.equal(calls[0].options.purpose, 'diagnostic');
     assert.equal(calls[0].messages[0].role, 'system');
-    assert.equal(store.list().profiles[0].lastTest.mode, 'conversation');
+    assert.equal((await store.list()).profiles[0].lastTest.mode, 'conversation');
     const pageResp = await fetch(`${base}/admin-models`, { headers });
     assert.equal(pageResp.headers.get('cache-control'), 'no-store');
     assert.equal(pageResp.headers.get('x-content-type-options'), 'nosniff');
@@ -206,7 +206,7 @@ test('createUiAssets rejects invalid mount paths and Express 4 forwards async st
   try {
     const res = await fetch(`${base}/api/llm/profiles`);
     assert.equal(res.status, 500);
-    assert.deepEqual(await res.json(), { caught: 'corrupted store' });
+    assert.deepEqual(await res.json(), { caught: 'corrupted store', requestId: res.headers.get('x-request-id') });
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
@@ -268,14 +268,14 @@ test('framework-agnostic core handles CRUD, activation, testing and unknown rout
 test('POST /chat endpoint supports active and explicit profileId, enforces chatAccess, and never leaks apiKey', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-chat-'));
   const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'de'.repeat(32) });
-  const p1 = store.save({
+  const p1 = await store.save({
     name: 'Aktif Model',
     provider: 'openai',
     model: 'gpt-4.1',
     baseURL: 'https://api.openai.com/v1',
     apiKey: 'sk-secret-1'
   });
-  const p2 = store.save({
+  const p2 = await store.save({
     name: 'Yedek Model',
     provider: 'anthropic',
     model: 'claude-sonnet-4-20250514',
@@ -326,7 +326,7 @@ test('POST /chat endpoint supports active and explicit profileId, enforces chatA
     assert.equal((await badMsg.json()).code, 'MESSAGES_INVALID');
 
     // Etkinlestir ve normal kullanici ile /chat cagir
-    store.activate(p1.id, p1.revision);
+    await store.activate(p1.id, p1.revision);
     const activeRes = await fetch(`${base}/chat`, {
       method: 'POST',
       headers: userHeaders,
@@ -370,7 +370,7 @@ test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, admi
     });
 
     // Otomatik anahtar dosyasi olusturarak kaydetmeli
-    const saved = llm.store.save({
+    const saved = await llm.store.save({
       name: 'Hizli Profil',
       provider: 'openai',
       model: 'gpt-4.1-mini',
@@ -378,22 +378,30 @@ test('zero-config dataDir auto-key, llm.ask(prompt), POST /chat { prompt }, admi
       apiKey: 'sk-auto-key-secret'
     });
     assert.ok(fs.existsSync(path.join(root, 'llm-encryption.key')));
-    llm.store.activate(saved.id, saved.revision);
+    await llm.store.activate(saved.id, saved.revision);
 
     // Tek satirlik llm.ask(string, { system }) calismali
     const directReply = await llm.ask('Merhaba', { system: 'Kisa yaz' });
     assert.equal(directReply, 'Cevap:gpt-4.1-mini:Kisa yaz|Merhaba');
 
     // Web Request -> Response (Next.js / SvelteKit / Hono) adaptoru calismali
-    const webPageRes = await llm.fetch(new Request('http://localhost/llm'));
+    const webPageRes = await llm.fetch(
+      new Request('http://localhost/llm', {
+        headers: { Authorization: 'Basic ' + Buffer.from('admin:kolay-sifre').toString('base64') }
+      })
+    );
     assert.equal(webPageRes.status, 200);
-    assert.ok((await webPageRes.text()).includes('LLM Yönetimi'));
+    assert.ok((await webPageRes.text()).includes('LLM Profil Yönetimi'));
 
     const webChatRes = await llm.fetch(
       new Request('http://localhost/api/llm/chat', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
-        body: JSON.stringify({ prompt: 'Web standart cagri' })
+        body: JSON.stringify({ prompt: 'Web standart cagri' }),
+        headers: {
+          'content-type': 'application/json',
+          'X-LLM-CSRF': '1',
+          Authorization: 'Basic ' + Buffer.from('admin:kolay-sifre').toString('base64')
+        }
       })
     );
     assert.equal(webChatRes.status, 200);
@@ -436,7 +444,7 @@ test('initLLMProject auto-detects project type and scaffolds ready-to-use files 
     assert.equal(expRes.type, 'express');
     assert.equal(expRes.esm, false);
     assert.ok(fs.readFileSync(path.join(expDir, 'llm.js'), 'utf8').includes('module.exports = { setupLLM, askLLM }'));
-    assert.ok(JSON.parse(fs.readFileSync(path.join(expDir, 'package.json'), 'utf8')).scripts.llm.includes('sifre'));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(expDir, 'package.json'), 'utf8')).scripts.llm, 'llm-manager');
 
     // 2. SPA (Vite / React)
     const spaDir = path.join(root, 'spa-app');
@@ -452,7 +460,12 @@ test('initLLMProject auto-detects project type and scaffolds ready-to-use files 
     fs.writeFileSync(path.join(nextDir, 'package.json'), JSON.stringify({ dependencies: { next: '15.0.0' } }));
     assert.equal(detectProjectType(nextDir), 'nextjs');
     const nextRes = initLLMProject({ cwd: nextDir });
-    assert.equal(nextRes.createdFiles.length, 3);
+    assert.deepEqual(nextRes.createdFiles, [
+      'src/llm.js',
+      'src/app/api/llm/[...slug]/route.js',
+      'src/app/llm/[[...slug]]/route.js',
+      'src/app/actions/llm.js'
+    ]);
     assert.ok(fs.existsSync(path.join(nextDir, 'src/llm.js')));
     assert.ok(fs.existsSync(path.join(nextDir, 'src/app/api/llm/[...slug]/route.js')));
     assert.ok(fs.existsSync(path.join(nextDir, 'src/app/llm/[[...slug]]/route.js')));

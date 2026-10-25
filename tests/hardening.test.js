@@ -15,32 +15,32 @@ test('402 and 403 have actionable separate codes', () => {
   assert.equal(classifyLLMError({ upstreamStatus: 403 }).code, 'LLM_FORBIDDEN');
 });
 
-test('mutations require revisions and a changed endpoint requires a fresh key', () => {
+test('mutations require revisions and a changed endpoint requires a fresh key', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-hardening-'));
   try {
     const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({
+    const p = await store.save({
       name: 'Fixture',
       provider: 'custom',
       model: 'm',
       baseURL: 'https://first.example/v1',
       apiKey: 'fixture-secret'
     });
-    assert.throws(
+    await assert.rejects(
       () => store.save({ ...p, revision: undefined }),
       e => e.code === 'PROFILE_CONFLICT'
     );
-    assert.throws(() => store.save({ ...p, baseURL: 'https://second.example/v1' }), /anahtar/);
-    assert.throws(
+    await assert.rejects(() => store.save({ ...p, baseURL: 'https://second.example/v1' }), /anahtar/);
+    await assert.rejects(
       () => store.remove(p.id),
       e => e.code === 'PROFILE_CONFLICT'
     );
-    assert.throws(
+    await assert.rejects(
       () => store.activate(p.id),
       e => e.code === 'PROFILE_CONFLICT'
     );
-    store.activate(p.id, p.revision);
-    assert.equal(store.getActive().apiKey, 'fixture-secret');
+    await store.activate(p.id, p.revision);
+    assert.equal((await store.getActive()).apiKey, 'fixture-secret');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -74,12 +74,12 @@ test('transport rejects payloads larger than 2 MiB', async () => {
   }
 });
 
-test('legacy profiles with explicit null revision can be upgraded without losing their key', () => {
+test('legacy profiles with explicit null revision can be upgraded without losing their key', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-legacy-'));
   try {
     const file = path.join(root, 'profiles.json');
     const store = createLLMProfileStore({ filePath: file, encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({
+    const p = await store.save({
       name: 'Legacy',
       provider: 'custom',
       model: 'm',
@@ -89,27 +89,27 @@ test('legacy profiles with explicit null revision can be upgraded without losing
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     delete data.profiles[0].revision;
     fs.writeFileSync(file, JSON.stringify(data));
-    const legacy = store.list().profiles[0];
+    const legacy = (await store.list()).profiles[0];
     assert.equal(legacy.revision, null);
-    assert.throws(
+    await assert.rejects(
       () => store.activate(p.id),
       e => e.code === 'PROFILE_CONFLICT'
     );
-    store.activate(p.id, null);
-    const next = store.save({ ...legacy, name: 'Upgraded' });
+    await store.activate(p.id, null);
+    const next = await store.save({ ...legacy, name: 'Upgraded' });
     assert.ok(next.revision);
-    assert.equal(store.get(next.id).apiKey, 'fixture-secret');
+    assert.equal((await store.get(next.id)).apiKey, 'fixture-secret');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('decrypt rejects malformed secrets or truncated GCM auth tags', () => {
+test('decrypt rejects malformed secrets or truncated GCM auth tags', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-gcm-'));
   try {
     const file = path.join(root, 'profiles.json');
     const store = createLLMProfileStore({ filePath: file, encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({
+    const p = await store.save({
       name: 'GCM',
       provider: 'custom',
       model: 'm',
@@ -123,47 +123,47 @@ test('decrypt rejects malformed secrets or truncated GCM auth tags', () => {
     const shortTag = Buffer.from(tagB64, 'base64').subarray(0, 4).toString('base64');
     raw.profiles[0].secret = `${ivB64}.${shortTag}.${dataB64}`;
     fs.writeFileSync(file, JSON.stringify(raw));
-    assert.throws(() => store.get(p.id), /Şifreli profil verisi geçersiz veya bozuk/);
+    await assert.rejects(() => store.get(p.id), /Şifreli profil verisi geçersiz veya bozuk/);
 
     // Missing part
     raw.profiles[0].secret = `${ivB64}.${tagB64}`;
     fs.writeFileSync(file, JSON.stringify(raw));
-    assert.throws(() => store.get(p.id), /Şifreli profil verisi geçersiz veya bozuk/);
+    await assert.rejects(() => store.get(p.id), /Şifreli profil verisi geçersiz veya bozuk/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('save preserves lastTests and lastTest on non-credential edits and resets on model or apiKey change', () => {
+test('save preserves lastTests and lastTest on non-credential edits and resets on model or apiKey change', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-lasttests-'));
   try {
     const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
-    const p = store.save({
+    const p = await store.save({
       name: 'TestProfile',
       provider: 'custom',
       model: 'm1',
       baseURL: 'https://first.example/v1',
       apiKey: 'secret-1'
     });
-    const tested = store.recordTest(p.id, 'passed', p.revision, { mode: 'quick', durationMs: 42 });
+    const tested = await store.recordTest(p.id, 'passed', p.revision, { mode: 'quick', durationMs: 42 });
     assert.equal(tested.lastTest.status, 'passed');
     assert.equal(tested.lastTests.quick.status, 'passed');
 
-    const renamed = store.save({ ...tested, name: 'Renamed', timeoutMs: 45000, apiKey: '' });
+    const renamed = await store.save({ ...tested, name: 'Renamed', timeoutMs: 45000, apiKey: '' });
     assert.equal(renamed.lastTest?.status, 'passed');
     assert.equal(renamed.lastTests?.quick?.status, 'passed');
 
-    const modelChanged = store.save({ ...renamed, model: 'm2', apiKey: '' });
+    const modelChanged = await store.save({ ...renamed, model: 'm2', apiKey: '' });
     assert.equal(modelChanged.lastTest, null);
     assert.deepEqual(modelChanged.lastTests, {});
 
-    const retested = store.recordTest(modelChanged.id, 'passed', modelChanged.revision, {
+    const retested = await store.recordTest(modelChanged.id, 'passed', modelChanged.revision, {
       mode: 'conversation',
       durationMs: 55
     });
     assert.equal(retested.lastTests.conversation.status, 'passed');
 
-    const keyChanged = store.save({ ...retested, apiKey: 'secret-2' });
+    const keyChanged = await store.save({ ...retested, apiKey: 'secret-2' });
     assert.equal(keyChanged.lastTest, null);
     assert.deepEqual(keyChanged.lastTests, {});
   } finally {
@@ -215,7 +215,7 @@ test('unknown profile id returns 404 PROFILE_NOT_FOUND for PUT, DELETE, and POST
 test('ensureLLMEncryptionKey handles production keyPath, dev .env without copying .env.example, empty key replacement, and existing secret protection', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-setup-'));
   try {
-    // 1. Development: creates .env without copying .env.example
+    // 1. Explicit legacy opt-in creates .env without copying .env.example
     const devDir = path.join(root, 'dev');
     fs.mkdirSync(devDir, { recursive: true });
     fs.writeFileSync(path.join(devDir, '.env.example'), 'SHOULD_NOT_BE_COPIED=1\nLLM_CONFIG_ENCRYPTION_KEY=\n');
@@ -223,7 +223,8 @@ test('ensureLLMEncryptionKey handles production keyPath, dev .env without copyin
     const devKey = ensureLLMEncryptionKey({
       envPath: path.join(devDir, '.env'),
       profilePath: path.join(devDir, 'profiles.json'),
-      environment: devEnv
+      environment: devEnv,
+      writeEnv: true
     });
     assert.equal(devKey.length, 64);
     assert.equal(devEnv.LLM_CONFIG_ENCRYPTION_KEY, devKey);
@@ -238,7 +239,8 @@ test('ensureLLMEncryptionKey handles production keyPath, dev .env without copyin
     const replacedKey = ensureLLMEncryptionKey({
       envPath: emptyLineEnvPath,
       profilePath: path.join(devDir, 'profiles.json'),
-      environment: emptyLineEnv
+      environment: emptyLineEnv,
+      writeEnv: true
     });
     const replacedContent = fs.readFileSync(emptyLineEnvPath, 'utf8');
     assert.equal(replacedContent.match(/LLM_CONFIG_ENCRYPTION_KEY=/g)?.length, 1);
@@ -300,14 +302,14 @@ test('allowLocalHttp option propagates through store, buildProviderRequest, list
       encryptionKey: 'ab'.repeat(32),
       allowLocalHttp: true
     });
-    const saved = store.save({
+    const saved = await store.save({
       name: 'LocalHTTP',
       provider: 'custom',
       model: 'local-model-1',
       baseURL: 'http://127.0.0.1:11434/v1',
       apiKey: 'local-secret'
     });
-    const fullProfile = store.get(saved.id);
+    const fullProfile = await store.get(saved.id);
 
     const built = buildProviderRequest(fullProfile, [{ role: 'user', content: 'Hi' }], { allowLocalHttp: true });
     assert.equal(built.url, 'http://127.0.0.1:11434/v1/chat/completions');
@@ -339,7 +341,7 @@ test('custom generate adapter receives thinking disabled for Xiaomi MiMo auto pr
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-mimo-adapter-'));
   try {
     const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: 'ab'.repeat(32) });
-    const saved = store.save({
+    const saved = await store.save({
       name: 'MiMoAuto',
       provider: 'xiaomi_mimo',
       model: 'mimo-v2.6-flash',
@@ -362,7 +364,7 @@ test('custom generate adapter receives thinking disabled for Xiaomi MiMo auto pr
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
-    assert.equal(capturedOptions?.purpose, 'manager');
+    assert.equal(capturedOptions?.purpose, 'diagnostic');
     assert.equal(capturedOptions?.thinking, 'disabled');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -446,21 +448,21 @@ test('GET /profiles/:id/models parses OpenAI and Google model lists and returns 
   try {
     const filePath = path.join(root, 'profiles.json');
     const store = createLLMProfileStore({ filePath, encryptionKey: 'ab'.repeat(32) });
-    const openaiProfile = store.save({
+    const openaiProfile = await store.save({
       name: 'OpenAI',
       provider: 'openai',
       model: 'gpt-4.1-mini',
       baseURL: 'https://api.openai.com/v1',
       apiKey: 'sk-openai-test'
     });
-    const googleProfile = store.save({
+    const googleProfile = await store.save({
       name: 'Google',
       provider: 'google',
       model: 'gemini-2.5-flash',
       baseURL: 'https://generativelanguage.googleapis.com/v1beta',
       apiKey: 'goog-test-key'
     });
-    const mimoProfile = store.save({
+    const mimoProfile = await store.save({
       name: 'MiMo',
       provider: 'xiaomi_mimo',
       model: 'mimo-v2-flash',

@@ -68,7 +68,8 @@ export async function checkProvider(provider, apiKey, networkOptions = {}) {
     catalogCount: catalogModels.length,
     verified,
     missingInRemote,
-    sampleRemote: remoteModels.slice(0, 5)
+    sampleRemote: remoteModels.slice(0, 5),
+    remoteModels
   };
 }
 
@@ -82,11 +83,17 @@ Kullanım:
 
 Seçenekler:
   -p, --provider <id>     Yalnızca belirtilen sağlayıcıyı kontrol et (örn. openai, anthropic)
-  -k, --api-key <key>     Kontrol edilecek sağlayıcının API anahtarı (veya env: PROVIDER_KEY_<ID> ya da <ID>_API_KEY)
+  -k, --api-key <key>     Yalnızca --provider ile kullanılır (tercih: PROVIDER_KEY_<ID> ya da <ID>_API_KEY ortam değişkeni)
   --allow-local-http      Yerel HTTP uç noktalarına (örn. ollama) izin ver
   -h, --help              Yardım mesajını göster
 `);
     return 0;
+  }
+
+  // A shared override must never be sent to every provider in the catalog.
+  if (values['api-key'] && !values.provider) {
+    console.error('--api-key yalnızca --provider ile kullanılabilir.');
+    return 1;
   }
 
   console.log('--- llm-manager Katalog Doğrulama Aracı ---');
@@ -110,7 +117,9 @@ Seçenekler:
       continue;
     }
 
-    const apiKey = resolveApiKey(provider.id, values['api-key']);
+    const apiKey = values.provider
+      ? resolveApiKey(provider.id, values['api-key'])
+      : process.env[`PROVIDER_KEY_${provider.id.toUpperCase()}`] || process.env[`${provider.id.toUpperCase()}_API_KEY`];
     if (!apiKey) {
       console.log(
         `[ATLANDI] ${provider.name} (${provider.id}): API anahtarı yok (sağlamak için -k veya env tanımlayın).`
@@ -125,6 +134,7 @@ Seçenekler:
       const result = await checkProvider(provider, apiKey, networkOptions);
       console.log('BAŞARILI');
       console.log(`  * Uzak model sayısı: ${result.remoteCount}`);
+      console.log(`  * Hesabın model listesi: ${result.remoteModels.join(', ') || 'Yok'}`);
       console.log(
         `  * Doğrulanan katalog modelleri (${result.verified.length}/${result.catalogCount}): ${result.verified.join(', ') || 'Yok'}`
       );

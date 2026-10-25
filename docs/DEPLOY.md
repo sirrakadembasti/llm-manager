@@ -179,3 +179,76 @@ Tüm durum `/data` klasöründe iki dosyada tutulur:
 
 > [!CAUTION]
 > `llm-encryption.key` kaybedilirse profillerdeki API anahtarlarının şifresi **kesinlikle çözülemez**. Bu iki dosyayı her zaman birlikte yedekleyin.
+
+## Sürekli Node servisi: PM2
+
+Paketin host proje altında kurulduğu ve `.env` dosyasının hazır olduğu dizinde:
+
+```bash
+npm install -g pm2
+pm2 start node_modules/@sirrakadembasti/llm-manager/bin/llm-manager.js --name llm-manager --cwd "$PWD"
+pm2 startup
+# PM2'nin gösterdiği platform komutunu çalıştırın, ardından:
+pm2 save
+pm2 logs llm-manager
+```
+
+PM2, başlangıç kaydı ve süreç listesini ayrı tutar; `startup` sonrasında `save` gerekir. Node yükseltildiğinde başlangıç kaydını yenileyin. [PM2 resmî başlangıç belgesi](https://pm2.keymetrics.io/docs/usage/startup/).
+
+## Linux: systemd
+
+Örnek çalışma dizini `/opt/llm-host`, önceden oluşturulmuş servis hesabı `llm` olsun. Bu hesap çalışma dizinini okuyabilmeli, veri dizinine yazabilmelidir. `/etc/systemd/system/llm-manager.service`:
+
+```ini
+[Unit]
+Description=LLM profile management
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=llm
+WorkingDirectory=/opt/llm-host
+EnvironmentFile=/opt/llm-host/.env
+ExecStart=/usr/bin/node /opt/llm-host/node_modules/@sirrakadembasti/llm-manager/bin/llm-manager.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`/usr/bin/node` ve proje yolunu kurulumunuza göre değiştirin. Parolayı unit dosyasına gömmeyin. `.env` içinde `LLM_ADMIN_PASSWORD`, gerekirse `LLM_DATA_DIR`, `LLM_CHAT_TOKENS`, `HOST` tanımlanır.
+
+```bash
+sudo chmod 600 /opt/llm-host/.env
+sudo chown llm:llm /opt/llm-host/.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now llm-manager
+sudo systemctl status llm-manager
+sudo journalctl -u llm-manager
+```
+
+`WorkingDirectory` ve `EnvironmentFile` davranışı için [systemd.exec resmî belgesi](https://www.freedesktop.org/software/systemd/man/256/systemd.exec.html).
+
+## Windows: NSSM hizmeti
+
+Node ve NSSM kurulu, host proje `C:\llm-host` altında olsun. Yönetici PowerShell'inde:
+
+```powershell
+nssm install LLMManager 'C:\Program Files\nodejs\node.exe'
+nssm set LLMManager AppDirectory 'C:\llm-host'
+nssm set LLMManager AppParameters 'C:\llm-host\node_modules\@sirrakadembasti\llm-manager\bin\llm-manager.js'
+nssm set LLMManager Start SERVICE_AUTO_START
+nssm start LLMManager
+nssm status LLMManager
+```
+
+Yollar boşluk içeriyorsa AppParameters değerinde betik yolunu tırnak içine alın. Servis çalışma dizinindeki `.env` CLI tarafından okunur; parolayı komut argümanına koymayın. Hizmet hesabını NSSM arayüzünde seçin ve veri/.env klasörlerine yalnız bu hesaba gerekli NTFS erişimini verin. `0600` POSIX modu Windows erişim denetiminin yerine geçmez. Ortamı registry üzerinden verecekseniz sistem ortamını koruyan `AppEnvironmentExtra` kullanın. [NSSM resmî kullanım belgesi](https://nssm.cc/usage).
+
+## Yedek, kilit ve durdurma
+
+CLI SIGINT/SIGTERM sırasında HTTP sunucusunu kapatır; 10 saniyelik üst sınır uygular. PM2/systemd/NSSM durdurma bekleme süreleri buna uygun olmalıdır. Dosya deposu Promise tabanlıdır; aynı yerel diskte birden çok süreç yazma kilidi kullanır. NFS/SMB'de kilit/atomik rename garantisi verilmez; bu ortamlarda host veritabanı deposu kullanın.
+
+Anahtar döndürme eski anahtarı `.old-<tarih>`, önceki profil verisini `.bak` olarak saklar. Yakalanan yazma hataları geri alınır. Sürecin iki dosya değiştirme arasında aniden öldürülmesi durumunda eşleşen eski profil+anahtar yedeğini birlikte geri yükleyin; tek bir dosyayı rastgele geri almayın. Yedek anahtarlarını profil dosyalarıyla aynı genel erişimli arşivde tutmayın.

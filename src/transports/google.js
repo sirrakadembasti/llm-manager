@@ -1,3 +1,4 @@
+import { LLMError, ErrorCodes } from '../errors.js';
 export default {
   id: 'google',
 
@@ -46,7 +47,19 @@ export default {
     }));
 
     const generationConfig = { maxOutputTokens: opts.maxOutputTokens };
-    if (opts.thinking === 'disabled') {
+    const thinkingLevel = /^gemini-[34](?:[.-]|$)/.test(String(profile.model).replace(/^models\//, ''));
+    if (
+      opts.thinking === 'disabled' &&
+      (thinkingLevel || /^gemini-2\.5-pro/.test(String(profile.model).replace(/^models\//, '')))
+    ) {
+      throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Bu Gemini modelinde düşünme tamamen kapatılamaz.', {
+        status: 400,
+        retryable: false
+      });
+    }
+    if (thinkingLevel && opts.thinking === 'enabled') {
+      generationConfig.thinkingConfig = { thinkingLevel: 'medium' };
+    } else if (opts.thinking === 'disabled') {
       generationConfig.thinkingConfig = { thinkingBudget: 0 };
     } else if (opts.thinking === 'enabled') {
       const maxTokens = opts.maxOutputTokens || 8192;

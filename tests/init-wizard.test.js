@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  initLLMProject,
+  initLLMProject as rawInitLLMProject,
   detectProjectType,
   detectEntryFile,
   injectIntoEntryFile,
@@ -12,6 +12,19 @@ import {
   formatVerificationReport,
   runInteractiveInit
 } from '../src/init.js';
+
+const packageName = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).name;
+function initLLMProject(options) {
+  const cwd = options.cwd;
+  const target = path.join(cwd, 'node_modules', ...packageName.split('/'));
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.symlinkSync(path.resolve('.'), target, 'junction');
+  }
+  const ts = path.join(cwd, 'node_modules/typescript');
+  if (!fs.existsSync(ts)) fs.symlinkSync(path.resolve('node_modules/typescript'), ts, 'junction');
+  return rawInitLLMProject(options);
+}
 
 test('detectEntryFile ve injectIntoEntryFile: Express ESM senaryosu, idempotency ve rollback', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-wiz-exp-esm-'));
@@ -110,9 +123,9 @@ test('detectEntryFile ve injectIntoEntryFile: SPA, Next.js, Python ve Electron s
     initLLMProject({ cwd: nextDir, type: 'nextjs' });
     assert.equal(detectEntryFile(nextDir, 'nextjs'), 'src/app/page.tsx');
     const nextRes = injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' });
-    assert.equal(nextRes.modified, true);
-    assert.ok(nextRes.addedLines.includes("import { askLLM } from '../llm.js';"));
-    assert.equal(injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' }).alreadyIntegrated, true);
+    assert.equal(nextRes.modified, false);
+    assert.match(nextRes.reason, /Server Action/);
+    assert.equal(injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' }).modified, false);
     nextRes.rollback();
     assert.equal(fs.readFileSync(path.join(nextDir, 'src', 'app', 'page.tsx'), 'utf8'), origNext);
 
@@ -206,7 +219,8 @@ test('verifyIntegration ve formatVerificationReport: başarılı kurulum, eksik 
     assert.equal(okReport.ok, true);
     assert.equal(okReport.type, 'express');
     assert.equal(okReport.entryFile, 'server.js');
-    assert.equal(okReport.checks.length, 4);
+    assert.equal(okReport.checks.length, 6);
+    assert.equal(okReport.checks.find(check => check.id === 'secrets_ignored').ok, true);
     assert.ok(okReport.checks.every(c => c.ok));
 
     const formattedOk = formatVerificationReport(okReport);
@@ -281,7 +295,7 @@ test('verifyIntegration: Next.js, SPA (JSX), Electron ve Python senaryoları', (
     initLLMProject({ cwd: nextDir, type: 'nextjs' });
     injectIntoEntryFile({ cwd: nextDir, type: 'nextjs' });
     const nextRep = verifyIntegration({ cwd: nextDir, type: 'nextjs' });
-    assert.equal(nextRep.ok, true);
+    assert.equal(nextRep.ok, true, JSON.stringify(nextRep));
 
     // JSX bozuk parantez kontrolü
     const spaDir = path.join(root, 'spa');
@@ -332,6 +346,9 @@ test('runInteractiveInit: onay verildiğinde 4 aşamalı uçtan uca kurulum, can
     const logs = [];
     const openedUrls = [];
 
+    const target = path.join(cwd, 'node_modules', ...packageName.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.symlinkSync(path.resolve('.'), target, 'junction');
     const result = await runInteractiveInit({
       cwd,
       password: 'testPass123',
@@ -387,7 +404,7 @@ test('runInteractiveInit: 2. aşamada kullanıcı hayır dediğinde rollback ça
     ].join('\n');
     fs.writeFileSync(path.join(cwd, 'server.js'), originalServer, 'utf8');
 
-    const answers = ['e', 'h'];
+    const answers = ['e', 'h', 'h'];
     const openedUrls = [];
 
     const result = await runInteractiveInit({
@@ -466,7 +483,7 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     assert.equal(detectEntryFile(nuxtDir, 'nuxt'), 'app.vue');
     const nuxtInit = initLLMProject({ cwd: nuxtDir });
     assert.equal(nuxtInit.createdFiles.length, 3);
-    assert.equal(injectIntoEntryFile({ cwd: nuxtDir, type: 'nuxt' }).modified, true);
+    assert.equal(injectIntoEntryFile({ cwd: nuxtDir, type: 'nuxt' }).modified, false);
     assert.equal(verifyIntegration({ cwd: nuxtDir, type: 'nuxt' }).ok, true);
 
     // 4. SvelteKit (src/routes/+page.svelte)
@@ -481,7 +498,7 @@ test('detectProjectType, injectIntoEntryFile ve verifyIntegration: C# (.NET Core
     assert.equal(detectProjectType(svelteDir), 'sveltekit');
     assert.equal(detectEntryFile(svelteDir, 'sveltekit'), 'src/routes/+page.svelte');
     initLLMProject({ cwd: svelteDir });
-    assert.equal(injectIntoEntryFile({ cwd: svelteDir, type: 'sveltekit' }).modified, true);
+    assert.equal(injectIntoEntryFile({ cwd: svelteDir, type: 'sveltekit' }).modified, false);
     assert.equal(verifyIntegration({ cwd: svelteDir, type: 'sveltekit' }).ok, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

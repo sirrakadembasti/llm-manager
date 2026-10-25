@@ -3,6 +3,28 @@ import { LLMError, ErrorCodes } from './errors.js';
 import { providerFetch } from './providerTransport.js';
 import { validateProviderUrl, PROVIDERS } from './providers.js';
 import { getTransport } from './transports/index.js';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+const warnedPurposes = new Set();
+export function normalizePurpose(value = 'default') {
+  const aliases = { manager: 'diagnostic', production: 'default' };
+  if (Object.hasOwn(aliases, value)) {
+    if (!warnedPurposes.has(value)) {
+      warnedPurposes.add(value);
+      process.emitWarning(`purpose '${value}' yerine '${aliases[value]}' kullanın.`, {
+        code: 'LLM_PURPOSE_DEPRECATED'
+      });
+    }
+    return aliases[value];
+  }
+  if (!['quick', 'diagnostic', 'default'].includes(value)) {
+    throw new LLMError(ErrorCodes.PURPOSE_INVALID, 'Geçersiz çağrı amacı (purpose).', {
+      status: 400,
+      retryable: false
+    });
+  }
+  return value;
+}
 
 export function normalizeRuntimeOptions(input = {}) {
   const timeoutMs = Number(input.timeoutMs ?? 120000);
@@ -80,8 +102,9 @@ export function normalizeRuntimeOptions(input = {}) {
 }
 
 export function resolveRuntimeOptions(profile, options = {}) {
+  const purpose = normalizePurpose(options.purpose);
   const normalized = normalizeRuntimeOptions({ ...profile, ...options });
-  if (options.purpose === 'quick') {
+  if (purpose === 'quick') {
     return {
       ...normalized,
       timeoutMs: Math.min(normalized.timeoutMs, 20000),
@@ -89,7 +112,7 @@ export function resolveRuntimeOptions(profile, options = {}) {
       thinking: profile.provider === 'xiaomi_mimo' ? 'disabled' : normalized.thinking
     };
   }
-  if (options.purpose === 'manager' && profile.provider === 'xiaomi_mimo' && normalized.thinking === 'auto') {
+  if (purpose === 'diagnostic' && profile.provider === 'xiaomi_mimo' && normalized.thinking === 'auto') {
     return { ...normalized, thinking: 'disabled' };
   }
   return normalized;
@@ -117,10 +140,19 @@ export async function executeWithRetry(
 ) {
   let lastError;
   const start = Date.now();
+  const cancellationError = () =>
+    new LLMError(
+      signal?.reason?.name === 'TimeoutError' ? ErrorCodes.LLM_TIMEOUT : ErrorCodes.LLM_ABORTED,
+      signal?.reason?.name === 'TimeoutError' ? 'Model yanıtı süre sınırını aştı.' : 'İstek iptal edildi.',
+      {
+        status: signal?.reason?.name === 'TimeoutError' ? 504 : 499,
+        retryable: signal?.reason?.name === 'TimeoutError'
+      }
+    );
 
   for (let attempt = 0; attempt <= attempts; attempt++) {
     if (signal?.aborted) {
-      throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', { status: 499, retryable: false });
+      throw cancellationError();
     }
     const elapsed = Date.now() - start;
     const remainingTime = deadlineMs - elapsed;
@@ -129,9 +161,34 @@ export async function executeWithRetry(
     }
 
     try {
-      const perAttemptSignal = AbortSignal.timeout(remainingTime);
-      const combinedSignal = signal ? AbortSignal.any([signal, perAttemptSignal]) : perAttemptSignal;
-      return await operation({ signal: combinedSignal, attempt, remainingTime });
+      const deadline = new AbortController();
+      const timer = setTimeout(
+        () => deadline.abort(new DOMException('Deadline exceeded', 'TimeoutError')),
+        remainingTime
+      );
+      const combinedSignal = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal;
+      let onAbort;
+      try {
+        return await new Promise((resolve, reject) => {
+          onAbort = () =>
+            reject(
+              signal?.aborted
+                ? cancellationError()
+                : new LLMError(ErrorCodes.LLM_TIMEOUT, 'Model yanıtı süre sınırını aştı.', {
+                    status: 504,
+                    retryable: true
+                  })
+            );
+          combinedSignal.addEventListener('abort', onAbort, { once: true });
+          if (combinedSignal.aborted) return onAbort();
+          Promise.resolve()
+            .then(() => operation({ signal: combinedSignal, attempt, remainingTime }))
+            .then(resolve, reject);
+        });
+      } finally {
+        clearTimeout(timer);
+        if (onAbort) combinedSignal.removeEventListener('abort', onAbort);
+      }
     } catch (err) {
       lastError = err;
       const classified = classifyLLMError(err);
@@ -140,7 +197,7 @@ export async function executeWithRetry(
       }
 
       let delayMs = Math.min(maxMs, Math.round(baseMs * Math.pow(2, attempt) * (0.75 + Math.random() * 0.5)));
-      if (err.retryAfterSec) {
+      if (err.retryAfterSec !== undefined) {
         const retryAfterMs = err.retryAfterSec * 1000;
         if (retryAfterMs > maxMs) {
           throw err;
@@ -152,11 +209,18 @@ export async function executeWithRetry(
         throw err;
       }
 
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      try {
+        await sleep(delayMs, undefined, { signal: signal || undefined });
+      } catch {
+        throw cancellationError();
+      }
     }
   }
 
-  throw lastError;
+  throw (
+    lastError ||
+    new LLMError(ErrorCodes.LLM_TIMEOUT, 'Model yanıtı süre sınırını aştı.', { status: 504, retryable: true })
+  );
 }
 
 const KNOWN_CODE_DEFAULTS = {
@@ -384,14 +448,14 @@ export async function generateProfileResponse(messages, profile, options = {}) {
       allowedPrivateHosts: options.allowedPrivateHosts
     });
   } catch (fetchError) {
-    if (userSignal?.aborted) {
+    if (userSignal?.aborted && userSignal.reason?.name !== 'TimeoutError') {
       throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
         status: 499,
         retryable: false,
         cause: fetchError
       });
     }
-    if (deadline.aborted) {
+    if (deadline.aborted || userSignal?.reason?.name === 'TimeoutError') {
       throw new LLMError(
         ErrorCodes.LLM_TIMEOUT,
         'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.',
@@ -403,15 +467,27 @@ export async function generateProfileResponse(messages, profile, options = {}) {
 
   if (!response.ok) {
     const is5xx = response.status >= 500 && response.status <= 599;
-    throw new LLMError(
-      is5xx ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE : ErrorCodes.LLM_PROVIDER_ERROR,
+    const error = new LLMError(
+      is5xx
+        ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE
+        : response.status === 429
+          ? ErrorCodes.LLM_RATE_LIMIT
+          : ErrorCodes.LLM_PROVIDER_ERROR,
       `Sağlayıcı HTTP ${response.status} döndürdü.`,
       {
         upstreamStatus: response.status,
         status: is5xx ? 503 : 502,
-        retryable: is5xx
+        retryable: is5xx || response.status === 429
       }
     );
+    const retryAfter = response.headers.get('retry-after');
+    if (retryAfter !== null) {
+      const seconds = /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
+        ? Number(retryAfter)
+        : (Date.parse(retryAfter) - Date.now()) / 1000;
+      if (Number.isFinite(seconds)) error.retryAfterSec = Math.max(0, seconds);
+    }
+    throw error;
   }
 
   const payload = await response.json();
@@ -427,12 +503,16 @@ export async function generateProfileResponse(messages, profile, options = {}) {
     );
   }
   if (['length', 'MAX_TOKENS', 'max_tokens'].includes(finishReason)) {
+    if (options.acceptTruncated === true)
+      return options.raw === true ? { content: content || '', finishReason, usage, truncated: true } : content || '';
     throw new LLMError(ErrorCodes.LLM_TRUNCATED, 'Model yanıtı token sınırında kesildi.', {
       status: 422,
       retryable: false
     });
   }
   if (!content) {
+    if (options.acceptTruncated === true && reasoning)
+      return options.raw === true ? { content: '', finishReason, usage, truncated: true } : '';
     throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Sağlayıcı kullanılabilir model yanıtı üretmedi.', {
       status: 502,
       retryable: true
@@ -471,7 +551,7 @@ export async function* parseSseStream(stream, transport) {
               if (parsed.usage) {
                 if (parsed.usage.inputTokens !== undefined) accumulatedUsage.inputTokens = parsed.usage.inputTokens;
                 if (parsed.usage.outputTokens !== undefined) {
-                  accumulatedUsage.outputTokens = (accumulatedUsage.outputTokens || 0) + parsed.usage.outputTokens;
+                  accumulatedUsage.outputTokens = parsed.usage.outputTokens;
                 }
                 accumulatedUsage.totalTokens =
                   (accumulatedUsage.inputTokens || 0) + (accumulatedUsage.outputTokens || 0);
@@ -517,7 +597,7 @@ export async function* parseSseStream(stream, transport) {
           if (parsed.usage) {
             if (parsed.usage.inputTokens !== undefined) accumulatedUsage.inputTokens = parsed.usage.inputTokens;
             if (parsed.usage.outputTokens !== undefined) {
-              accumulatedUsage.outputTokens = (accumulatedUsage.outputTokens || 0) + parsed.usage.outputTokens;
+              accumulatedUsage.outputTokens = parsed.usage.outputTokens;
             }
             accumulatedUsage.totalTokens = (accumulatedUsage.inputTokens || 0) + (accumulatedUsage.outputTokens || 0);
           }
@@ -533,6 +613,7 @@ export async function* parseSseStream(stream, transport) {
       usage: accumulatedUsage
     };
   } finally {
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

@@ -74,6 +74,11 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
   // Setup DOM fixture
   for (const [id, tag] of [
     ['profiles', 'div'],
+    ['fallback-profiles', 'select'],
+    ['temperature', 'input'],
+    ['top-p', 'input'],
+    ['response-format', 'select'],
+    ['stop', 'input'],
     ['playground-profile', 'select'],
     ['playground-system', 'textarea'],
     ['playground-user', 'textarea'],
@@ -108,7 +113,12 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
     makeElement(tag, id);
   }
 
-  const fakeFetch = async url => {
+  let savedInput;
+  const fakeFetch = async (url, options = {}) => {
+    if (options.method === 'POST' && String(url).endsWith('/profiles')) {
+      savedInput = JSON.parse(options.body);
+      return { ok: true, status: 200, json: async () => ({ id: 'p-1', ...savedInput }) };
+    }
     const u = String(url);
     if (u.endsWith('/catalog')) {
       return { ok: true, status: 200, json: async () => ({ providers: [] }) };
@@ -170,4 +180,23 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
   assert.equal(elements.get('playground-system').value, '');
   assert.equal(elements.get('playground-output').textContent, '');
   assert.equal(elements.get('playground-meta').textContent, '');
+
+  // Saving serializes selected fallback IDs, including an explicit empty list to clear them.
+  elements.get('fallback-profiles').options[1].selected = true;
+  elements.get('timeout-ms').value = '120000';
+  elements.get('max-output-tokens').value = '8192';
+  elements.get('thinking').value = 'auto';
+  elements.get('api-key').value = 'test-secret';
+  elements.get('profile-form').trigger('submit');
+  await new Promise(r => setTimeout(r, 40));
+  assert.ok(savedInput, elements.get('message').textContent);
+  assert.deepEqual(savedInput.fallbackProfileIds, ['p-2']);
+  for (const key of ['temperature', 'topP', 'responseFormat', 'stop'])
+    assert.equal(savedInput[key], null, 'Blank advanced option must clear ' + key);
+  assert.equal(elements.get('api-key').value, '');
+  for (const option of elements.get('fallback-profiles').options) option.selected = false;
+  elements.get('profile-id').value = '';
+  elements.get('profile-form').trigger('submit');
+  await new Promise(r => setTimeout(r, 40));
+  assert.deepEqual(savedInput.fallbackProfileIds, []);
 });

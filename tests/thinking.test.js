@@ -127,3 +127,44 @@ test('YH1-C7: PROVIDERS catalog declares capabilities.thinking: true for support
     assert.equal(p.capabilities?.thinking, true, `Provider ${id} must declare capabilities.thinking: true`);
   }
 });
+
+test('current catalog reasoning models map supported adaptive and disabled modes', () => {
+  const base = { provider: 'anthropic', baseURL: 'https://api.anthropic.com/v1', apiKey: 'test' };
+  const messages = [{ role: 'user', content: 'hello' }];
+  const adaptive = buildProviderRequest({ ...base, model: 'claude-opus-5-5' }, messages, { thinking: 'enabled' });
+  assert.deepEqual(adaptive.body.thinking, { type: 'adaptive' });
+  assert.throws(
+    () => buildProviderRequest({ ...base, model: 'claude-opus-5-5' }, messages, { thinking: 'disabled' }),
+    error => error.code === 'RUNTIME_OPTIONS_INVALID'
+  );
+  const disabled = buildProviderRequest({ ...base, model: 'claude-haiku-5-5' }, messages, { thinking: 'disabled' });
+  assert.deepEqual(disabled.body.thinking, { type: 'disabled' });
+  const openai = { provider: 'openai', baseURL: 'https://api.openai.com/v1', apiKey: 'test', model: 'gpt-6-astra' };
+  const reasoning = buildProviderRequest(openai, messages, { thinking: 'enabled', temperature: 0.4, topP: 0.8 });
+  assert.equal(reasoning.body.reasoning_effort, 'medium');
+  assert.equal(reasoning.body.temperature, undefined);
+  assert.equal(reasoning.body.top_p, undefined);
+  assert.equal(buildProviderRequest(openai, messages, { thinking: 'disabled' }).body.reasoning_effort, 'none');
+});
+
+test('Gemini 3/4 use thinkingLevel and reject unsupported full thinking-off', () => {
+  const profile = {
+    provider: 'google',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+    model: 'gemini-4-argon',
+    apiKey: 'test'
+  };
+  const messages = [{ role: 'user', content: 'hello' }];
+  assert.deepEqual(
+    buildProviderRequest(profile, messages, { thinking: 'enabled' }).body.generationConfig.thinkingConfig,
+    { thinkingLevel: 'medium' }
+  );
+  assert.throws(
+    () => buildProviderRequest(profile, messages, { thinking: 'disabled' }),
+    error => error.code === 'RUNTIME_OPTIONS_INVALID'
+  );
+  assert.throws(
+    () => buildProviderRequest({ ...profile, model: 'gemini-2.5-pro' }, messages, { thinking: 'disabled' }),
+    error => error.code === 'RUNTIME_OPTIONS_INVALID'
+  );
+});

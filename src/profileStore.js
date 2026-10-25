@@ -1,9 +1,18 @@
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
 import { normalizeRuntimeOptions } from './runtime.js';
-import { withFileLockSync, robustRenameSync } from './store/fileLock.js';
+import { withFileLock, robustRename } from './store/fileLock.js';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
+const exists = async file => {
+  try {
+    await fs.access(file);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
+};
 import path from 'node:path';
 import { PROVIDERS, validateProviderUrl } from './providers.js';
 
@@ -47,14 +56,14 @@ export function parseEncryptionKey(value) {
   return bytes;
 }
 
-function encrypt(secret, key) {
+export function encrypt(secret, key) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const data = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
   return [iv, cipher.getAuthTag(), data].map(part => part.toString('base64')).join('.');
 }
 
-function decrypt(payload, key) {
+export function decrypt(payload, key) {
   const parts = String(payload || '').split('.');
   if (parts.length !== 3 || parts.some(part => !part)) {
     throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Şifreli profil verisi geçersiz veya bozuk.', {
@@ -98,14 +107,14 @@ function assertRevision(profile, revision) {
   if (revision === undefined || (profile.revision ?? null) !== revision) throw conflictError();
 }
 
-function resolveAutoEncryptionKey(filePath) {
+async function resolveAutoEncryptionKey(filePath) {
   if (process.env.LLM_CONFIG_ENCRYPTION_KEY) return process.env.LLM_CONFIG_ENCRYPTION_KEY;
   const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
-  if (fs.existsSync(keyPath)) {
-    return fs.readFileSync(keyPath, 'utf8').trim();
+  if (await exists(keyPath)) {
+    return (await fs.readFile(keyPath, 'utf8')).trim();
   }
-  if (fs.existsSync(filePath)) {
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  if (await exists(filePath)) {
+    const data = JSON.parse(await fs.readFile(filePath, 'utf8'));
     if (data.profiles?.some(profile => profile.secret)) {
       throw new LLMError(
         ErrorCodes.PROFILE_INVALID,
@@ -114,13 +123,13 @@ function resolveAutoEncryptionKey(filePath) {
       );
     }
   }
-  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  await fs.mkdir(path.dirname(keyPath), { recursive: true });
   const generated = crypto.randomBytes(32).toString('hex');
   try {
-    fs.writeFileSync(keyPath, `${generated}\n`, { mode: 0o600, flag: 'wx' });
+    await fs.writeFile(keyPath, `${generated}\n`, { mode: 0o600, flag: 'wx' });
     return generated;
   } catch (error) {
-    if (error.code === 'EEXIST') return fs.readFileSync(keyPath, 'utf8').trim();
+    if (error.code === 'EEXIST') return (await fs.readFile(keyPath, 'utf8')).trim();
     throw error;
   }
 }
@@ -132,23 +141,39 @@ export function createLLMProfileStore({
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
 } = {}) {
   let cachedKeyBytes = null;
-  const getKeyBytes = () =>
-    (cachedKeyBytes ??= parseEncryptionKey(
-      encryptionKey !== undefined ? encryptionKey : resolveAutoEncryptionKey(filePath)
-    ));
+  let keyIdentity = null;
+  const getKeyBytes = async () => {
+    const configured = encryptionKey !== undefined ? encryptionKey : process.env.LLM_CONFIG_ENCRYPTION_KEY;
+    let identity = configured;
+    if (configured === undefined) {
+      const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
+      const stat = await fs.stat(keyPath).catch(error => {
+        if (error.code !== 'ENOENT') throw error;
+        return null;
+      });
+      identity = stat ? `${stat.mtimeMs}:${stat.size}` : null;
+    }
+    if (!cachedKeyBytes || keyIdentity !== identity) {
+      cachedKeyBytes = parseEncryptionKey(
+        configured !== undefined ? configured : await resolveAutoEncryptionKey(filePath)
+      );
+      keyIdentity = identity;
+    }
+    return cachedKeyBytes;
+  };
 
   let cache = null; // { mtimeMs, size, data }
 
-  const read = () => {
-    if (!fs.existsSync(filePath)) {
+  const read = async () => {
+    if (!(await exists(filePath))) {
       cache = null;
       return { version: 1, profiles: [], activeId: null };
     }
-    const stat = fs.statSync(filePath);
+    const stat = await fs.stat(filePath);
     if (cache && cache.mtimeMs === stat.mtimeMs && cache.size === stat.size) {
       return structuredClone(cache.data);
     }
-    const raw = fs.readFileSync(filePath, 'utf8');
+    const raw = await fs.readFile(filePath, 'utf8');
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -164,32 +189,26 @@ export function createLLMProfileStore({
     return structuredClone(migrated);
   };
 
-  const write = value => {
+  const write = async value => {
     const toWrite = {
       version: 1,
       activeId: value.activeId ?? null,
       profiles: Array.isArray(value.profiles) ? value.profiles : []
     };
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(toWrite, null, 2), { mode: 0o600, flag: 'wx' });
-
-    // Tek kuşak yedekleme: mevcut dosyayı .bak olarak kopyala (YH1-B3)
-    if (fs.existsSync(filePath)) {
-      const bakPath = `${filePath}.bak`;
-      try {
-        fs.copyFileSync(filePath, bakPath);
-      } catch {}
-    }
+    await fs.writeFile(temporary, JSON.stringify(toWrite, null, 2), { mode: 0o600, flag: 'wx' });
 
     try {
-      robustRenameSync(temporary, filePath);
+      // Never replace the last good generation unless its backup succeeds.
+      if (await exists(filePath)) await fs.copyFile(filePath, `${filePath}.bak`);
+      await robustRename(temporary, filePath);
     } catch (error) {
-      fs.rmSync(temporary, { force: true });
+      await fs.rm(temporary, { force: true });
       throw error;
     }
     try {
-      const stat = fs.statSync(filePath);
+      const stat = await fs.stat(filePath);
       cache = { mtimeMs: stat.mtimeMs, size: stat.size, data: structuredClone(toWrite) };
     } catch {
       cache = null;
@@ -197,39 +216,45 @@ export function createLLMProfileStore({
   };
 
   const lockPath = `${filePath}.lock`;
-  const withLock = fn =>
-    withFileLockSync(lockPath, () => {
-      cache = null; // Kilit alınınca önbelleği geçersiz kıl (YH1-B2 #3)
-      return fn();
-    });
+  let queue = Promise.resolve();
+  const withLock = fn => {
+    const operation = queue.then(() =>
+      withFileLock(lockPath, () => {
+        cache = null; // Kilit alınınca önbelleği geçersiz kıl (YH1-B2 #3)
+        return fn();
+      })
+    );
+    queue = operation.catch(() => {});
+    return operation;
+  };
 
   // Sunucu tarafı görünüm: çözülmüş apiKey ve transport içerir.
-  const withSecret = profile => ({
+  const withSecret = async profile => ({
     ...publicProfile(profile),
-    apiKey: decrypt(profile.secret, getKeyBytes()),
+    apiKey: decrypt(profile.secret, await getKeyBytes()),
     transport: transportOf(profile.provider),
     revision: profile.revision || null
   });
 
   return {
-    list() {
-      const data = read();
+    async list() {
+      const data = await read();
       return { version: data.version, activeId: data.activeId, profiles: data.profiles.map(publicProfile) };
     },
 
-    getActive() {
-      const data = read();
+    async getActive() {
+      const data = await read();
       const profile = data.profiles.find(item => item.id === data.activeId);
       return profile ? withSecret(profile) : null;
     },
 
-    get(id) {
-      const profile = read().profiles.find(item => item.id === id);
+    async get(id) {
+      const profile = (await read()).profiles.find(item => item.id === id);
       return profile ? withSecret(profile) : null;
     },
 
     save(input) {
-      return withLock(() => {
+      return withLock(async () => {
         const name = String(input?.name || '')
           .trim()
           .slice(0, 80);
@@ -244,7 +269,7 @@ export function createLLMProfileStore({
           });
         }
         const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
-        const data = read();
+        const data = await read();
         const existing = data.profiles.find(item => item.id === input.id);
         if (input.id && !existing) throw notFoundError();
         if (existing && (!Object.hasOwn(input, 'revision') || input.revision !== (existing.revision ?? null))) {
@@ -264,7 +289,7 @@ export function createLLMProfileStore({
             retryable: false
           });
         }
-        const secret = newKey ? encrypt(newKey, getKeyBytes()) : existing?.secret;
+        const secret = newKey ? encrypt(newKey, await getKeyBytes()) : existing?.secret;
         if (!secret) {
           throw new LLMError(ErrorCodes.PROFILE_INVALID, 'API anahtarı zorunludur.', {
             status: 400,
@@ -298,32 +323,32 @@ export function createLLMProfileStore({
         data.profiles = existing
           ? data.profiles.map(item => (item.id === existing.id ? profile : item))
           : [...data.profiles, profile];
-        write(data);
+        await write(data);
         return publicProfile(profile);
       });
     },
 
     activate(id, revision) {
-      return withLock(() => {
-        const data = read();
+      return withLock(async () => {
+        const data = await read();
         const profile = data.profiles.find(item => item.id === id);
         if (!profile) throw notFoundError();
         assertRevision(profile, revision);
         data.activeId = id;
-        write(data);
+        await write(data);
         return this.list();
       });
     },
 
-    recordTest(id, status, expectedRevision, details = {}) {
+    async recordTest(id, status, expectedRevision, details = {}) {
       if (!['passed', 'failed'].includes(status)) {
         throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Geçersiz bağlantı testi sonucu.', {
           status: 400,
           retryable: false
         });
       }
-      return withLock(() => {
-        const data = read();
+      return await withLock(async () => {
+        const data = await read();
         const profile = data.profiles.find(item => item.id === id);
         if (!profile) throw notFoundError();
         if (expectedRevision !== undefined && (profile.revision || null) !== expectedRevision) return null;
@@ -336,20 +361,20 @@ export function createLLMProfileStore({
           ...(details.code ? { code: String(details.code).slice(0, 80) } : {})
         };
         profile.lastTests = { ...(profile.lastTests || {}), [mode]: profile.lastTest };
-        write(data);
+        await write(data);
         return publicProfile(profile);
       });
     },
 
     remove(id, revision) {
-      return withLock(() => {
-        const data = read();
+      return withLock(async () => {
+        const data = await read();
         const profile = data.profiles.find(item => item.id === id);
         if (!profile) throw notFoundError();
         assertRevision(profile, revision);
         data.profiles = data.profiles.filter(item => item.id !== id);
         if (data.activeId === id) data.activeId = null;
-        write(data);
+        await write(data);
         return this.list();
       });
     }

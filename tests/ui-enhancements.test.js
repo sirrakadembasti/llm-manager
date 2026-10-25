@@ -22,7 +22,7 @@ test('public/llm.html includes aria-describedby accessibility links and hints', 
 
 test('public/llm.html includes accessible confirm dialog', () => {
   const { html } = createUiAssets();
-  assert.match(html, /<dialog id="confirm-dialog" class="confirm-dialog">/);
+  assert.match(html, /<dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-msg">/);
   assert.match(html, /<button type="button" id="confirm-dialog-cancel"/);
   assert.match(html, /<button type="submit" id="confirm-dialog-confirm"/);
 });
@@ -53,7 +53,7 @@ test('mountLLMManagement serves custom homeUrl in Express', async () => {
 
 test('fetchHandler serves custom homeUrl for Web standard request', async () => {
   const tmpDir = `tests/.tmp-homeweb-${Date.now()}`;
-  const llm = createLLMManager({ dataDir: tmpDir, homeUrl: '/portal' });
+  const llm = createLLMManager({ insecureNoAuth: true, dataDir: tmpDir, homeUrl: '/portal' });
 
   const res = await llm.fetch(new Request('http://127.0.0.1:8010/llm'));
   assert.equal(res.status, 200);

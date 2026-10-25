@@ -7,15 +7,20 @@ const HELP = `llm-manager - bağımsız LLM profil yönetimi sunucusu ve kurulum
 Kullanım:
   npx llm-manager init [seçenekler]         Etkileşimli kurulum sihirbazını çalıştırır ve /llm ekranını açar
   npx llm-manager --password <parola>       Yönetim sunucusunu (/llm) başlatır
+  npx llm-manager key rotate                Şifreleme anahtarını döndürür ve profilleri yeniden şifreler
+  npx llm-manager export --out <dosya>      Profilleri şifreli taşınabilir yedek olarak dışa aktarır
+  npx llm-manager import <dosya>            Şifreli yedekten profilleri içe aktarır
 
 Seçenekler:
-  -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python (varsayılan: otomatik algılar)
-  -w, --password <sır>      Yönetim arayüzü parolası (LLM_ADMIN_PASSWORD ile de verilebilir)
+  -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri | manual (varsayılan: otomatik algılar)
+  -w, --password <sır>      Yönetim / yedekleme parolası (LLM_ADMIN_PASSWORD / LLM_BACKUP_PASSWORD)
   -u, --user <ad>           Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
   --host <adres>            Dinlenecek adres (varsayılan: 127.0.0.1)
   -p, --port <sayı>         Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
   -c, --cors <adres>        İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
   --data-dir <dizin>        Profil ve anahtar verilerinin saklanacağı klasör
+  --out <dosya>             Dışa aktarılacak dosya yolu (export için)
+  --replace                 İçe aktarırken aynı kimlikli mevcut profillerin üzerine yaz
   --chat-token <belirteç>   Sohbet istemcileri için izinli yetki belirteci
   -f, --force               Mevcut llm.js dosyasının üzerine yaz
   -y, --yes                 Kurulum sorularını otomatik onayla (etkileşimsiz mod)
@@ -25,6 +30,7 @@ Seçenekler:
 
 Sunucu varsayılan olarak 127.0.0.1 üzerinde dinler; sayfa /llm adresindedir.
 Çalışma dizinindeki .env dosyası otomatik okunur.
+--password komut satırı geçmişine düşer; .env ya da ortam değişkeni önerilir.
 `;
 
 try {
@@ -42,6 +48,70 @@ const fail = message => {
   console.error(`Hata: ${message}\n\n${HELP}`);
   process.exit(1);
 };
+
+if (args[0] === 'key' && args[1] === 'rotate') {
+  const { rotateEncryptionKey } = await import('../src/setup.js');
+  let dataDir = process.env.LLM_DATA_DIR;
+  for (let i = 2; i < args.length; i++) {
+    if (args[i] === '--data-dir') dataDir = String(args[++i] || '');
+  }
+  try {
+    const res = rotateEncryptionKey({ dataDir });
+    console.log(`✓ Şifreleme anahtarı başarıyla döndürüldü.`);
+    console.log(`  Yeniden şifrelenen profil sayısı: ${res.count}`);
+    if (res.backupKeyPath) console.log(`  Eski anahtar yedeği: ${res.backupKeyPath}`);
+    process.exit(0);
+  } catch (err) {
+    console.error(`Hata: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+if (args[0] === 'export') {
+  const { exportProfiles } = await import('../src/setup.js');
+  let dataDir = process.env.LLM_DATA_DIR;
+  let outputPath;
+  let password = process.env.LLM_BACKUP_PASSWORD || process.env.LLM_ADMIN_PASSWORD;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--out') outputPath = String(args[++i] || '');
+    else if (args[i] === '--data-dir') dataDir = String(args[++i] || '');
+    else if (args[i] === '-w' || args[i] === '--password') password = String(args[++i] || '');
+  }
+  if (!outputPath) fail('Dışa aktarma çıktısı gerekli: --out <dosya>');
+  if (!password) fail('Yedekleme parolası gerekli: --password <parola> veya LLM_BACKUP_PASSWORD');
+  try {
+    const res = exportProfiles({ dataDir, outputPath, password });
+    console.log(`✓ ${res.profileCount} profil başarıyla şifreli olarak dışa aktarıldı: ${res.outputPath}`);
+    process.exit(0);
+  } catch (err) {
+    console.error(`Hata: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+if (args[0] === 'import') {
+  const { importProfiles } = await import('../src/setup.js');
+  let dataDir = process.env.LLM_DATA_DIR;
+  let inputPath = args[1] && !args[1].startsWith('-') ? args[1] : null;
+  let password = process.env.LLM_BACKUP_PASSWORD || process.env.LLM_ADMIN_PASSWORD;
+  let replace = false;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--replace') replace = true;
+    else if (args[i] === '--data-dir') dataDir = String(args[++i] || '');
+    else if (args[i] === '-w' || args[i] === '--password') password = String(args[++i] || '');
+    else if (!inputPath && !args[i].startsWith('-')) inputPath = args[i];
+  }
+  if (!inputPath) fail('İçe aktarılacak dosya gerekli: npx llm-manager import <dosya>');
+  if (!password) fail('Yedek parolası gerekli: --password <parola> veya LLM_BACKUP_PASSWORD');
+  try {
+    const res = importProfiles({ dataDir, inputPath, password, replace });
+    console.log(`✓ ${res.importedCount} profil başarıyla içe aktarıldı (Toplam profil: ${res.totalCount}).`);
+    process.exit(0);
+  } catch (err) {
+    console.error(`Hata: ${err.message}`);
+    process.exit(1);
+  }
+}
 
 let isInit = false;
 let initType;
@@ -97,7 +167,7 @@ for (let i = 0; i < args.length; i++) {
 if (isInit) {
   const result = await runInteractiveInit({
     type: initType,
-    password: process.env.LLM_ADMIN_PASSWORD || 'admin123',
+    password: process.env.LLM_ADMIN_PASSWORD,
     port: Number(process.env.PORT) || 8010,
     force,
     yes,

@@ -18,12 +18,15 @@ test('YH1-C10: catalog data structure and immutability', () => {
   assert.equal(typeof CATALOG_UPDATED_AT, 'string');
 
   assert.ok(Object.isFrozen(PROVIDERS));
+  assert.equal(new Set(PROVIDERS.map(p => p.id)).size, PROVIDERS.length);
   for (const p of PROVIDERS) {
     assert.ok(Object.isFrozen(p));
     assert.ok(p.id && typeof p.id === 'string');
     assert.ok(p.name && typeof p.name === 'string');
     if (p.models) {
       assert.ok(Object.isFrozen(p.models));
+      assert.equal(new Set(p.models).size, p.models.length);
+      assert.ok(p.models.every(model => typeof model === 'string' && model.length > 0));
     }
   }
 
@@ -207,11 +210,25 @@ test('YH1-C10: scripts/check-catalog.js key resolution and check logic', async (
     assert.equal(result.remoteCount, 3);
     assert.deepEqual(result.verified, ['model-a']);
     assert.deepEqual(result.missingInRemote, ['model-obsolete']);
+    assert.deepEqual(result.remoteModels, ['model-a', 'model-b', 'model-new']);
 
     // Test CLI runner help
     const helpCode = await runCatalogCheck(['--help']);
     assert.equal(helpCode, 0);
   } finally {
     mockServer.close();
+  }
+});
+
+test('YH1-C10: catalog checker refuses a key shared across providers before network access', async () => {
+  const errors = [];
+  const originalError = console.error;
+  console.error = message => errors.push(message);
+  try {
+    assert.equal(await runCatalogCheck(['--api-key', 'secret-must-not-be-printed']), 1);
+    assert.ok(errors.some(message => message.includes('--provider')));
+    assert.ok(errors.every(message => !message.includes('secret-must-not-be-printed')));
+  } finally {
+    console.error = originalError;
   }
 });

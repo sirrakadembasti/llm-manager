@@ -74,7 +74,7 @@ test('mountLLMManagement serves localized page for express', async () => {
 
 test('fetchHandler serves localized page for Web standard request', async () => {
   const tmpDir = `tests/.tmp-i18n-web-${Date.now()}`;
-  const llm = createLLMManager({ dataDir: tmpDir, locale: 'en' });
+  const llm = createLLMManager({ insecureNoAuth: true, dataDir: tmpDir, locale: 'en' });
 
   const res = await llm.fetch(new Request('http://127.0.0.1:8010/llm'));
   assert.equal(res.status, 200);

@@ -9,9 +9,9 @@ import {
   type LLMMessage,
   type LLMProfilePublic,
   type LLMStore
-} from './index.js';
-import { createStandaloneServer } from './server.js';
-import { detectProjectType, initLLMProject } from './init.js';
+} from '@sirrakadembasti/llm-manager';
+import { createStandaloneServer } from '@sirrakadembasti/llm-manager/server';
+import { detectProjectType, initLLMProject } from '@sirrakadembasti/llm-manager/init';
 
 // 1. Core Manager and Message types
 const messages: LLMMessage[] = [
@@ -101,3 +101,84 @@ const dummyApp = {
 mountLLMManagement(dummyApp, { adminPassword: 'test-password-123' });
 
 void runTests;
+
+// Public contracts: these calls must compile without any casts.
+import {
+  generateProfileResponse,
+  normalizeRuntimeOptions,
+  buildProviderRequest,
+  executeWithRetry,
+  generateProfileStream
+} from '@sirrakadembasti/llm-manager/runtime';
+import { injectIntoEntryFile, probeAndOpenBrowser, verifyIntegration } from '@sirrakadembasti/llm-manager/init';
+import {
+  ensureLLMEncryptionKey,
+  rotateEncryptionKey,
+  exportProfiles,
+  importProfiles
+} from '@sirrakadembasti/llm-manager/setup';
+import { isLLMError } from '@sirrakadembasti/llm-manager/errors';
+import type { ChatResult, LLMProfileInternal } from '@sirrakadembasti/llm-manager/core';
+declare const internalProfile: LLMProfileInternal;
+async function publicContract() {
+  const text: string = await manager.ask('hello');
+  const raw: ChatResult = await manager.ask('hello', { raw: true, signal: new AbortController().signal });
+  // @ts-expect-error default ask returns text, not an untyped object
+  const invalid: number = await manager.ask('hello');
+  const mounted = mountLLMManagement(dummyApp, { adminPassword: 'test', testMessages: () => messages });
+  const mountedText: string = await mounted.ask('hello');
+  const injected = injectIntoEntryFile({ esm: true, entryFile: null });
+  injected.rollback();
+  const diff: string = injected.diffPreview;
+  const init = initLLMProject({ password: 'test', force: true });
+  const files: string[] = init.createdFiles;
+  const verified = verifyIntegration({ entryFile: null });
+  const passed: boolean = verified.checks[0].ok;
+  const probe = await probeAndOpenBrowser({ password: 'test', openBrowser: false });
+  const started: boolean = probe.startedServer;
+  const normalized = normalizeRuntimeOptions({ thinking: 'enabled', stop: 'END', temperature: 0.5 });
+  const stop: string[] | undefined = normalized.stop;
+  const request = buildProviderRequest(internalProfile, messages);
+  const body: Record<string, unknown> = request.body;
+  const generated = await generateProfileResponse(messages, internalProfile, { raw: true });
+  const content: string = generated.content;
+  const retried: string = await executeWithRetry(async ({ signal }) => String(signal.aborted));
+  for await (const chunk of generateProfileStream(messages, internalProfile)) console.log(chunk.type);
+  const key: string = ensureLLMEncryptionKey({ writeEnv: false, environment: {} });
+  const rotation = rotateEncryptionKey({ oldKey: key });
+  const backup: string | null = rotation.backupKeyPath;
+  const exported: number = exportProfiles({ password: 'pass', outputPath: 'backup.json' }).profileCount;
+  const imported: number = importProfiles({ password: 'pass', inputPath: 'backup.json' }).importedCount;
+  const server = await createStandaloneServer({ allowedOrigins: 'https://example.com', logger: { info() {} } });
+  const port: number = server.port;
+  const response = await manager.handle({ signal: new AbortController().signal, query: { month: '2026-10' } });
+  if (response?.isStream) for await (const chunk of response.stream) console.log(chunk.type);
+  if (isLLMError(raw, ErrorCodes.LLM_RATE_LIMIT)) console.log(raw.code);
+  void [
+    text,
+    raw,
+    invalid,
+    mountedText,
+    diff,
+    files,
+    passed,
+    started,
+    stop,
+    body,
+    content,
+    retried,
+    backup,
+    exported,
+    imported,
+    port
+  ];
+}
+void publicContract;
+
+// Public Basic-auth config and normalized diagnostic data contracts.
+import { createBasicAuth } from '@sirrakadembasti/llm-manager';
+createBasicAuth({
+  password: 'test',
+  rateLimit: { authFailuresPerMinute: 2 },
+  logger: { debug() {}, info() {}, warn() {}, error() {} }
+});

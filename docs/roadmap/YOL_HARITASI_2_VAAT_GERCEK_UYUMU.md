@@ -183,7 +183,7 @@ Her kartta şu alanlar var: **Dosyalar**, **Sorun**, **Yapılacaklar** (adım ad
 - **✅ KARAR ONAYLANDI (proje sahibi, 2026-10-23):** Paket adı **`@sirrakadembasti/llm-manager`** olacak (scoped). Bu kırıcı bir değişikliktir ve **v2.0.0** ile yayımlanacak. CLI komut adı (`bin`) `llm-manager` olarak **kalır**. GitHub deposu adı ve URL'si (`sirrakadembasti/llm-manager`) değişmez.
 - **Yapılacaklar:**
   1. `package.json#name` → `"@sirrakadembasti/llm-manager"`. `publishConfig: { "access": "public" }` ekle (scoped paketler npm'de varsayılan olarak özeldir). `bin: { "llm-manager": "bin/llm-manager.js" }` aynen kalsın.
-  2. Şablonlardaki (`src/init.js`) tüm `from 'llm-manager'`, `'llm-manager/core'`, `import('llm-manager')` ve `require('llm-manager')` ifadelerini yeni adla değiştir. Adı elle yazma; tek bir sabitten üret:
+  2. Şablonlardaki (`src/init.js`) tüm `from '@sirrakadembasti/llm-manager'`, `'llm-manager/core'`, `import('@sirrakadembasti/llm-manager')` ve `require('@sirrakadembasti/llm-manager')` ifadelerini yeni adla değiştir. Adı elle yazma; tek bir sabitten üret:
      ```js
      import { readFileSync } from 'node:fs';
      const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;
@@ -195,12 +195,12 @@ Her kartta şu alanlar var: **Dosyalar**, **Sorun**, **Yapılacaklar** (adım ad
      - Kurulum komutu: `npm install github:sirrakadembasti/llm-manager#v2.0.0`. Bu komut paketi `package.json#name` adıyla, yani `@sirrakadembasti/llm-manager` olarak kurar.
      - Import örnekleri: `import { mountLLMManagement } from '@sirrakadembasti/llm-manager';` ve `'@sirrakadembasti/llm-manager/core'`.
      - **Tüm** `npx llm-manager ...` örneklerini ya `npx github:sirrakadembasti/llm-manager#v2.0.0 ...` biçimine çevir ya da "paket projeye kurulduktan sonra `npx llm-manager ...`" diye açıkça belirt.
-     - Bir **"1.x'ten 2.0'a geçiş"** bölümü ekle: (a) `npm uninstall llm-manager`, (b) yeni adla kurulum, (c) importları `rg "from 'llm-manager" -l` ile bulup değiştirme, (d) `data/` klasörü ve şifreleme anahtarı **değişmez**, profiller aynen çalışır.
+     - Bir **"1.x'ten 2.0'a geçiş"** bölümü ekle: (a) `npm uninstall llm-manager`, (b) yeni adla kurulum, (c) importları `rg "from '@sirrakadembasti/llm-manager" -l` ile bulup değiştirme, (d) `data/` klasörü ve şifreleme anahtarı **değişmez**, profiller aynen çalışır.
   6. Paket README'sinin başına bir uyarı koy: "npm'deki `llm-manager` paketi bu projeyle ilgili değildir."
   7. CHANGELOG `[Unreleased]` → `### Changed` altına **BREAKING** notu ekle. Sürüm, Faz 0 ve Faz 1 tamamlandığında `npm run release:major` ile **2.0.0** yapılır. G22'deki purpose yeniden adlandırması ve A1'deki init re-export kaldırma da bu sürüme dahil edilir.
   8. `GEMINI.md` içindeki "paket adı `llm-manager`" ifadesini yeni adla güncelle.
 - **Kabul:**
-  - `rg "from 'llm-manager|require\('llm-manager|import\('llm-manager" src docs README.md` eşleşme vermez.
+  - `rg "from '@sirrakadembasti/llm-manager|require\('llm-manager|import\('llm-manager" src docs README.md` eşleşme vermez.
   - README ve ENTEGRASYON'da çıplak `npx llm-manager init` komutu "kurulduktan sonra" notu olmadan geçmez.
   - Geçici bir projede `npm install <depo yolu>` sonrası `node -e "import('@sirrakadembasti/llm-manager/core').then(m=>console.log(typeof m.createLLMManager))"` komutu `function` yazar.
   - `npx llm-manager --version` (yerel kurulumdan) yeni sürümü gösterir.

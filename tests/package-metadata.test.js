@@ -10,7 +10,7 @@ test('package.json contains complete metadata and compatibility settings', () =>
   assert.ok(Array.isArray(pkg.keywords) && pkg.keywords.length >= 5, 'package.json must declare keywords array');
   assert.equal(pkg.sideEffects, false, 'package.json must declare sideEffects: false for bundler optimization');
   assert.equal(pkg.publishConfig?.access, 'public', 'package.json must declare publishConfig.access: public');
-  assert.equal(pkg.engines?.node, '>=20.12.0', 'engines.node must be widened to >=20.12.0');
+  assert.equal(pkg.engines?.node, '>=22.12.0', 'engines.node must be widened to >=22.12.0');
 });
 
 test('npm pack bundle excludes tests, data, and secret env files', () => {

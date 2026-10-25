@@ -16,11 +16,12 @@ test('YH1-B2: two child_process.fork workers concurrently saving 50 profiles eac
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-concurrent-'));
   const filePath = path.join(root, 'profiles.json');
   const encryptionKey = 'aa'.repeat(32);
+  let worker1, worker2;
 
   try {
     // Launch two workers
-    const worker1 = fork(workerPath);
-    const worker2 = fork(workerPath);
+    worker1 = fork(workerPath);
+    worker2 = fork(workerPath);
 
     const runWorker = (worker, prefix, count) =>
       new Promise((resolve, reject) => {
@@ -42,7 +43,7 @@ test('YH1-B2: two child_process.fork workers concurrently saving 50 profiles eac
 
     // Verify final state
     const store = createLLMProfileStore({ filePath, encryptionKey });
-    const list = store.list();
+    const list = await store.list();
     assert.equal(list.profiles.length, 100, 'Expected 100 profiles saved without any concurrency loss');
 
     const names = new Set(list.profiles.map(p => p.name));
@@ -51,11 +52,13 @@ test('YH1-B2: two child_process.fork workers concurrently saving 50 profiles eac
       assert.ok(names.has(`w2-profile-${i}`), `Missing w2-profile-${i}`);
     }
   } finally {
+    worker1?.kill();
+    worker2?.kill();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('YH1-B2: withFileLockSync throws STORE_LOCKED after timeout when lock is held', () => {
+test('YH1-B2: withFileLockSync throws STORE_LOCKED after timeout when lock is held', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-lock-timeout-'));
   const lockPath = path.join(root, 'test.lock');
 
@@ -77,7 +80,7 @@ test('YH1-B2: withFileLockSync throws STORE_LOCKED after timeout when lock is he
   }
 });
 
-test('YH1-B2: withFileLockSync clears stale lock when owning pid is dead (> 10s old)', () => {
+test('YH1-B2: withFileLockSync clears stale lock when owning pid is dead (> 10s old)', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-stale-lock-'));
   const lockPath = path.join(root, 'test.lock');
 
@@ -100,7 +103,7 @@ test('YH1-B2: withFileLockSync clears stale lock when owning pid is dead (> 10s 
   }
 });
 
-test('YH1-B2: robustRenameSync retries on temporary EBUSY/EPERM', () => {
+test('YH1-B2: robustRenameSync retries on temporary EBUSY/EPERM', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-robust-rename-'));
   const src = path.join(root, 'temp.txt');
   const dest = path.join(root, 'target.txt');
@@ -131,7 +134,7 @@ test('YH1-B2: robustRenameSync retries on temporary EBUSY/EPERM', () => {
   }
 });
 
-test('YH1-B3: legacy store format without version field migrates to version: 1', () => {
+test('YH1-B3: legacy store format without version field migrates to version: 1', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-schema-v0-'));
   const filePath = path.join(root, 'profiles.json');
   const encryptionKey = 'bb'.repeat(32);
@@ -141,11 +144,11 @@ test('YH1-B3: legacy store format without version field migrates to version: 1',
     fs.writeFileSync(filePath, JSON.stringify({ activeId: null, profiles: [] }), 'utf8');
 
     const store = createLLMProfileStore({ filePath, encryptionKey });
-    const list = store.list();
+    const list = await store.list();
     assert.equal(list.version, 1);
 
     // Save a profile and verify file on disk has version: 1
-    store.save({
+    await store.save({
       name: 'V1 Profile',
       provider: 'custom',
       model: 'model',
@@ -160,7 +163,7 @@ test('YH1-B3: legacy store format without version field migrates to version: 1',
   }
 });
 
-test('YH1-B3: store throws STORE_VERSION_UNSUPPORTED on future version and does not overwrite', () => {
+test('YH1-B3: store throws STORE_VERSION_UNSUPPORTED on future version and does not overwrite', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-schema-v2-'));
   const filePath = path.join(root, 'profiles.json');
   const encryptionKey = 'cc'.repeat(32);
@@ -170,14 +173,14 @@ test('YH1-B3: store throws STORE_VERSION_UNSUPPORTED on future version and does 
     fs.writeFileSync(filePath, futureData, 'utf8');
 
     const store = createLLMProfileStore({ filePath, encryptionKey });
-    assert.throws(
-      () => store.list(),
+    await assert.rejects(
+      async () => await store.list(),
       err => err instanceof LLMError && err.code === ErrorCodes.STORE_VERSION_UNSUPPORTED && err.status === 500
     );
 
-    assert.throws(
-      () =>
-        store.save({
+    await assert.rejects(
+      async () =>
+        await store.save({
           name: 'Should Fail',
           provider: 'custom',
           model: 'm',
@@ -194,7 +197,7 @@ test('YH1-B3: store throws STORE_VERSION_UNSUPPORTED on future version and does 
   }
 });
 
-test('YH1-B3: corrupted JSON throws STORE_CORRUPT with .bak guidance and write generates .bak backup', () => {
+test('YH1-B3: corrupted JSON throws STORE_CORRUPT with .bak guidance and write generates .bak backup', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-schema-corrupt-'));
   const filePath = path.join(root, 'profiles.json');
   const bakPath = `${filePath}.bak`;
@@ -204,7 +207,7 @@ test('YH1-B3: corrupted JSON throws STORE_CORRUPT with .bak guidance and write g
     const store = createLLMProfileStore({ filePath, encryptionKey });
 
     // 1. Initial save creates file
-    store.save({
+    await store.save({
       name: 'Initial Profile',
       provider: 'custom',
       model: 'model',
@@ -213,7 +216,7 @@ test('YH1-B3: corrupted JSON throws STORE_CORRUPT with .bak guidance and write g
     });
 
     // 2. Second save creates .bak backup of the initial file
-    store.save({
+    await store.save({
       name: 'Second Profile',
       provider: 'custom',
       model: 'model',
@@ -229,8 +232,8 @@ test('YH1-B3: corrupted JSON throws STORE_CORRUPT with .bak guidance and write g
     // 3. Corrupt the primary file
     fs.writeFileSync(filePath, '{ invalid json content ...', 'utf8');
 
-    assert.throws(
-      () => store.list(),
+    await assert.rejects(
+      async () => await store.list(),
       err =>
         err instanceof LLMError &&
         err.code === ErrorCodes.STORE_CORRUPT &&

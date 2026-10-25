@@ -2,6 +2,7 @@
 // Girdi: { method, path, body }  ->  Çıktı: { status, body } veya eşleşme yoksa null.
 // Kimlik doğrulama, yönetici yetkisi ve CSRF denetimi host/adaptör sorumluluğundadır.
 import fs from 'node:fs';
+import { checkBasicAuth, checkBearerToken } from './auth.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
@@ -15,6 +16,7 @@ import {
   providerEndpoint,
   providerAuthHeaders,
   resolveRuntimeOptions,
+  normalizePurpose,
   executeWithRetry
 } from './runtime.js';
 import { providerFetch } from './providerTransport.js';
@@ -104,18 +106,29 @@ function defaultTestMessages(mode) {
   return [
     {
       role: 'system',
-      content: 'Bir yazılım projesinin Manager ajanısın. Türkçe yanıt ver; yapılmamış işlemi yapılmış gibi gösterme.'
+      content: 'Yardımsever bir asistansın. Kısa ve doğru yanıt ver.'
     },
     {
       role: 'user',
       content:
-        'Otel yönetimi uygulaması için oda, rezervasyon, kullanıcı rolleri ve veri güvenliğini kapsayan kısa bir mimari plan öner.'
+        'Bir web uygulamasında kullanıcı kimlik doğrulaması için üç temel güvenlik önlemini maddeler halinde yaz.'
     }
   ];
 }
 
 const ok = (body, status = 200) => ({ status, body });
-const notFound = () => ({ status: 404 });
+const safeUsage = usage => {
+  if (!usage || typeof usage !== 'object') return null;
+  const tokenCount = value => (Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0);
+  const inputTokens = tokenCount(usage.inputTokens);
+  const outputTokens = tokenCount(usage.outputTokens);
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: usage.totalTokens === undefined ? inputTokens + outputTokens : tokenCount(usage.totalTokens)
+  };
+};
+const notFound = () => ({ status: 404, body: { error: 'Profil bulunamadı.', code: ErrorCodes.PROFILE_NOT_FOUND } });
 const profileError = error => ({
   status:
     error.status ||
@@ -124,6 +137,11 @@ const profileError = error => ({
 });
 
 export function createLLMManager({
+  adminPassword = process.env.LLM_ADMIN_PASSWORD,
+  adminUser = 'admin',
+  chatTokens = process.env.LLM_CHAT_TOKENS,
+  authorize,
+  insecureNoAuth = false,
   dataDir,
   filePath,
   encryptionKey,
@@ -149,6 +167,7 @@ export function createLLMManager({
   getClientId
 } = {}) {
   const pendingTests = new Set();
+  let warnedMissingAuth = false;
   let cachedUiKey = '';
   let cachedUi = null;
 
@@ -196,6 +215,9 @@ export function createLLMManager({
           })
         };
 
+  const authLimit = rateLimitConfig?.authFailuresPerMinute ?? 10;
+  const authLimiter =
+    rateLimitConfig === false ? null : createRateLimiter({ capacity: authLimit, refillPerSec: authLimit / 60 });
   const guarded = async (fn, status = 200) => {
     try {
       return ok(await fn(), status);
@@ -255,26 +277,26 @@ export function createLLMManager({
       profile = await store.get(id);
       if (!profile) return notFound();
       const quick = mode === 'quick';
-      const purpose = quick ? 'quick' : 'manager';
+      const purpose = quick ? 'quick' : 'diagnostic';
       const messages = testMessages ? testMessages(mode, profile) : defaultTestMessages(mode);
       const options = {
         ...profile,
         ...resolveRuntimeOptions(profile, { purpose }),
         purpose,
-        ...networkOptions,
-        useManagedProfile: false,
-        allowMockFallback: false
+        ...networkOptions
       };
-      const reply = generate
+      const result = generate
         ? await generate(messages, options)
-        : await generateProfileResponse(messages, profile, options);
-      if (!reply) {
+        : await generateProfileResponse(messages, profile, { ...options, acceptTruncated: quick, raw: true });
+      const reply = typeof result === 'string' ? result : result?.content;
+      const truncated = quick && result?.truncated === true;
+      if (!reply && !truncated) {
         throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
           status: 502,
           retryable: true
         });
       }
-      if (validateTestReply) await validateTestReply(reply, { mode, profile });
+      if (validateTestReply && !truncated) await validateTestReply(reply, { mode, profile });
       const durationMs = Date.now() - start;
       if ((await store.recordTest(profile.id, 'passed', profile.revision, { mode, durationMs })) === null) {
         return ok(
@@ -285,10 +307,13 @@ export function createLLMManager({
       return ok({
         ok: true,
         mode,
+        ...(truncated ? { truncated: true } : {}),
         durationMs,
-        message: quick
-          ? 'Kısa bağlantı ve model yanıtı doğrulandı.'
-          : 'Sohbet tarzı model yanıtı doğrulandı. Bu test üretim kabul testi değildir.',
+        message: truncated
+          ? 'Bağlantı ve kimlik doğrulandı (model düşünme nedeniyle yanıtı kısa kesti; sohbet testini çalıştırın).'
+          : quick
+            ? 'Kısa bağlantı ve model yanıtı doğrulandı.'
+            : 'Sohbet tarzı model yanıtı doğrulandı. Bu test üretim kabul testi değildir.',
         requestId
       });
     } catch (error) {
@@ -378,6 +403,19 @@ export function createLLMManager({
     let apiKey = candidateKey;
     if (!apiKey && profileId) {
       const existing = await store.get(profileId);
+      if (
+        existing &&
+        (existing.provider !== provider || existing.baseURL.replace(/\/+$/, '') !== String(baseURL).replace(/\/+$/, ''))
+      ) {
+        return ok(
+          {
+            error: 'Sağlayıcı veya API adresi değiştiğinde yeni API anahtarı girilmelidir.',
+            code: ErrorCodes.PROFILE_INVALID,
+            requestId
+          },
+          400
+        );
+      }
       if (existing?.apiKey) apiKey = existing.apiKey;
     }
     if (!apiKey) {
@@ -503,12 +541,14 @@ export function createLLMManager({
       chatOverrides === 'all' ||
       (chatOverrides === 'admin' && (principal === undefined || principal?.isAdmin === true));
 
-    let purpose = body?.purpose;
-    if (purpose !== undefined && !['quick', 'manager', 'production'].includes(purpose)) {
+    let purpose;
+    try {
+      purpose = normalizePurpose(body?.purpose);
+    } catch {
       return ok({ error: 'Geçersiz çağrı amacı (purpose).', code: 'PURPOSE_INVALID', requestId }, 400);
     }
     if (!canOverride && purpose !== 'quick') {
-      purpose = undefined;
+      purpose = 'default';
     }
 
     const profileIdToUse = canOverride && body?.profileId ? String(body.profileId) : null;
@@ -532,6 +572,9 @@ export function createLLMManager({
         if (body?.responseFormat !== undefined) overrides.responseFormat = body.responseFormat;
       }
       if (purpose !== undefined) overrides.purpose = purpose;
+      const timeoutBudget = resolveRuntimeOptions(profile, overrides).timeoutMs;
+      const budgetSignal = AbortSignal.timeout(timeoutBudget);
+      const requestSignal = body?.signal ? AbortSignal.any([body.signal, budgetSignal]) : budgetSignal;
 
       const candidateProfiles = [profile];
       if (Array.isArray(profile.fallbackProfileIds) && profile.fallbackProfileIds.length > 0) {
@@ -556,9 +599,7 @@ export function createLLMManager({
               ...runtimeOpts,
               purpose,
               ...networkOptions,
-              useManagedProfile: false,
-              allowMockFallback: false,
-              signal: body?.signal
+              signal: requestSignal
             };
 
             try {
@@ -570,12 +611,12 @@ export function createLLMManager({
               for await (const chunk of streamIterable) {
                 yieldedAny = true;
                 if (chunk.type === 'done' && chunk.usage) {
-                  finalStreamUsage = chunk.usage;
+                  finalStreamUsage = safeUsage(chunk.usage);
                 }
-                yield chunk;
+                yield chunk.type === 'done' ? { ...chunk, usage: safeUsage(chunk.usage) } : chunk;
               }
 
-              usageTracker.record({
+              await usageTracker.record({
                 profileId: currentProfile.id,
                 model: currentProfile.model,
                 durationMs: Date.now() - start,
@@ -628,15 +669,13 @@ export function createLLMManager({
           ...currentProfile,
           ...runtimeOpts,
           purpose,
-          ...networkOptions,
-          useManagedProfile: false,
-          allowMockFallback: false
+          ...networkOptions
         };
 
         try {
           const executeOnce = async ({ signal } = {}) => {
             if (generate) {
-              return await generate(messages, options);
+              return await generate(messages, { ...options, signal });
             }
             return await generateProfileResponse(messages, currentProfile, {
               ...options,
@@ -645,19 +684,17 @@ export function createLLMManager({
             });
           };
 
-          const responseResult = retryPolicy
-            ? await executeWithRetry(executeOnce, {
-                attempts: retryPolicy.attempts ?? 2,
-                baseMs: retryPolicy.baseMs ?? 500,
-                maxMs: retryPolicy.maxMs ?? 4000,
-                deadlineMs: runtimeOpts.timeoutMs,
-                signal: body?.signal
-              })
-            : await executeOnce({ signal: body?.signal });
+          const responseResult = await executeWithRetry(executeOnce, {
+            attempts: retryPolicy ? (retryPolicy.attempts ?? 2) : 0,
+            baseMs: retryPolicy?.baseMs ?? 500,
+            maxMs: retryPolicy?.maxMs ?? 4000,
+            deadlineMs: Math.max(0, timeoutBudget - (Date.now() - start)),
+            signal: requestSignal
+          });
 
           const content = typeof responseResult === 'string' ? responseResult : responseResult?.content;
           const finishReason = typeof responseResult === 'object' ? responseResult?.finishReason : 'stop';
-          const usage = typeof responseResult === 'object' ? responseResult?.usage : null;
+          const usage = typeof responseResult === 'object' ? safeUsage(responseResult?.usage) : null;
 
           if (!content) {
             throw new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Model kullanılabilir cevap üretmedi.', {
@@ -667,7 +704,7 @@ export function createLLMManager({
           }
 
           const durationMs = Date.now() - start;
-          usageTracker.record({
+          await usageTracker.record({
             profileId: currentProfile.id,
             model: currentProfile.model,
             durationMs,
@@ -729,7 +766,7 @@ export function createLLMManager({
       }
       const classified = classifyLLMError(error);
       const durationMs = Date.now() - start;
-      usageTracker.record({
+      await usageTracker.record({
         profileId: profile?.id,
         model: profile?.model,
         durationMs,
@@ -833,7 +870,7 @@ export function createLLMManager({
       if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
         return ok({ error: 'Geçersiz ay formatı. YYYY-MM bekleniyor.', code: 'PARAMS_INVALID', requestId }, 400);
       }
-      const summary = usageTracker.getSummary(targetMonth);
+      const summary = await usageTracker.getSummary(targetMonth);
       return ok({ ok: true, ...summary, requestId });
     }
 
@@ -893,7 +930,18 @@ export function createLLMManager({
   // Next.js, SvelteKit, Nuxt, Astro, Hono, Bun/Deno için standart Web Request -> Response adaptörü.
   async function fetchHandler(
     request,
-    { apiPath = '/api/llm', pagePath = '/llm', requireCsrf = true, locale: customLocale, homeUrl: customHomeUrl } = {}
+    {
+      apiPath = '/api/llm',
+      pagePath = '/llm',
+      requireCsrf = true,
+      locale: customLocale,
+      homeUrl: customHomeUrl,
+      adminPassword: password = adminPassword,
+      adminUser: user = adminUser,
+      chatTokens: tokens = chatTokens,
+      authorize: authorizeRequest = authorize,
+      insecureNoAuth: allowNoAuth = insecureNoAuth
+    } = {}
   ) {
     const activeLocale = customLocale || locale || 'tr';
     const activeHomeUrl = customHomeUrl || homeUrl || '/';
@@ -912,6 +960,55 @@ export function createLLMManager({
     const parsedReqUrl = new URL(request.url, 'http://localhost');
     const pathname = parsedReqUrl.pathname;
     const query = Object.fromEntries(parsedReqUrl.searchParams.entries());
+    const clientKey = typeof getClientId === 'function' ? getClientId(request) : null;
+    const isApi = pathname === apiPath || pathname.startsWith(`${apiPath}/`);
+    const isManaged = isApi || pathname === pagePath || pathname === `${pagePath}/llm-ui.js`;
+    const isHealth = request.method === 'GET' && pathname === `${apiPath}/health`;
+    let principal;
+    if (isManaged && !isHealth) {
+      const authorization = request.headers.get('authorization') || '';
+      const deny = (status, code, error) =>
+        Response.json(
+          { code, error, requestId },
+          {
+            status,
+            headers: {
+              ...commonHeaders,
+              ...(status === 401 ? { 'WWW-Authenticate': 'Basic realm="LLM Yonetimi"' } : {})
+            }
+          }
+        );
+      principal = checkBearerToken(authorization, tokens);
+      if (!principal) {
+        if (typeof authorizeRequest === 'function') principal = await authorizeRequest(request);
+        else if (password) principal = checkBasicAuth(authorization, { user, password }).principal;
+        else if (allowNoAuth === true) principal = { isAdmin: true, kind: 'insecure' };
+        else {
+          if (!warnedMissingAuth) {
+            warnedMissingAuth = true;
+            const warning = 'LLM yönetimi kimlik doğrulaması yapılandırılmadığı için kapalı.';
+            if (customLogger) logger.warn(warning);
+            else console.warn(warning);
+          }
+          return deny(500, 'AUTH_NOT_CONFIGURED', 'Kimlik doğrulama yapılandırılmadı.');
+        }
+      }
+      if (!principal) {
+        const limit = authLimiter?.take(clientKey || 'anonymous');
+        if (limit && !limit.ok) {
+          const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
+          response.headers.set('Retry-After', String(limit.retryAfterSec));
+          return response;
+        }
+        logger.warn('auth.failed', { requestId, ip: clientKey || undefined });
+        return deny(401, 'UNAUTHORIZED', 'Kimlik doğrulama gerekli.');
+      }
+      authLimiter?.reset(clientKey || 'anonymous');
+      const isChat = pathname === `${apiPath}/chat` && request.method === 'POST';
+      if (principal.isAdmin !== true && (!isChat || chatAccess === 'admin')) {
+        return deny(403, 'FORBIDDEN', 'Yönetici yetkisi gerekli.');
+      }
+    }
     if (request.method === 'GET' && pathname === pagePath) {
       return new Response(cachedUi.html, {
         status: 200,
@@ -986,25 +1083,28 @@ export function createLLMManager({
         }
       }
 
-      const clientKey = typeof getClientId === 'function' ? getClientId(request) : null;
+      const responseAbort = new AbortController();
+      const responseSignal = AbortSignal.any([request.signal, responseAbort.signal]);
       const result = await handle({
+        principal,
         method: request.method,
         path: subPath,
         query,
         body,
         requestId,
         clientKey,
-        signal: request.signal
+        signal: responseSignal
       });
       if (!result) return new Response(null, { status: 404, headers: commonHeaders });
 
       if (result.isStream && result.stream) {
+        let cancelled = false;
         const sseStream = new ReadableStream({
           async start(controller) {
             const encoder = new TextEncoder();
             try {
               for await (const chunk of result.stream) {
-                if (request.signal?.aborted) break;
+                if (cancelled || responseSignal.aborted) break;
                 if (chunk.type === 'delta') {
                   controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`));
                 } else if (chunk.type === 'done') {
@@ -1015,16 +1115,21 @@ export function createLLMManager({
                   );
                 }
               }
-              controller.close();
+              if (!cancelled) controller.close();
             } catch (err) {
+              if (cancelled) return;
               const classified = classifyLLMError(err);
               controller.enqueue(
                 encoder.encode(
-                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status })}\n\n`
+                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, requestId })}\n\n`
                 )
               );
               controller.close();
             }
+          },
+          cancel() {
+            cancelled = true;
+            responseAbort.abort();
           }
         });
 
@@ -1040,7 +1145,11 @@ export function createLLMManager({
       }
 
       if (result.body === undefined) return new Response(null, { status: result.status, headers: commonHeaders });
-      return Response.json(result.body, { status: result.status, headers: commonHeaders });
+      const responseBody =
+        result.status >= 400 && result.body && typeof result.body === 'object'
+          ? { ...result.body, requestId }
+          : result.body;
+      return Response.json(responseBody, { status: result.status, headers: commonHeaders });
     }
     return new Response(null, { status: 404, headers: commonHeaders });
   }

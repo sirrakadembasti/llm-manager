@@ -6,13 +6,13 @@ import express from 'express';
 import { createLLMManager, createLLMProfileStore, createUsageTracker } from '../src/core.js';
 import { mountLLMManagement } from '../src/index.js';
 
-test('YH1-D4: createUsageTracker records entries and calculates monthly summaries without storing content', () => {
+test('YH1-D4: createUsageTracker records entries and calculates monthly summaries without storing content', async () => {
   const dir = `tests/.tmp-usage-tracker-${Date.now()}`;
   try {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const tracker = createUsageTracker({ dataDir: dir, enabled: true });
 
-    tracker.record({
+    await tracker.record({
       profileId: 'prof-openai',
       model: 'gpt-4o',
       durationMs: 450,
@@ -21,7 +21,7 @@ test('YH1-D4: createUsageTracker records entries and calculates monthly summarie
       code: 'OK'
     });
 
-    tracker.record({
+    await tracker.record({
       profileId: 'prof-openai',
       model: 'gpt-4o',
       durationMs: 320,
@@ -30,7 +30,7 @@ test('YH1-D4: createUsageTracker records entries and calculates monthly summarie
       code: 'OK'
     });
 
-    tracker.record({
+    await tracker.record({
       profileId: 'prof-anthropic',
       model: 'claude-3-7-sonnet',
       durationMs: 600,
@@ -56,7 +56,7 @@ test('YH1-D4: createUsageTracker records entries and calculates monthly summarie
     }
 
     // Verify summary
-    const summary = tracker.getSummary(currentMonth);
+    const summary = await tracker.getSummary(currentMonth);
     assert.equal(summary.month, currentMonth);
     assert.equal(summary.totalRequests, 3);
     assert.equal(summary.totalInputTokens, 370);
@@ -70,7 +70,7 @@ test('YH1-D4: createUsageTracker records entries and calculates monthly summarie
     assert.equal(summary.byProfile['prof-anthropic'].totalTokens, 500);
 
     // Empty summary for non-existent month
-    const emptySummary = tracker.getSummary('1999-01');
+    const emptySummary = await tracker.getSummary('1999-01');
     assert.equal(emptySummary.totalRequests, 0);
     assert.equal(emptySummary.totalTokens, 0);
   } finally {
@@ -199,6 +199,54 @@ test('YH1-D4: Express mountLLMManagement provides authenticated GET /api/llm/usa
     } finally {
       server.close();
     }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// This contract catches a regression back to synchronous filesystem work on requests.
+test('usage persistence is asynchronous and summaries include all queued records', async () => {
+  const dir = `tests/.tmp-usage-async-${Date.now()}`;
+  const tracker = createUsageTracker({ dataDir: dir, enabled: true });
+  const syncMethods = ['mkdirSync', 'appendFileSync', 'readFileSync', 'existsSync'];
+  const originals = Object.fromEntries(syncMethods.map(name => [name, fs[name]]));
+  try {
+    for (const name of syncMethods)
+      fs[name] = () => {
+        throw new Error(`blocking filesystem: ${name}`);
+      };
+    const pending = Array.from({ length: 12 }, (_, i) => tracker.record({ profileId: 'queued', inputTokens: i + 1 }));
+    assert.ok(pending.every(result => result instanceof Promise));
+    const summary = await tracker.getSummary();
+    await Promise.all(pending);
+    assert.equal(summary.totalRequests, 12);
+    assert.equal(summary.totalInputTokens, 78);
+  } finally {
+    Object.assign(fs, originals);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('usage read and write failures remain non-fatal and malformed lines are skipped', async () => {
+  const dir = `tests/.tmp-usage-errors-${Date.now()}`;
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    const blocked = path.join(dir, 'file');
+    fs.writeFileSync(blocked, 'not a directory');
+    const broken = createUsageTracker({ dataDir: blocked, enabled: true });
+    await broken.record({ profileId: 'failed' });
+    assert.equal((await broken.getSummary()).totalRequests, 0);
+    const month = new Date().toISOString().slice(0, 7);
+    fs.writeFileSync(
+      path.join(dir, `usage-${month}.jsonl`),
+      'bad-json\n' +
+        JSON.stringify({ profileId: '__proto__', inputTokens: 2, outputTokens: 3, code: 'LLM_TIMEOUT' }) +
+        '\n'
+    );
+    const summary = await createUsageTracker({ dataDir: dir, enabled: true }).getSummary();
+    assert.equal(summary.totalRequests, 1);
+    assert.equal(summary.byProfile['__proto__'].totalTokens, 5);
+    assert.equal(summary.byProfile['__proto__'].errors, 1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

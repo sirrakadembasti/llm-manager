@@ -7,6 +7,14 @@ import os from 'node:os';
 import { createLLMManager } from '../../src/core.js';
 import { createMockProvider } from '../helpers/mockProvider.js';
 
+const authenticatedFetch = (url, options = {}) =>
+  globalThis.fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: 'Basic ' + Buffer.from('admin:integration-password').toString('base64')
+    }
+  });
 function createTempDir(prefix = 'llm-fetch-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
@@ -41,10 +49,7 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
   const { url: mockUrl } = await mock.start();
   const tempDir = createTempDir();
 
-  const manager = createLLMManager({
-    dataDir: tempDir,
-    allowLocalHttp: true
-  });
+  const manager = createLLMManager({ adminPassword: 'integration-password', dataDir: tempDir, allowLocalHttp: true });
 
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -75,13 +80,13 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
 
   try {
     // 1. GET /llm returns management UI HTML
-    const uiRes = await fetch(`${baseUrl}/llm`);
+    const uiRes = await authenticatedFetch(`${baseUrl}/llm`);
     assert.equal(uiRes.status, 200);
     const html = await uiRes.text();
     assert.ok(html.includes('LLM'));
 
     // 2. Create profile via POST /api/llm/profiles
-    const createRes = await fetch(`${baseUrl}/api/llm/profiles`, {
+    const createRes = await authenticatedFetch(`${baseUrl}/api/llm/profiles`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -100,7 +105,7 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
     assert.ok(profile.id);
 
     // 3. Activate profile
-    const actRes = await fetch(`${baseUrl}/api/llm/profiles/${profile.id}/activate`, {
+    const actRes = await authenticatedFetch(`${baseUrl}/api/llm/profiles/${profile.id}/activate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,7 +116,7 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
     assert.equal(actRes.status, 200);
 
     // 4. Test profile
-    const testRes = await fetch(`${baseUrl}/api/llm/profiles/${profile.id}/test`, {
+    const testRes = await authenticatedFetch(`${baseUrl}/api/llm/profiles/${profile.id}/test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -122,7 +127,7 @@ test('YH1-F2: Web standard llm.fetch integration with native Node HTTP server br
     assert.equal(testRes.status, 200);
 
     // 5. Chat via POST /api/llm/chat
-    const chatRes = await fetch(`${baseUrl}/api/llm/chat`, {
+    const chatRes = await authenticatedFetch(`${baseUrl}/api/llm/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

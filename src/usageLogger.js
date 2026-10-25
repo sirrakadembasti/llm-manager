@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export function createUsageTracker({ dataDir = 'data', enabled = false } = {}) {
@@ -9,31 +9,36 @@ export function createUsageTracker({ dataDir = 'data', enabled = false } = {}) {
     return path.join(dataDir, `usage-${month}.jsonl`);
   }
 
+  let pending = Promise.resolve();
+
   function record({ profileId, model, durationMs, inputTokens = 0, outputTokens = 0, code = 'OK' } = {}) {
-    if (!isEnabled) return;
-    try {
-      const now = new Date();
-      const month = now.toISOString().slice(0, 7);
-      const filePath = getLogFilePath(month);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (!isEnabled) return Promise.resolve();
+    const now = new Date();
+    pending = pending.then(async () => {
+      try {
+        const month = now.toISOString().slice(0, 7);
+        const filePath = getLogFilePath(month);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-      const entry = {
-        at: now.toISOString(),
-        profileId: profileId || 'unknown',
-        model: model || 'unknown',
-        durationMs: Math.max(0, Math.round(durationMs || 0)),
-        inputTokens: Math.max(0, Math.round(Number(inputTokens) || 0)),
-        outputTokens: Math.max(0, Math.round(Number(outputTokens) || 0)),
-        code: String(code || 'OK')
-      };
+        const entry = {
+          at: now.toISOString(),
+          profileId: profileId || 'unknown',
+          model: model || 'unknown',
+          durationMs: Math.max(0, Math.round(durationMs || 0)),
+          inputTokens: Math.max(0, Math.round(Number(inputTokens) || 0)),
+          outputTokens: Math.max(0, Math.round(Number(outputTokens) || 0)),
+          code: String(code || 'OK')
+        };
 
-      fs.appendFileSync(filePath, JSON.stringify(entry) + '\n', 'utf8');
-    } catch {
-      // Disk yazma hatası kullanıcı isteğini etkilememeli
-    }
+        await fs.appendFile(filePath, JSON.stringify(entry) + '\n', 'utf8');
+      } catch {
+        // Disk yazma hatası kullanıcı isteğini etkilememeli
+      }
+    });
+    return pending;
   }
 
-  function getSummary(monthString) {
+  async function getSummary(monthString) {
     const month = monthString || new Date().toISOString().slice(0, 7);
     const filePath = getLogFilePath(month);
 
@@ -46,12 +51,10 @@ export function createUsageTracker({ dataDir = 'data', enabled = false } = {}) {
       byProfile: {}
     };
 
-    if (!fs.existsSync(filePath)) {
-      return summary;
-    }
+    await pending;
 
     try {
-      const content = fs.readFileSync(filePath, 'utf8');
+      const content = await fs.readFile(filePath, 'utf8');
       const lines = content.split('\n');
 
       for (const rawLine of lines) {
@@ -67,14 +70,17 @@ export function createUsageTracker({ dataDir = 'data', enabled = false } = {}) {
           summary.totalTokens += inTokens + outTokens;
 
           const pid = item.profileId || 'unknown';
-          if (!summary.byProfile[pid]) {
-            summary.byProfile[pid] = {
-              requests: 0,
-              inputTokens: 0,
-              outputTokens: 0,
-              totalTokens: 0,
-              errors: 0
-            };
+          if (!Object.hasOwn(summary.byProfile, pid)) {
+            Object.defineProperty(summary.byProfile, pid, {
+              enumerable: true,
+              value: {
+                requests: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                errors: 0
+              }
+            });
           }
           const prof = summary.byProfile[pid];
           prof.requests++;

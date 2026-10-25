@@ -95,19 +95,19 @@ export function withFileLockSync(lockPath, fn, { timeoutMs = 5000, retryInterval
   }
 }
 
-export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryIntervalMs = 50 } = {}) {
+export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryIntervalMs = 10 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (true) {
     let fd;
     try {
-      fd = fs.openSync(lockPath, 'wx');
+      fd = await fs.promises.open(lockPath, 'wx', 0o600);
     } catch (err) {
       if (err.code === 'ENOENT') {
-        fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+        await fs.promises.mkdir(path.dirname(lockPath), { recursive: true });
         continue;
       }
       if (err.code === 'EEXIST') {
-        if (handleStaleLock(lockPath)) {
+        if (await handleStaleLockAsync(lockPath)) {
           continue;
         }
         if (Date.now() >= deadline) {
@@ -124,11 +124,11 @@ export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryInterv
 
     try {
       const payload = JSON.stringify({ pid: process.pid, at: new Date().toISOString() });
-      fs.writeFileSync(fd, payload, 'utf8');
+      await fd.writeFile(payload, 'utf8');
     } finally {
       if (fd !== undefined) {
         try {
-          fs.closeSync(fd);
+          await fd.close();
         } catch {}
       }
     }
@@ -137,8 +137,33 @@ export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryInterv
       return await fn();
     } finally {
       try {
-        fs.unlinkSync(lockPath);
+        await fs.promises.unlink(lockPath);
       } catch {}
+      // Give waiting processes a full polling interval before this caller can reacquire.
+      await new Promise(resolve => setTimeout(resolve, retryIntervalMs * 2));
+    }
+  }
+}
+
+async function handleStaleLockAsync(lockPath) {
+  try {
+    const info = JSON.parse(await fs.promises.readFile(lockPath, 'utf8'));
+    if (Date.now() - new Date(info.at).getTime() > 10000 && !isPidAlive(info.pid)) {
+      await fs.promises.unlink(lockPath);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+export async function robustRename(source, target) {
+  const delays = [20, 50, 100, 200];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.promises.rename(source, target);
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(error.code) || attempt >= delays.length) throw error;
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
     }
   }
 }

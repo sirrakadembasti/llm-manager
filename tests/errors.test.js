@@ -230,7 +230,7 @@ test('YH1-A4: classifyLLMError resolves codes directly from error.code table and
   }
 });
 
-test('YH1-A4: profileStore operations throw typed LLMError instances', () => {
+test('YH1-A4: profileStore operations throw typed LLMError instances', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-errors-store-'));
   try {
     const store = createLLMProfileStore({
@@ -239,13 +239,13 @@ test('YH1-A4: profileStore operations throw typed LLMError instances', () => {
     });
 
     // 1. Missing required fields -> PROFILE_INVALID
-    assert.throws(
+    await assert.rejects(
       () => store.save({ name: '' }),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_INVALID && err.status === 400
     );
 
     // 2. Valid save
-    const profile = store.save({
+    const profile = await store.save({
       name: 'Test Profile',
       provider: 'custom',
       model: 'test-model',
@@ -255,35 +255,35 @@ test('YH1-A4: profileStore operations throw typed LLMError instances', () => {
     assert.ok(profile.id);
 
     // 3. Stale revision mutation -> PROFILE_CONFLICT
-    assert.throws(
+    await assert.rejects(
       () => store.save({ ...profile, revision: 'stale-rev', name: 'Updated' }),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_CONFLICT && err.status === 409
     );
 
     // 4. Non-existent profile -> PROFILE_NOT_FOUND
-    assert.throws(
+    await assert.rejects(
       () => store.save({ ...profile, id: 'non-existent-id' }),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_NOT_FOUND && err.status === 404
     );
 
-    assert.throws(
+    await assert.rejects(
       () => store.activate('non-existent-id'),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_NOT_FOUND && err.status === 404
     );
 
-    assert.throws(
+    await assert.rejects(
       () => store.remove('non-existent-id'),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_NOT_FOUND && err.status === 404
     );
 
     // 5. Changed endpoint without new key -> PROFILE_INVALID
-    assert.throws(
+    await assert.rejects(
       () => store.save({ ...profile, baseURL: 'https://different.example/v1' }),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_INVALID && err.status === 400
     );
 
     // 6. Invalid recordTest status -> PROFILE_INVALID
-    assert.throws(
+    await assert.rejects(
       () => store.recordTest(profile.id, 'unknown_status'),
       err => err instanceof LLMError && err.code === ErrorCodes.PROFILE_INVALID && err.status === 400
     );
@@ -299,14 +299,14 @@ test('YH1-A4: core chatCompletion returns 400 with RUNTIME_OPTIONS_INVALID when 
       filePath: path.join(root, 'profiles.json'),
       encryptionKey: '22'.repeat(32)
     });
-    const profile = store.save({
+    const profile = await store.save({
       name: 'Active',
       provider: 'custom',
       model: 'model',
       baseURL: 'https://example.com/v1',
       apiKey: 'k'
     });
-    store.activate(profile.id, profile.revision);
+    await store.activate(profile.id, profile.revision);
 
     const manager = createLLMManager({ store });
     const response = await manager.handle({

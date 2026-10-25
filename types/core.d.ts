@@ -6,7 +6,7 @@ export interface LLMMessage {
 }
 
 export interface LLMTestResult {
-  at: number;
+  at: string;
   status: 'passed' | 'failed';
   mode: 'quick' | 'conversation';
   durationMs: number;
@@ -23,7 +23,7 @@ export interface LLMProfilePublic {
   revision: string | null;
   timeoutMs?: number;
   maxOutputTokens?: number;
-  thinking?: 'auto' | 'disabled';
+  thinking?: 'auto' | 'enabled' | 'disabled';
   temperature?: number;
   topP?: number;
   stop?: string[];
@@ -52,7 +52,10 @@ export interface LLMStore {
   save(
     profile: Partial<LLMProfileInternal> & { name: string; provider: string; model: string }
   ): LLMProfilePublic | Promise<LLMProfilePublic>;
-  remove(id: string, revision?: string | null): { ok: boolean } | Promise<{ ok: boolean }>;
+  remove(
+    id: string,
+    revision?: string | null
+  ): LLMStoreListResult | { ok: boolean } | Promise<LLMStoreListResult | { ok: boolean }>;
   activate(id: string, revision?: string | null): LLMStoreListResult | Promise<LLMStoreListResult>;
   recordTest(
     id: string,
@@ -74,6 +77,8 @@ export interface LLMManagerRateLimitConfig {
   testPerMinute?: number;
   authFailuresPerMinute?: number;
 }
+
+export type LoggerInput = Partial<StructuredLogger> & { log?: (...args: unknown[]) => void };
 
 export interface StructuredLogger {
   debug(...args: unknown[]): void;
@@ -106,54 +111,118 @@ export interface HandleOptions {
   method?: string;
   path?: string;
   body?: unknown;
-  principal?: { isAdmin?: boolean; id?: string };
+  principal?: Principal;
+  query?: Record<string, unknown>;
+  signal?: AbortSignal;
   requestId?: string;
   clientKey?: string;
 }
 
-export interface HandleResponse {
-  status: number;
-  body?: unknown;
-}
+export type HandleResponse =
+  | { status: number; body?: unknown; isStream?: false; requestId?: string }
+  | { status: number; body?: never; isStream: true; stream: AsyncIterable<StreamChunk>; requestId?: string };
 
 export interface LLMManagerOptions {
+  adminPassword?: string;
+  adminUser?: string;
+  chatTokens?: string | string[];
+  authorize?: (request: Request) => Principal | null | Promise<Principal | null>;
+  insecureNoAuth?: boolean;
   dataDir?: string;
   filePath?: string;
   encryptionKey?: string;
   allowLocalHttp?: boolean;
   store?: LLMStore;
-  generate?: (messages: LLMMessage[], options: Record<string, unknown>) => Promise<string>;
-  testMessages?: LLMMessage[];
+  generate?: (
+    messages: LLMMessage[],
+    options: GenerationOptions
+  ) => string | GenerationResponse | Promise<string | GenerationResponse>;
+  generateStream?: (messages: LLMMessage[], options: GenerationOptions) => AsyncIterable<StreamChunk>;
+  testMessages?: (mode: 'quick' | 'conversation', profile: LLMProfileInternal) => LLMMessage[];
   validateTestReply?: (reply: string, context: { mode: string; profile: LLMProfileInternal }) => Promise<void> | void;
   limits?: LLMManagerLimits;
   chatOverrides?: 'admin' | 'all' | 'none';
   chatAccess?: 'authenticated' | 'admin' | false;
   rateLimit?: boolean | LLMManagerRateLimitConfig;
   retry?: boolean | { attempts?: number; baseMs?: number; maxMs?: number };
-  logger?: StructuredLogger | null;
+  logger?: LoggerInput | null;
   getClientId?: (request: Request) => string | null;
   proxyUrl?: string;
   allowedHosts?: string[];
   allowedPrivateHosts?: string[];
-  apiPath?: string;
-  pagePath?: string;
-  requireCsrf?: boolean;
   health?: boolean;
   usageLog?: boolean;
   locale?: 'tr' | 'en' | string;
   homeUrl?: string;
 }
 
-export type StreamChunk =
-  | { type: 'delta'; text: string }
-  | { type: 'done'; usage?: { inputTokens: number; outputTokens: number; totalTokens: number }; finishReason?: string };
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens?: number;
+}
+export interface GenerationResponse {
+  content: string;
+  usage?: TokenUsage | null;
+  finishReason?: string | null;
+}
+export type StreamChunk = { type: 'delta'; text: string } | { type: 'done'; usage?: TokenUsage; finishReason?: string };
 
+export interface RuntimeOptions {
+  timeoutMs?: number;
+  maxOutputTokens?: number;
+  thinking?: 'auto' | 'enabled' | 'disabled';
+  temperature?: number;
+  topP?: number;
+  stop?: string | string[];
+  responseFormat?: 'text' | 'json';
+}
+export interface NetworkOptions {
+  allowLocalHttp?: boolean;
+  proxyUrl?: string;
+  allowedHosts?: string[];
+  allowedPrivateHosts?: string[];
+}
+export interface GenerationOptions extends RuntimeOptions, NetworkOptions {
+  purpose?: 'quick' | 'diagnostic' | 'default' | 'manager' | 'production';
+  acceptTruncated?: boolean;
+  raw?: boolean;
+  stream?: boolean;
+  signal?: AbortSignal;
+  [key: string]: unknown;
+}
+export interface AskOptions extends GenerationOptions {
+  system?: string;
+  profileId?: string;
+}
+export type PromptInput = string | LLMMessage[] | { prompt?: string; messages?: LLMMessage[]; system?: string };
 export interface LLMManager {
-  handle(options: HandleOptions): Promise<HandleResponse | null>;
-  ask(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown> & { raw?: boolean }): Promise<any>;
-  stream(promptOrMessages: string | LLMMessage[], options?: Record<string, unknown>): AsyncIterable<StreamChunk>;
-  fetch(request: Request): Promise<Response>;
+  handle(options?: HandleOptions): Promise<HandleResponse | null>;
+  ask(promptOrMessages: PromptInput, options: AskOptions & { raw: true }): Promise<ChatResult>;
+  ask(promptOrMessages: PromptInput, options?: AskOptions & { raw?: false }): Promise<string>;
+  ask(promptOrMessages: PromptInput, options: AskOptions): Promise<string | ChatResult>;
+  stream(promptOrMessages: PromptInput, options?: AskOptions): AsyncIterable<StreamChunk>;
+  fetch(request: Request, options?: FetchOptions): Promise<Response>;
   store: LLMStore;
+}
+
+export interface Principal {
+  isAdmin?: boolean;
+  id?: string;
+  kind?: string;
+}
+
+export interface FetchOptions {
+  apiPath?: string;
+  pagePath?: string;
+  requireCsrf?: boolean;
+  locale?: string;
+  homeUrl?: string;
+  adminPassword?: string;
+  adminUser?: string;
+  chatTokens?: string | string[];
+  authorize?: (request: Request) => Principal | null | Promise<Principal | null>;
+  insecureNoAuth?: boolean;
 }
 
 export function createLLMManager(options?: LLMManagerOptions): LLMManager;
@@ -162,7 +231,14 @@ export function createLLMProfileStore(options?: {
   filePath?: string;
   encryptionKey?: string;
   allowLocalHttp?: boolean;
-}): LLMStore;
+  allowedPrivateHosts?: string[];
+}): AsyncLLMStore;
+
+export type AsyncLLMStore = {
+  [K in keyof LLMStore]: LLMStore[K] extends (...args: infer A) => infer R
+    ? (...args: A) => Promise<Awaited<R>>
+    : never;
+};
 
 export function createRateLimiter(options?: { capacity?: number; refillPerSec?: number; maxKeys?: number }): {
   take(key: string, count?: number): { ok: boolean; remaining: number; retryAfterSec: number };
@@ -171,7 +247,7 @@ export function createRateLimiter(options?: { capacity?: number; refillPerSec?: 
   size(): number;
 };
 
-export function createStructuredLogger(logger?: unknown): StructuredLogger;
+export function createStructuredLogger(logger?: LoggerInput | null): StructuredLogger;
 export function redact<T>(value: T, depth?: number): T;
 export function sanitizeRequestId(headerValue?: unknown): string;
 
@@ -194,15 +270,15 @@ export interface UsageSummary {
 
 export interface UsageTracker {
   enabled: boolean;
-  record(entry: {
+  record(entry?: {
     profileId?: string;
     model?: string;
     durationMs?: number;
     inputTokens?: number;
     outputTokens?: number;
     code?: string;
-  }): void;
-  getSummary(month?: string): UsageSummary;
+  }): Promise<void>;
+  getSummary(month?: string): Promise<UsageSummary>;
 }
 
 export function createUsageTracker(options?: { dataDir?: string; enabled?: boolean }): UsageTracker;
@@ -220,14 +296,22 @@ export const MESSAGES: Record<string, Record<string, string>>;
 export function getErrorMessage(code: string, locale?: string, fallback?: string | null): string;
 
 export { LLMError, ErrorCodes, LLMErrorCode };
-export const PROVIDERS: readonly unknown[];
+export interface ProviderCatalogEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly region?: string;
+  readonly transport: string;
+  readonly baseURL: string;
+  readonly models: readonly string[];
+  readonly capabilities?: Readonly<{ thinking?: boolean }>;
+  readonly endpoints?: readonly Readonly<{ id?: string; name?: string; baseURL: string; models?: readonly string[] }>[];
+}
+export const PROVIDERS: readonly ProviderCatalogEntry[];
 export const CATALOG_VERSION: string;
 export const CATALOG_UPDATED_AT: string;
 export const PACKAGE_VERSION: string;
-export function validateProviderUrl(value: unknown, options?: { allowLocalHttp?: boolean }): string;
-export function classifyLLMError(error: unknown): { error: string; code: string; status: number };
-export function generateProfileResponse(
-  messages: LLMMessage[],
-  profile: LLMProfileInternal,
-  options?: Record<string, unknown>
-): Promise<string>;
+export function validateProviderUrl(
+  value: unknown,
+  options?: Pick<NetworkOptions, 'allowLocalHttp' | 'allowedPrivateHosts'>
+): string;
+export { classifyLLMError, generateProfileResponse } from './runtime.js';

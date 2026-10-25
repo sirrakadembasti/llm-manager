@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
-import { Router } from 'express';
+import { checkBasicAuth, checkBearerToken } from './auth.js';
+import { Router, json } from 'express';
 import { LLMError, ErrorCodes } from './errors.js';
 import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
@@ -68,20 +68,16 @@ const COMMON_HEADERS = {
 const PAGE_CSP =
   "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
-const safeEqual = (left, right) => {
-  const a = crypto.createHash('sha256').update(String(left)).digest();
-  const b = crypto.createHash('sha256').update(String(right)).digest();
-  return crypto.timingSafeEqual(a, b);
-};
-
-export function createBasicAuth({ user = 'admin', password, rateLimit = true } = {}) {
+export function createBasicAuth({ user = 'admin', password, rateLimit = true, logger } = {}) {
   if (!password) {
     throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Basic Auth için parola (adminPassword) zorunludur.', {
       status: 500,
       retryable: false
     });
   }
-  const authLimiter = rateLimit !== false ? createRateLimiter({ capacity: 10, refillPerSec: 10 / 60 }) : null;
+  const capacity = rateLimit?.authFailuresPerMinute ?? 10;
+  const authLimiter = rateLimit !== false ? createRateLimiter({ capacity, refillPerSec: capacity / 60 }) : null;
+  const authLogger = createStructuredLogger(logger);
 
   return (req, res, next) => {
     const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
@@ -94,23 +90,21 @@ export function createBasicAuth({ user = 'admin', password, rateLimit = true } =
     }
 
     const authorization = req.get('Authorization') || '';
-    const decoded = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString() : '';
-    const colon = decoded.indexOf(':');
-    const candidateUser = colon < 0 ? '' : decoded.slice(0, colon);
-    const candidatePass = colon < 0 ? '' : decoded.slice(colon + 1);
-    const userOk = safeEqual(candidateUser, user);
-    const passOk = safeEqual(candidatePass, password);
-    if (colon < 0 || !userOk || !passOk) {
+    const authentication = checkBasicAuth(authorization, { user, password });
+    if (!authentication.ok) {
       if (authLimiter) {
         authLimiter.take(ip, 1);
       }
+      authLogger.warn('auth.failed', { ip, requestId: req.requestId });
       res.set('WWW-Authenticate', 'Basic realm="LLM Yonetimi"');
-      return res.sendStatus(401);
+      return res
+        .status(401)
+        .json({ code: 'UNAUTHORIZED', error: 'Kimlik doğrulama gerekli.', requestId: req.requestId });
     }
     if (authLimiter) {
       authLimiter.reset(ip);
     }
-    req.user = { isAdmin: true };
+    req.user = authentication.principal;
     next();
   };
 }
@@ -122,10 +116,12 @@ export function mountLLMManagement(
     filePath,
     encryptionKey,
     allowLocalHttp,
-    store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp }),
+    allowedPrivateHosts = [],
+    store = createLLMProfileStore({ dataDir, filePath, encryptionKey, allowLocalHttp, allowedPrivateHosts }),
     requireAuth,
     adminPassword,
     adminUser = 'admin',
+    chatTokens = process.env.LLM_CHAT_TOKENS,
     generate,
     apiPath = '/api/llm',
     pagePath = '/llm',
@@ -137,17 +133,19 @@ export function mountLLMManagement(
     locale = 'tr',
     homeUrl = '/',
     limits,
+    bodyLimit,
     rateLimit,
     logger,
     testMessages,
-    validateTestReply
+    validateTestReply,
+    ...managerOptions
   } = {}
 ) {
   const authMiddleware =
     typeof requireAuth === 'function'
       ? requireAuth
       : adminPassword
-        ? createBasicAuth({ user: adminUser, password: adminPassword, rateLimit: rateLimit !== false })
+        ? createBasicAuth({ user: adminUser, password: adminPassword, rateLimit, logger })
         : null;
   if (!authMiddleware) throw new Error('LLM yönetimi için requireAuth veya adminPassword zorunludur.');
   if (![apiPath, pagePath].every(isValidMountPath)) throw new Error('Geçersiz eklenti mount yolu.');
@@ -159,6 +157,13 @@ export function mountLLMManagement(
     const requestId = sanitizeRequestId(req.get('x-request-id'));
     res.set('x-request-id', requestId);
     req.requestId = requestId;
+    const sendJson = res.json;
+    res.json = function (body) {
+      if (this.statusCode >= 400 && body && typeof body === 'object' && !Array.isArray(body)) {
+        body = { ...body, requestId };
+      }
+      return sendJson.call(this, body);
+    };
     next();
   };
   const securityHeaders = (_req, res, next) => {
@@ -174,6 +179,11 @@ export function mountLLMManagement(
   app.get(`${pagePath}/llm-ui.js`, ...protectPage, (_req, res) => res.type('text/javascript').send(script));
 
   const manager = createLLMManager({
+    ...managerOptions,
+    allowedPrivateHosts,
+    adminUser,
+    adminPassword,
+    chatTokens,
     store,
     dataDir,
     filePath,
@@ -203,6 +213,14 @@ export function mountLLMManagement(
       }
       return next();
     }
+    const bearer = checkBearerToken(req.get('Authorization'), chatTokens);
+    if (bearer) {
+      if (!/^\/chat\/?$/.test(req.path || '') || req.method !== 'POST') {
+        return res.status(403).json({ error: 'Yalnız sohbet yetkisi var.', code: 'FORBIDDEN' });
+      }
+      req.user = bearer;
+      return next();
+    }
     return authMiddleware(req, res, next);
   });
   router.use((req, res, next) => {
@@ -228,6 +246,16 @@ export function mountLLMManagement(
     next();
   });
 
+  router.use(json({ limit: bodyLimit ?? limits?.maxBodyBytes ?? 256 * 1024 }));
+  router.use((error, req, res, next) => {
+    if (error.type !== 'entity.too.large' && error.type !== 'entity.parse.failed') return next(error);
+    const tooLarge = error.type === 'entity.too.large';
+    return res.status(tooLarge ? 413 : 400).json({
+      error: tooLarge ? 'Gövde boyutu sınırı aştı.' : 'Geçersiz JSON gövdesi.',
+      code: tooLarge ? 'BODY_TOO_LARGE' : 'BODY_INVALID',
+      requestId: req.requestId
+    });
+  });
   router.use(async (req, res, next) => {
     try {
       const abortController = new AbortController();
@@ -273,7 +301,7 @@ export function mountLLMManagement(
         } catch (err) {
           const classified = classifyLLMError(err);
           res.write(
-            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status })}\n\n`
+            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, requestId: req.requestId })}\n\n`
           );
         } finally {
           res.off('close', onClose);

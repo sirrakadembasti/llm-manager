@@ -3,6 +3,7 @@ import globals from 'globals';
 
 export default [
   js.configs.recommended,
+  { files: ['src/**/*.js'], rules: { 'require-await': 'error' } },
   {
     languageOptions: {
       ecmaVersion: 'latest',

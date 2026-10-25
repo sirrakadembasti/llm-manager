@@ -1,6 +1,6 @@
 # LLM Manager
 
-Standalone LLM provider and profile management plugin for Node.js 22.23.2+ and Express.
+Standalone LLM provider and profile management plugin for Node.js 22.12+ and Express.
 Easily integrates into any host application without requiring Docker, frontend frameworks, or databases. Requires Node/npm.
 Runs on Windows, Linux, and macOS using the same codebase.
 
@@ -51,6 +51,22 @@ npm start
 
 Enter API keys only through the admin UI. Do not commit profile files or encryption keys under `data/` to version control. Always backup profile store files alongside their corresponding **encryption keys**.
 
+### Key Management, Rotation, and Encrypted Backups
+
+> [!WARNING]
+> **If the encryption key is lost, encrypted profiles cannot be recovered!** Always backup `data/llm-encryption.key` alongside `data/llm-profiles.json`.
+
+```sh
+# 1. Rotate encryption key (generates new key, re-encrypts all saved API keys under lock, backups old key):
+npx llm-manager key rotate
+
+# 2. Export profiles to an encrypted portable backup file (encrypted with password via scrypt/AES-GCM):
+npx llm-manager export --out backup.json --password backup-password
+
+# 3. Import profiles from an encrypted backup:
+npx llm-manager import backup.json --password backup-password
+```
+
 ## Integration into Existing Projects (Zero-Config)
 
 Install the package:
@@ -63,7 +79,7 @@ The encryption key and `data/` directory are generated automatically on startup;
 
 ```js
 import express from 'express';
-import { mountLLMManagement } from 'llm-manager';
+import { mountLLMManagement } from '@sirrakadembasti/llm-manager';
 
 const app = express();
 app.use(express.json({ limit: '32kb' }));
@@ -101,7 +117,7 @@ Running `npx llm-manager init --password 12345` inside your project directory au
 For detailed step-by-step guides, consult **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)**.
 
 ```js
-import { createLLMManager } from 'llm-manager/core';
+import { createLLMManager } from '@sirrakadembasti/llm-manager/core';
 
 const llm = createLLMManager(); // data/ directory and encryption key are auto-created
 
@@ -141,3 +157,21 @@ A custom store implementation can be provided instead of `createLLMProfileStore`
 
 MIT License ([LICENSE](LICENSE)). Follows [Semantic Versioning](https://semver.org/).
 To release a version: `npm run release:patch|minor|major` (runs verification suite, bumps version, updates changelog, and creates git tag).
+
+### Web authentication
+
+Configure `createLLMManager({ adminPassword: process.env.LLM_ADMIN_PASSWORD, chatTokens: process.env.LLM_CHAT_TOKENS })` for Web routes. Management pages, scripts and APIs require an admin principal. Missing configuration fails closed with `AUTH_NOT_CONFIGURED`. A host can provide `authorize: async request => principal | null`; per-call `fetch(request, options)` settings override defaults. Bearer tokens can call POST /chat only; `chatAccess: 'admin'` excludes them. Browser-visible tokens are public; use your own backend in production. `insecureNoAuth: true` is an explicit insecure local opt-in. Direct `ask()` and `handle()` are trusted host APIs.
+
+The installer stores credentials in ignored environment files, keeps secrets out of generated source and npm scripts, and preserves existing generated credentials on repeated runs.
+
+## Migrating from 1.x to 2.0
+
+The npm package named `llm-manager` belongs to another project. Bare `npx llm-manager` examples in this document mean the local executable **after installing this repository into the host**. The local 2.0 version does not imply an npm release or a published Git tag.
+
+Run `npm uninstall llm-manager`, then `npm install github:sirrakadembasti/llm-manager`; change imports to `@sirrakadembasti/llm-manager`. The CLI name and existing data/key files remain unchanged. Await every file-store method; custom stores may return values or Promises. Use the `/init` subpath for synchronous wizard APIs. Key-file creation is the default; legacy `.env` writing requires deprecated `writeEnv:true`.
+
+The catalog was verified on 2026-10-24; unverified suggestions were removed. Use model discovery for your account. [Primary source evidence and transport limits](docs/roadmap/CATALOG_SOURCES_2026-10-24.md) are recorded. Current always-on reasoning models reject unsupported disabled mode explicitly.
+
+Purposes are `quick | diagnostic | default`; legacy manager/production aliases warn once. Custom generate callbacks no longer receive useManagedProfile/allowMockFallback. File stores use asynchronous I/O, FIFO writes and a five-second process-lock acquisition deadline on local disks. NFS/SMB guarantees are excluded. Keep keys backed up: lost keys cannot decrypt profiles. On Windows use service-account ACLs, not POSIX mode bits alone.
+
+Optional usage logging stores numeric usage and timing, not prompt/response content. `/usage` is admin-only; `/health` is public and secret-free unless disabled. `locale` and `homeUrl` configure the UI. Fallback profiles retain user-selected order and share a total request timeout budget. [Integration details](docs/ENTEGRASYON.md) describe supported frameworks, server-only boundaries, rollback and compiler checks.

@@ -55,11 +55,12 @@ export default {
         body.enable_thinking = false;
       }
     } else {
-      const isReasoning = /^(?:o\d|gpt-5)/i.test(profile.model || '');
+      const currentGpt = /^gpt-6(?:[.-]|$)/i.test(profile.model || '');
+      const isReasoning = /^(?:o\d|gpt-[56])/i.test(profile.model || '');
       if (opts.thinking === 'enabled') {
         body.reasoning_effort = 'medium';
       } else if (opts.thinking === 'disabled' && isReasoning) {
-        body.reasoning_effort = 'low';
+        body.reasoning_effort = currentGpt ? 'none' : 'low';
       }
     }
 
@@ -68,8 +69,9 @@ export default {
       body.stream_options = { include_usage: true };
     }
 
-    if (opts.temperature !== undefined) body.temperature = opts.temperature;
-    if (opts.topP !== undefined) body.top_p = opts.topP;
+    const samplingSupported = !/^gpt-6(?:[.-]|$)/i.test(profile.model || '') || body.reasoning_effort === 'none';
+    if (opts.temperature !== undefined && samplingSupported) body.temperature = opts.temperature;
+    if (opts.topP !== undefined && samplingSupported) body.top_p = opts.topP;
     if (opts.stop) body.stop = opts.stop;
     if (opts.responseFormat === 'json') {
       body.response_format = { type: 'json_object' };

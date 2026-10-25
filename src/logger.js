@@ -1,25 +1,27 @@
 import crypto from 'node:crypto';
 
-const SENSITIVE_KEY_REGEX = /^(api[_-]?key|authorization|secret|password|token|bearer)$/i;
+const SENSITIVE_KEY_REGEX =
+  /^(api[_-]?key|authorization|proxy[_-]?authorization|secret|password|(?:access|refresh|id)[_-]?token|token|bearer|cookie|set-cookie|prompt|messages|content|response|completion)$/i;
 
-export function redact(value, depth = 0) {
-  if (depth > 10 || value === null || value === undefined) return value;
+export function redact(value, depth = 0, seen = new WeakSet()) {
+  if (value === null || value === undefined) return value;
+  if (depth > 10) return '[REDACTED]';
   if (typeof value === 'string') {
-    if (/^Bearer\s+[A-Za-z0-9._~+/-]+=*$/i.test(value)) return 'Bearer [REDACTED]';
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => redact(item, depth + 1));
+    return value.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]');
   }
   if (typeof value === 'object') {
-    const result = {};
-    for (const [k, v] of Object.entries(value)) {
-      if (SENSITIVE_KEY_REGEX.test(k)) {
-        result[k] = '[REDACTED]';
-      } else {
-        result[k] = redact(v, depth + 1);
-      }
+    if (seen.has(value)) return '[CIRCULAR]';
+    seen.add(value);
+    const result = Array.isArray(value) ? [] : {};
+    for (const [key, item] of Object.entries(value)) {
+      Object.defineProperty(result, key, {
+        value: SENSITIVE_KEY_REGEX.test(key) ? '[REDACTED]' : redact(item, depth + 1, seen),
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
     }
+    seen.delete(value);
     return result;
   }
   return value;
@@ -48,8 +50,10 @@ export function createStructuredLogger(logger = null) {
     (...args) => {
       const fn = logger[level] || logger.info || logger.log;
       if (typeof fn === 'function') {
-        const redactedArgs = args.map(arg => (typeof arg === 'object' ? redact(arg) : arg));
-        fn.apply(logger, redactedArgs);
+        fn.apply(
+          logger,
+          args.map(arg => redact(arg))
+        );
       }
     };
 

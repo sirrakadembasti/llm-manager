@@ -126,3 +126,35 @@ test('YH1-A2: createStandaloneServer starts, responds, handles CORS and validate
     await explicitOriginServer.close();
   }
 });
+
+test('core subpath loads with optional Express, dotenv and wizard imports blocked', async () => {
+  const os = await import('node:os');
+  const { execFileSync } = await import('node:child_process');
+  const { pathToFileURL } = await import('node:url');
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'core-isolation-'));
+  try {
+    const loader = path.join(cwd, 'block-optional.mjs');
+    fs.writeFileSync(
+      loader,
+      `export async function resolve(specifier, context, nextResolve) {
+      if (specifier === 'express' || specifier === 'dotenv' || specifier === 'node:child_process' || /(?:^|\\/)init(?:\\/|\\.js$)/.test(specifier)) throw new Error('Optional dependency loaded: '+specifier);
+      return nextResolve(specifier,context);
+    }`
+    );
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--no-warnings',
+        '--experimental-loader',
+        pathToFileURL(loader).href,
+        '--input-type=module',
+        '-e',
+        "const core=await import('@sirrakadembasti/llm-manager/core'); console.log(typeof core.createLLMManager)"
+      ],
+      { cwd: path.dirname(srcDir), encoding: 'utf8' }
+    );
+    assert.equal(output.trim(), 'function');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

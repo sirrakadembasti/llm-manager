@@ -1,20 +1,32 @@
-import type { Server } from 'node:http';
+/** Structural Node HTTP server lifecycle, without requiring Node ambient typings. */
+export interface HttpServer {
+  close(callback?: (error?: Error) => void): this;
+  address(): { address: string; family: string; port: number } | string | null;
+  on(event: string, listener: (...args: any[]) => void): this;
+  once(event: string, listener: (...args: any[]) => void): this;
+  off(event: string, listener: (...args: any[]) => void): this;
+  listening: boolean;
+  closeAllConnections(): void;
+  closeIdleConnections(): void;
+}
+import type { LoggerInput } from './core.js';
 
 export interface StandaloneServerOptions {
   host?: string;
   port?: number;
   adminUser?: string;
   adminPassword?: string;
-  allowedOrigins?: string[];
+  allowedOrigins?: string | string[];
   dataDir?: string;
-  chatTokens?: string[];
-  logger?: any;
+  chatTokens?: string | string[];
+  logger?: LoggerInput | null;
 }
 
 export interface StandaloneServerInstance {
   app: any;
-  server: Server;
+  server: HttpServer;
   url: string;
+  port: number;
   close(): Promise<void>;
 }
 

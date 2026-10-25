@@ -9,13 +9,14 @@ export async function createStandaloneServer({
   allowedOrigins = [],
   dataDir,
   chatTokens,
-  _logger = console
+  logger = console,
+  ...managerOptions
 } = {}) {
   if (!adminPassword) {
     throw new Error('LLM_ADMIN_PASSWORD ortam değişkenini veya adminPassword seçeneğini ayarlayın.');
   }
 
-  const isLocalHost = ['127.0.0.1', '::1', 'localhost'].includes(host);
+  const isLocalHost = ['127.0.0.1', '::1'].includes(host);
   if (!isLocalHost && adminPassword.length < 12) {
     throw new Error('Ağa açık sunucu için en az 12 karakterlik parola gerekir.');
   }
@@ -73,10 +74,11 @@ export async function createStandaloneServer({
     });
   }
 
-  app.use(express.json({ limit: '32kb' }));
   app.get('/', (_req, res) => res.redirect('/llm'));
 
   mountLLMManagement(app, {
+    ...managerOptions,
+    logger,
     adminUser,
     adminPassword,
     ...(dataDir ? { dataDir } : {}),
@@ -93,7 +95,7 @@ export async function createStandaloneServer({
   });
 
   const actualPort = server.address().port;
-  const url = `http://${host}:${actualPort}/llm`;
+  const url = `http://${host.includes(':') ? `[${host}]` : host}:${actualPort}/llm`;
 
   const close = () =>
     new Promise(resolve => {

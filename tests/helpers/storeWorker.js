@@ -1,11 +1,11 @@
 import { createLLMProfileStore } from '../../src/profileStore.js';
 
-process.on('message', msg => {
+process.on('message', async msg => {
   try {
     const { filePath, encryptionKey, prefix, count } = msg;
     const store = createLLMProfileStore({ filePath, encryptionKey });
     for (let i = 0; i < count; i++) {
-      store.save({
+      await store.save({
         name: `${prefix}-profile-${i}`,
         provider: 'custom',
         model: 'test-model',
