@@ -153,7 +153,7 @@ const response = await llm.fetch(request);
 | Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
 | --- | --- | --- | --- | --- |
 | Express | express | Kalıcı disk/host store ile | Hayır | Evet |
-| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
+| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | Evet; HTTP istemci yardımcısı |
 | Next.js | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
 | Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
 | SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |
@@ -224,7 +224,7 @@ kalıcı depolama ve şifreleme hostun sorumluluğundadır.
 
 ## Gecikme ve dış sebepler
 
-MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); `purpose: 'default'` uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
+MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); `purpose: 'default'` uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz diagnostic/default çağrılarında korunur; MiMo quick testi açık seçimde de düşünmeyi kapatır.
 Bu, sağlayıcının hızını garanti etmez. Kota/429, sağlayıcı yoğunluğu/5xx, API
 yetkisi/401–403, DNS/proxy/ağ ve modelin boş/kesilmiş yanıtı ayrı hata kodlarıyla
 raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullanılır.

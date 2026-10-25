@@ -5,6 +5,7 @@ import vm from 'node:vm';
 const source = fs.readFileSync('public/llm-ui.js', 'utf8').replace(/init\(\)\.catch[\s\S]*$/, '');
 function ui(locale = 'en') {
   const elements = new Map();
+  const translatedElements = [];
   const element = id => {
     if (!elements.has(id))
       elements.set(id, {
@@ -25,18 +26,66 @@ function ui(locale = 'en') {
     return elements.get(id);
   };
   element('llm-i18n').textContent = fs.readFileSync(`public/i18n/${locale}.json`, 'utf8');
+  const html = fs.readFileSync('public/llm.html', 'utf8');
+  for (const [index, match] of [...html.matchAll(/<([\w-]+)\b([^>]*\bdata-i18n="([^"]+)"[^>]*)>([^<]*)/g)].entries()) {
+    const [, , attributes, key, text] = match;
+    const el = element(attributes.match(/\bid="([^"]+)"/)?.[1] || `translation-${index}`);
+    el.hidden = /\bhidden\b/.test(attributes);
+    el.textContent = text;
+    el.getAttribute = name => (name === 'data-i18n' ? key : null);
+    translatedElements.push(el);
+  }
   const context = vm.createContext({
     document: {
       body: { dataset: { locale } },
       getElementById: element,
       createElement: () => ({}),
-      querySelectorAll: () => []
+      querySelectorAll: selector => (selector === '[data-i18n]' ? translatedElements : [])
     },
     window: { scrollTo() {} }
   });
   vm.runInContext(source, context);
-  return { element, run: code => vm.runInContext(code, context) };
+  return {
+    element,
+    translated: key => translatedElements.find(el => el.getAttribute('data-i18n') === key),
+    run: code => vm.runInContext(code, context)
+  };
 }
+
+test('MiMo test-policy hint follows provider switches and remains scoped after Turkish/English translation', () => {
+  for (const locale of ['tr', 'en']) {
+    const { element, translated, run } = ui(locale);
+    const hint = translated('form.thinking_hint');
+    for (const provider of [
+      'xiaomi_mimo',
+      'google',
+      'openai',
+      'anthropic',
+      'qwen',
+      'deepseek',
+      'openrouter',
+      'groq',
+      'custom',
+      'xiaomi_mimo'
+    ]) {
+      element('provider').value = provider;
+      run('updateThinking(); translateDom();');
+      assert.equal(element('thinking-field').hidden, provider === 'custom', `${locale}/${provider}: reasoning control`);
+      assert.equal(hint.hidden, provider !== 'xiaomi_mimo', `${locale}/${provider}: MiMo-only policy hint`);
+      assert.equal(
+        hint.textContent,
+        locale === 'tr'
+          ? 'Otomatik mod; testlerde düşünmeyi kapatır, normal çağrılarda modelin varsayılanını kullanır.'
+          : 'Automatic mode disables reasoning in tests and uses the model default for normal calls.'
+      );
+    }
+    run("catalog = [{id: 'custom', capabilities: {thinking: true}}]");
+    element('provider').value = 'custom';
+    run('updateThinking(); translateDom();');
+    assert.equal(element('thinking-field').hidden, false, 'catalog reasoning capability remains supported');
+    assert.equal(hint.hidden, true);
+  }
+});
 test('fallback selector restores edit selection, excludes self, and preserves clone configuration without secrets', () => {
   const { element, run } = ui();
   run(`profiles = [{id:'a', name:'A'}, {id:'b', name:'B'}, {id:'c', name:'C'}]; catalog = [];`);

@@ -108,6 +108,7 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
     ['api-key-badge', 'span'],
     ['api-key-status', 'div'],
     ['thinking-field', 'div'],
+    ['thinking-hint', 'p'],
     ['clear-form', 'button']
   ]) {
     makeElement(tag, id);

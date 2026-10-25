@@ -575,6 +575,7 @@ test('UI Modelleri getir action preserves in-progress form edits and keeps exist
     ['model', 'input'],
     ['known-models', 'datalist'],
     ['thinking-field', 'div'],
+    ['thinking-hint', 'p'],
     ['provider', 'select'],
     ['api-key', 'input'],
     ['api-key-badge', 'span'],

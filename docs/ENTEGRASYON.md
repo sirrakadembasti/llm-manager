@@ -18,7 +18,7 @@ SPA/Tauri sihirbazı yalnız Vite algıladığında `http://localhost:5173` orig
 | Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
 | --- | --- | --- | --- | --- |
 | Express | express | Kalıcı disk/host store ile | Hayır | Evet |
-| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | HTTP istemcisi |
+| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | Evet; HTTP istemci yardımcısı |
 | Next.js | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
 | Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
 | SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |

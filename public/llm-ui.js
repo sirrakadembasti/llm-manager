@@ -209,6 +209,7 @@ function updateThinking() {
     providerDef?.capabilities?.thinking === true ||
     ['openai', 'anthropic', 'google', 'qwen', 'xiaomi_mimo', 'deepseek', 'openrouter', 'groq'].includes(providerId);
   $('thinking-field').hidden = !canThink;
+  $('thinking-hint').hidden = providerId !== 'xiaomi_mimo';
 }
 
 function updateApiKeyFieldState() {
