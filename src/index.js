@@ -170,7 +170,11 @@ export function mountLLMManagement(
     res.set(COMMON_HEADERS);
     next();
   };
-  const protectPage = [requestIdMiddleware, securityHeaders, authMiddleware, admin];
+  const rejectChatToken = (req, res, next) =>
+    checkBearerToken(req.get('Authorization'), chatTokens)
+      ? res.status(403).json({ error: 'Yalnız sohbet yetkisi var.', code: 'FORBIDDEN' })
+      : next();
+  const protectPage = [requestIdMiddleware, securityHeaders, rejectChatToken, authMiddleware, admin];
 
   const { html, script } = createUiAssets({ apiPath, pagePath, locale, homeUrl });
   app.get(pagePath, ...protectPage, (_req, res) => {
