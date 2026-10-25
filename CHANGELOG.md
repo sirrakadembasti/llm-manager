@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Added
+- Express 5 hostunda gerçek HTTP ile auth-önce-ayrıştırma ve yapılandırılmış 400/413 hata sözleşmesi doğrulandı; README Express 4.19+ ve 5.x desteğini ve 4.19.2 peer alt sınırını belirtir (YH2-G26).
 - YH2 FAZ 1'in 12 görev kartı ve genel inceleme kapatıldı; 276 test, gerçek .NET 4.0 referans derlemesi, modern C#/TypeScript/Python kanıtları ve doğrulama sınırları denetim raporunda toplandı. Kapanış kapsamı %92,94 satır / %85,13 dal.
 - Kısa model testinde boş `length` ve yalnız reasoning içeren `stop` yanıtları ayrı regresyonlarla doğrulandı; kalıcı `passed` kaydı, sohbet hatası ve özel düşünce içeriğinin sızmaması korundu (YH2-G21).
 - Transaction rollback için dosya ağacı, SHA-256 bayt özeti ve izin anlık görüntüsü regresyonları eklendi; kullanıcı reddi, başarısız doğrulama, zorunlu üzerine yazma ve host kurulumunun korunması doğrulandı (YH2-G12).

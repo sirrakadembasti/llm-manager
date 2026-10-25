@@ -163,7 +163,7 @@ const response = await llm.fetch(request);
 | Python | python | HTTP istemcisi | Evet | Yardımcı import |
 | .NET ve .NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
 
-Sunucusuz dağıtım için Node runtime ve kalıcı host deposu gerekir; Edge desteklenmez. SPA/Tauri/Python/.NET istemcileri ayrı çalışan yönetim sunucusuna HTTP ile bağlanır. Express isteğe bağlı peer bağımlılıktır; Express adaptörü veya CLI yönetim sunucusu için ayrıca kurulu olmalıdır. Paketsiz statik SPA yalnız HTTP istemcisi üretir; `npm run llm` için Node hostunda paket ve Express kurulumu gerekir.
+Sunucusuz dağıtım için Node runtime ve kalıcı host deposu gerekir; Edge desteklenmez. SPA/Tauri/Python/.NET istemcileri ayrı çalışan yönetim sunucusuna HTTP ile bağlanır. Express 4.19+ ve 5.x desteklenir (peer aralığı: `^4.19.2 || ^5.0.0`; 4.x için minimum 4.19.2). Express isteğe bağlı peer bağımlılıktır; Express adaptörü veya CLI yönetim sunucusu için ayrıca kurulu olmalıdır. Paketsiz statik SPA yalnız HTTP istemcisi üretir; `npm run llm` için Node hostunda paket ve Express kurulumu gerekir.
 
 ## API ve depo sözleşmesi
 
