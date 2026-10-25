@@ -5,6 +5,9 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Added
+- Async host deposu sözleşmesi metot/dönüş/hata tablosuyla belgelendi; güvenli DTO ve revizyon denetimli Map örneği ile async CRUD, test ve sohbet regresyonları eklendi (YH2-G08).
+
 ### Security
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 

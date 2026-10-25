@@ -166,6 +166,37 @@ asla açığa çıkarmamalıdır. Bulunamayan profillerde `code: 'PROFILE_NOT_FO
 revizyon uyuşmazlığında `code: 'PROFILE_CONFLICT'` (`HTTP 409`) döndürülür. Başka depo
 kullanıyorsanız aynı güvenlik ve revizyon sözleşmesini uygulayın.
 
+Tüm metotlar aşağıdaki değeri doğrudan veya `Promise<T>` olarak döndürebilir;
+çekirdek sonuçları bekler ve reddedilen yazma işlemlerinin hata kodlarını korur.
+`Public` sır içermeyen profil DTO'su, `Internal` sunucuya özel `apiKey` ve `transport`
+içeren profil, `List` ise `{ version: 1, activeId, profiles: Public[] }` anlamındadır.
+
+| Metot | Parametreler | Dönüş (`T` veya `Promise<T>`) | Fırlatılan hata kodları |
+| --- | --- | --- | --- |
+| `list` | — | `List` | Depoya özgü I/O hataları |
+| `get` | `id` | `Internal` veya `null` | Depoya özgü I/O hataları |
+| `getActive` | — | `Internal` veya `null` | Depoya özgü I/O hataları |
+| `save` | Yeni profil veya `id` ve `revision` içeren güncelleme | `Public` | `PROFILE_INVALID`, `RUNTIME_OPTIONS_INVALID`, `AI_CREDENTIAL_ENDPOINT_MISMATCH`, `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT` |
+| `remove` | `id, revision` | `List` (veya `{ ok: true }`) | `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT` |
+| `activate` | `id, revision` | `List` | `PROFILE_NOT_FOUND`, `PROFILE_CONFLICT` |
+| `recordTest` | `id, status, expectedRevision?, details?` | `Public` veya eski revizyonda `null` | `PROFILE_NOT_FOUND`, `PROFILE_INVALID` |
+
+Hatalar sır içermeyen mesaj ve `code` taşır; tercihen `LLMError` kullanın.
+Yeni profil `name`, `provider`, `model`, `baseURL` ve `apiKey` gerektirir.
+Güncellemede `id` ve güncel `revision` zorunludur; boş/eksik `apiKey` mevcut
+anahtarı korur, ancak sağlayıcı/adres değişikliğinde yeni anahtar gerekir.
+`get`/`getActive` sonuçlarını istemciye veya loga göndermeyin. `save`, `remove`,
+`activate`, `recordTest` ve `list` sonuçları anahtar içermemelidir. `status`
+`passed | failed`, `details` ise `mode`, `durationMs` ve isteğe bağlı `code` içerir.
+Test kaydı revizyonu değiştirmez; profil test sırasında değişmişse `recordTest`
+sonucu `null` olmalıdır. Revizyon denetimi ve yazma aynı atomik işlemde yapılmalıdır.
+
+Bağımlılıksız async Map örneği: [`examples/memory-store.js`](examples/memory-store.js).
+`createMemoryStore()` sonucunu `createLLMManager({ store })` veya
+`mountLLMManagement(app, { store })` ile kullanın. Bu tek süreçli geçici örnek,
+`apiKey` değerini açık bellekte tutar ve yeniden başlatmada veriyi kaybeder;
+kalıcı depolama ve şifreleme hostun sorumluluğundadır.
+
 ## Gecikme ve dış sebepler
 
 MiMo otomatik ayarında `purpose: 'diagnostic'` ve `purpose: 'quick'` derin düşünmeyi kapatır (`resolveRuntimeOptions` üzerinden hem yerleşik çağrılara hem özel `generate` adaptörlerine iletilir); uygulama çağrıları otomatikte modelin varsayılan davranışını korur. Açık düşünme seçiminiz korunur.
