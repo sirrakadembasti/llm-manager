@@ -19,8 +19,9 @@
 5. Bağımsız paket metaverisi (isim, lisans, .env.example, .gitignore, bin/start).
 6. README'yi bağımsız kullanıma göre güncelle, testleri çalıştır.
 
-## Durum (2026-10-19)
-- 2026-10-25 YH2 FAZ 0 kabul denetimi tamamlandı: G01–G07/G24, 195/195 test, lint/typecheck/format ve doğrulama betiği geçti. Express sohbet Bearer 403, Vite dışı açık origin seçimi, özel API yolu CORS ve boş origin iptali düzeltildi. Kullanıcı mevcut YH1 çalışmasının da commitlenmesini onayladı; yayın/push yok. Kanıt: docs/roadmap/YH2_FAZ0_DENETIM_2026-10-25.md. Sonraki iş YH2 FAZ 1'in ayrı kabul denetimi.
+## Durum (2026-10-25)
+- 2026-10-25 YH2 FAZ 1 tamamlandı: 12 kartın görev ve genel incelemesi onaylı. Son kapsam ölçümlü seri paket 276/276 (sıfır hata/atlama), src %92,94 satır / %85,13 dal; lint/typecheck/format ve roadmap doğrulama betiği geçti. Genel incelemede bulunan .NET 4.0 API ve SDK net48 referans açıkları giderildi; gerçek 4.0 referanslarıyla C# 4 derlemesi ve CLR 4.8.1 üzerinde HTTP/iptal doğrulandı. Yerel sürüm 2.0.0, değişiklikler codex/yh1-completion dalında görev commitleriyle korundu. Kanıt ve sınırlar: docs/roadmap/YH2_FAZ1_DENETIM_2026-10-25.md. FAZ 2 ayrı kapsamdır; yayın/push yapılmadı.
+- 2026-10-25 YH2 FAZ 0 kabul denetimi tamamlandı: G01–G07/G24, 195/195 test, lint/typecheck/format ve doğrulama betiği geçti. Express sohbet Bearer 403, Vite dışı açık origin seçimi, özel API yolu CORS ve boş origin iptali düzeltildi. Kullanıcı mevcut YH1 çalışmasının da commitlenmesini onayladı; yayın/push yok. Kanıt: docs/roadmap/YH2_FAZ0_DENETIM_2026-10-25.md. FAZ 1'in ayrı kabul kaydı yukarıdadır.
 - 2026-10-25 güncel durum: YH1'in 32 kartı kaynak ve kabul testleriyle denetlendi; auth/init/async store/B4/tipler/arayüz/Express5 açıkları tamamlandı. Yerel 2.0.0 scoped paket, Node>=22.12; 182/182 test, src kapsamı %91,44 satır/%81,27 dal, lint/typecheck yeşil ve üretim audit 0. Ayrıntılı güncel kanıt: docs/roadmap/YH1_DENETIM_2026-10-24.md. Docker build/run ve uzak CI matrisi çalıştırılmadı; yayın/push yok. Aşağıdaki eski tarihli notlar tarihçedir.
 - Düzeltme listesi 1-6 ve ek geliştirmeler TAMAMLANDI. Sürüm: **v1.0.0** (etiket `33de7d7`), paket adı `llm-manager`, lisans MIT.
 - GitHub: https://github.com/sirrakadembasti/llm-manager (branch `main`, remote `origin`).

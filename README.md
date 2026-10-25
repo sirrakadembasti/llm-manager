@@ -120,12 +120,14 @@ Paket projeye kurulduktan sonra projenizin klasöründe `npx llm-manager init` k
 | **Express.js Sunucu** (ESM & CommonJS) | `express` | `llm.js` | `server.js` / `app.js` / `index.js` | `await askLLM('Merhaba')` |
 | **SPA / Statik Web** (React, Vue `.vue`, Vite) | `spa` | `src/llm.js` | `src/App.vue` / `src/App.jsx` / `src/main.ts` | `await askLLM('Merhaba')` |
 | **Next.js** (App Router) | `nextjs` | `llm.js` + `app/llm` & `app/api/llm` | `app/page.js` / `src/app/page.tsx` | `await askLLM('Merhaba')` |
-| **Nuxt 3** | `nuxt` | `llm.js` + `server/api/llm` & `server/routes/llm` | `app.vue` / `pages/index.vue` | `await askLLM('Merhaba')` |
-| **SvelteKit** | `sveltekit` | `src/lib/llm.js` + `+server.js` rotaları | `src/routes/+page.svelte` | `await askLLM('Merhaba')` |
+| **Nuxt 3** | `nuxt` | `server/utils/llm.js` + `server/api/llm` & `server/routes/llm` | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
+| **SvelteKit** | `sveltekit` | `src/lib/server/llm.js` + `+server.js` rotaları | Sunucu rotaları; istemci bileşenine eklenmez | `askLLM` yalnız sunucuda; istemci: HTTP |
 | **C# (.NET Core / MVC / MVP / Desktop)** | `dotnet` | `LlmClient.cs` | `Program.cs` / `Startup.cs` / `HomeController.cs` / `Form1.cs` | `await LlmClient.AskAsync("Merhaba")` |
 | **Python** (Flask, FastAPI, Django) | `python` | `llm_client.py` | `main.py` / `app.py` / `manage.py` | `ask_llm("Merhaba")` |
 | **Masaüstü (Electron)** | `electron` | `llm.js` + `preload.cjs` | `main.js` / `electron/main.js` | `await window.llm.ask('Merhaba')` (preload ile) |
 | **Tauri: HTTP istemcisi (yönetim sunucusu ayrı süreç)** | `tauri` | `llm.js` | SPA istemcisi | `await askLLM('Merhaba')`; sunucu: `npm run llm` |
+
+.NET 4.0 çağıranları `Task` devamlarını (`ContinueWith`) kullanır; tablodaki `await` örneği modern/4.5+ hedefler içindir. Hedefe göre istemci seçimi [entegrasyon kılavuzunda](docs/ENTEGRASYON.md#net-ve-net-framework) açıklanır.
 
 Tüm senaryoların sade ve adım adım açıklamaları için **[docs/ENTEGRASYON.md](docs/ENTEGRASYON.md)** kılavuzuna bakın.
 

@@ -118,10 +118,12 @@ Yönetim sunucusu yalnız `127.0.0.1` üzerinde rastgele port dinler. Oturumluk 
 
 ## .NET ve .NET Framework
 
-`LlmClient.cs`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` kullanır. JSON için framework ile uyumlu serializer ve C# 7.3 sözdizimi üretir. Eski csproj'larda gerekli Compile ve framework referansları journal üzerinden eklenir. `await LlmClient.AskAsync("Merhaba")` ile çağrılır.
+`LlmClient.cs`, `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` kullanır; JSON için ek NuGet gerektirmeyen `DataContractJsonSerializer` üretir. Bilinen modern ve .NET Framework 4.5+ hedeflerinde `HttpClient`, .NET 4.0/net40 ve belirsiz eski Web Forms hedeflerinde C# 4 uyumlu `HttpWebRequest`/TPL kullanılır. İki yol da `Task<string> AskAsync` sözleşmesini, iptali ve 330 saniyelik ağ sınırını korur. Eski hedefte ağ işlemi bir worker üzerinde çalışır; yoğun eşzamanlı kullanım için modern hedef tercih edin.
+
+Modern/4.5+ çağıranlarda `await LlmClient.AskAsync("Merhaba")` kullanılır; .NET 4.0 çağıranları `Task` devamlarını (`ContinueWith`) kullanabilir. Gerekli framework referansları, yardımcı zaten kayıtlı olsa da journal üzerinden tamamlanır; SDK projelerinin örtük kaynak dahil etmesi korunur. Mevcut `LlmClient.cs` varsayılan olarak korunur; yeniden üretmek için `--force` gerekir.
 
 > [!WARNING]
-> Ayrı sürekli Node sunucusu ve sohbet belirteci gerekir. İstemcinin `.env` yüklemesini beklemeyin; servis ortamını yapılandırın. .NET SDK/derleyici yoksa doğrulama derleme başarısı iddia etmez; atlanan kontrolü açıkça gösterir.
+> Ayrı sürekli Node sunucusu ve sohbet belirteci gerekir. İstemcinin `.env` yüklemesini beklemeyin; servis ortamını yapılandırın. Kurulu .NET SDK ile yardımcı yalıtılmış projede derlenir; bu, host projesinin kendi hedefiyle tam derlendiği anlamına gelmez. SDK yokluğu ve proje bağlamı gerektiren host C# kontrollerinin atlanması açıkça bildirilir.
 
 ## Doğrulama ve geri alma
 

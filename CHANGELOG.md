@@ -6,6 +6,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 ## [Unreleased]
 
 ### Added
+- YH2 FAZ 1'in 12 görev kartı ve genel inceleme kapatıldı; 276 test, gerçek .NET 4.0 referans derlemesi, modern C#/TypeScript/Python kanıtları ve doğrulama sınırları denetim raporunda toplandı. Kapanış kapsamı %92,94 satır / %85,13 dal.
 - Kısa model testinde boş `length` ve yalnız reasoning içeren `stop` yanıtları ayrı regresyonlarla doğrulandı; kalıcı `passed` kaydı, sohbet hatası ve özel düşünce içeriğinin sızmaması korundu (YH2-G21).
 - Transaction rollback için dosya ağacı, SHA-256 bayt özeti ve izin anlık görüntüsü regresyonları eklendi; kullanıcı reddi, başarısız doğrulama, zorunlu üzerine yazma ve host kurulumunun korunması doğrulandı (YH2-G12).
 - Üretilen CommonJS yardımcısının geçişli ESM grafiğini senkron yüklemesi, kurulum hatalarını senkron iletmesi ve hatadan sonra yeniden kurulabilmesi gerçek CJS süreç testiyle güvenceye alındı (YH2-G10).
@@ -21,7 +22,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - Next yapılandırmasında regex veya bölme sözdizimi güvenle yorumlanamadığında dosya değiştirilmeden elle `serverExternalPackages` talimatı verilir (YH2-G18).
 - Next yapılandırmasında yorum ve alakasız metinler gerçek `serverExternalPackages` ayarı sayılmaz; basit nesne/diziler onayla ve geri alınabilir biçimde güncellenir. İlgili üst layout dosyalarındaki Edge runtime için `node:fs`/`undici` gerekçeli uyarı verilir (YH2-G18).
 - Python istemcisi JSON olmayan/nesne olmayan HTTP hatalarında Türkçe `LLMError` üretir, `code`/`status` bilgisini korur; gerçek yerel HTTP regresyonu ve dağıtımın Express önkoşulu belgelendi (YH2-G19).
-- .NET hedef ailesi modern/netfx olarak gösterilir; Web Forms hedefi algılanır. Ortak NuGet gerektirmeyen C# 7.3 istemcisi geçersiz/boş JSON için Türkçe hata verir; kurulu SDK ile yardımcı dosya yalıtılmış çevrimdışı projede derlenir, host dosyalarının proje bağlamı gereksinimi açıkça belirtilir (YH2-G14).
+- .NET hedef ailesi modern/netfx olarak gösterilir; Web Forms hedefi algılanır. NuGet gerektirmeyen istemciler geçersiz/boş JSON için Türkçe hata verir; kurulu SDK ile yardımcı dosya yalıtılmış çevrimdışı projede derlenir, host dosyalarının proje bağlamı gereksinimi açıkça belirtilir (YH2-G14).
 - Node tabanlı SPA/Tauri hostlarında fiziksel paket kurulumu doğrulanır; sürüme sabitlenmiş komut ve isteğe bağlı Express önkoşulu onayla kurulur, başarı yeniden kontrol edilir. Önbellekten CLI/yoklama gerçek host sunucu kopyasını kullanır; paketsiz statik istemciler HTTP istemcisi olarak kalır (YH2-G20).
 - Electron TypeScript girişleri algılanır; TypeScript hostlarına açık `.js` uzantılı yardımcı importu eklenir. Karma Node/.NET ve bilinmeyen çatı hataları Türkçeleştirildi; CLI yardımındaki desteklenmeyen `manual` seçeneği kaldırıldı (YH2-G17).
 - Next Server Action ve SvelteKit ask örnekleri zorunlu dosya doğrulamasına eklendi; kurulu host `server-only` paketi Next yardımcısında kullanılır. Yorum sonrası istemci direktifi ve kimlik doğrulamalı ask delegasyonu regresyonlarla korundu (YH2-G09).
