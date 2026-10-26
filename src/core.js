@@ -638,15 +638,6 @@ export function createLLMManager({
                     { retryable: false }
                   );
                 }
-                await usageTracker.record({
-                  profileId: currentProfile.id,
-                  model: currentProfile.model,
-                  durationMs: Date.now() - start,
-                  inputTokens: finalStreamUsage?.inputTokens || 0,
-                  outputTokens: finalStreamUsage?.outputTokens || 0,
-                  code: 'OK'
-                });
-
                 completionCode = 'OK';
                 logger.info('chat.stream.completed', {
                   requestId,
@@ -686,6 +677,14 @@ export function createLLMManager({
               completionCode =
                 requestSignal.reason?.name === 'TimeoutError' ? ErrorCodes.LLM_TIMEOUT : ErrorCodes.LLM_ABORTED;
             }
+            await usageTracker.record({
+              profileId: currentProfile.id,
+              model: currentProfile.model,
+              durationMs: Date.now() - start,
+              inputTokens: finalStreamUsage?.inputTokens || 0,
+              outputTokens: finalStreamUsage?.outputTokens || 0,
+              code: completionCode
+            });
             logger[completionCode === 'OK' ? 'info' : 'warn']('chat.completed', {
               requestId,
               profileId: currentProfile.id,
@@ -810,8 +809,8 @@ export function createLLMManager({
       }
       const durationMs = Date.now() - start;
       await usageTracker.record({
-        profileId: profile?.id,
-        model: profile?.model,
+        profileId: completionProfile.id,
+        model: completionProfile.model,
         durationMs,
         inputTokens: 0,
         outputTokens: 0,

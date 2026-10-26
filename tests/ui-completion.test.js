@@ -14,13 +14,14 @@ function ui(locale = 'en') {
         options: [],
         setAttribute() {},
         removeAttribute() {},
-        append(o) {
-          this.options.push(o);
+        append(...children) {
+          this.options.push(...children);
         },
         replaceChildren() {
           this.options = [];
         },
         reset() {},
+        addEventListener() {},
         focus() {}
       });
     return elements.get(id);
@@ -39,7 +40,7 @@ function ui(locale = 'en') {
     document: {
       body: { dataset: { locale } },
       getElementById: element,
-      createElement: () => ({}),
+      createElement: () => element(Symbol()),
       querySelectorAll: selector => (selector === '[data-i18n]' ? translatedElements : [])
     },
     window: { scrollTo() {} }
@@ -166,4 +167,29 @@ test('confirmation remains usable while an operation locks other form controls',
   const result = run("showConfirm('Delete?')");
   listeners.get('submit')({ preventDefault() {} });
   assert.equal(await result, true);
+});
+
+test('monthly usage response renders nonzero per-profile request and token counts in both locales', async () => {
+  for (const locale of ['tr', 'en']) {
+    const { element, run } = ui(locale);
+    await run(`
+      request = async path => path === '/usage'
+        ? { byProfile: { a: { requests: 7, totalTokens: 83 }, b: { requests: 2, totalTokens: 19 } } }
+        : { profiles: [{id:'a',name:'A',provider:'openai',model:'m'}, {id:'b',name:'B',provider:'openai',model:'n'}, {id:'c',name:'C',provider:'openai',model:'o'}], activeId:'a' };
+      loadProfiles();
+    `);
+    const labels = element('profiles').options.map(
+      card => card.options.find(child => child.className === 'muted usage-stat').textContent
+    );
+    assert.deepEqual(
+      labels,
+      locale === 'tr'
+        ? ['📊 Bu ay: 7 istek · 83 token', '📊 Bu ay: 2 istek · 19 token', '📊 Bu ay: Henüz istek yok']
+        : [
+            '📊 This month: 7 requests · 83 tokens',
+            '📊 This month: 2 requests · 19 tokens',
+            '📊 This month: No requests yet'
+          ]
+    );
+  }
 });
