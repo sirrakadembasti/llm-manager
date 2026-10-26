@@ -324,3 +324,120 @@ test('YH1-A4: core chatCompletion returns 400 with RUNTIME_OPTIONS_INVALID when 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('YH1-A4: legacy adapter option errors classify as nonretryable client errors', () => {
+  for (const message of ['Yanıt süresi geçersiz', 'Token bütçesi geçersiz', 'Geçersiz düşünme ayarı']) {
+    const result = classifyLLMError(new Error(message));
+    assert.equal(result.code, ErrorCodes.RUNTIME_OPTIONS_INVALID);
+    assert.equal(result.status, 400);
+    assert.equal(result.retryable, false);
+  }
+  assert.equal(classifyLLMError(new LLMError(ErrorCodes.LLM_NETWORK, 'Token bütçesi')).code, ErrorCodes.LLM_NETWORK);
+  assert.equal(
+    classifyLLMError(Object.assign(new Error('Token bütçesi'), { upstreamStatus: 500 })).code,
+    ErrorCodes.LLM_UPSTREAM_UNAVAILABLE
+  );
+});
+
+test('YH1-A4: core preserves typed and legacy adapter option errors', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-adapter-errors-'));
+  try {
+    const store = createLLMProfileStore({ filePath: path.join(root, 'profiles.json'), encryptionKey: '33'.repeat(32) });
+    const profile = await store.save({
+      name: 'Active',
+      provider: 'custom',
+      model: 'model',
+      baseURL: 'https://example.com/v1',
+      apiKey: 'k'
+    });
+    await store.activate(profile.id, profile.revision);
+    for (const error of [
+      new Error('Token bütçesi geçersiz'),
+      new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Changed adapter wording')
+    ]) {
+      let calls = 0;
+      const manager = createLLMManager({
+        store,
+        generate: async () => {
+          calls++;
+          throw error;
+        }
+      });
+      const response = await manager.handle({ method: 'POST', path: '/chat', body: { prompt: 'Hello' } });
+      assert.equal(response.status, 400);
+      assert.equal(response.body.code, ErrorCodes.RUNTIME_OPTIONS_INVALID);
+      assert.equal(response.body.error, error.message);
+      assert.equal(calls, 1);
+    }
+    const manager = createLLMManager({ store });
+    const invalidPurpose = await manager.handle({
+      method: 'POST',
+      path: '/chat',
+      body: { prompt: 'Hi', purpose: 'invalid' }
+    });
+    assert.equal(invalidPurpose.status, 400);
+    assert.equal(invalidPurpose.body.code, ErrorCodes.PURPOSE_INVALID);
+    const invalidMode = await manager.handle({
+      method: 'POST',
+      path: `/profiles/${profile.id}/test`,
+      body: { mode: 'invalid' }
+    });
+    assert.equal(invalidMode.status, 400);
+    assert.equal(invalidMode.body.code, ErrorCodes.TEST_MODE_INVALID);
+    let release;
+    let entered;
+    const started = new Promise(resolve => {
+      entered = resolve;
+    });
+    const waiting = new Promise(resolve => {
+      release = resolve;
+    });
+    const testing = createLLMManager({
+      store,
+      generate: async () => {
+        entered();
+        await waiting;
+        return 'OK';
+      }
+    });
+    const request = { method: 'POST', path: `/profiles/${profile.id}/test`, body: {} };
+    const first = testing.handle(request);
+    await started;
+    try {
+      const duplicate = await testing.handle(request);
+      assert.equal(duplicate.status, 409);
+      assert.equal(duplicate.body.code, ErrorCodes.TEST_IN_PROGRESS);
+    } finally {
+      release();
+      await first;
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('YH1-A4: Google SAFETY and upstream request rejection retain typed behavior', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ candidates: [{ finishReason: 'SAFETY' }] }), { status: 200 });
+    await assert.rejects(
+      () =>
+        generateProfileResponse([{ role: 'user', content: 'Hi' }], {
+          provider: 'google',
+          model: 'gemini-2.0-flash',
+          baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+          apiKey: 'k'
+        }),
+      error => error instanceof LLMError && error.code === ErrorCodes.LLM_CONTENT_FILTERED && error.status === 422
+    );
+    for (const upstreamStatus of [400, 404]) {
+      const result = classifyLLMError(Object.assign(new Error('Rejected'), { upstreamStatus }));
+      assert.equal(result.code, ErrorCodes.LLM_REQUEST_REJECTED);
+      assert.equal(result.retryable, false);
+      assert.equal(result.upstreamStatus, upstreamStatus);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

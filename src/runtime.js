@@ -339,6 +339,17 @@ export function classifyLLMError(error) {
     };
   }
 
+  if (!error?.code && !error?.upstreamStatus && /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(text)) {
+    const meta = KNOWN_CODE_DEFAULTS[ErrorCodes.RUNTIME_OPTIONS_INVALID];
+    return {
+      code: ErrorCodes.RUNTIME_OPTIONS_INVALID,
+      status: meta.status,
+      error: meta.message,
+      retryable: meta.retryable,
+      upstreamStatus
+    };
+  }
+
   // 2. İkincil / yedek yol: HTTP durumu ve metin tespiti
   let code = 'LLM_PROVIDER_ERROR';
   let status = 502;

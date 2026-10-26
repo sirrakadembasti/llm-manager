@@ -756,15 +756,10 @@ export function createLLMManager({
 
       throw lastError;
     } catch (error) {
-      if (
-        error?.code === ErrorCodes.RUNTIME_OPTIONS_INVALID ||
-        (!error?.upstreamStatus &&
-          !error?.code &&
-          /Yanıt süresi|Token bütçesi|düşünme ayarı/.test(error?.message || ''))
-      ) {
+      const classified = classifyLLMError(error);
+      if (classified.code === ErrorCodes.RUNTIME_OPTIONS_INVALID) {
         return ok({ error: error.message, code: ErrorCodes.RUNTIME_OPTIONS_INVALID, requestId }, 400);
       }
-      const classified = classifyLLMError(error);
       const durationMs = Date.now() - start;
       await usageTracker.record({
         profileId: profile?.id,

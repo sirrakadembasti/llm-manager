@@ -20,6 +20,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 
 ### Fixed
+- Tipli hata sınıflandırması sohbetin çalışma zamanı seçenekleri hata yolunda da kullanılır; eski adaptörlerin Türkçe hata mesajı uyumluluğu yalnız sınıflandırıcı yedek yolunda korunur. Amaç/test türü, eşzamanlı test, sağlayıcı istek reddi ve Google SAFETY regresyonları eklendi (YH1-A4).
 - MiMo otomatik test davranışı ipucu yalnız MiMo seçiliyken gösterilir; diğer sağlayıcıların düşünme kontrolleri ve Türkçe/İngilizce çeviriler korunur. SPA enjeksiyon matrisi ve MiMo quick testi düşünme istisnası açıklaştırıldı (YH2-G22, YH2-G25).
 - README ve entegrasyon kılavuzu aynı 10 senaryo, ortam matrisi, kimlik/dağıtım/sunucusuz/süreç sınırları ve Windows veri izinleri uyarısıyla hizalandı; belge sözleşmesi regresyonları eklendi (YH2-G25).
 - README'deki varsayılan model listelerine katalog tarihi ve güncel liste için **Modelleri getir** talimatı eklendi; tarih katalog metadatasına bağlı regresyonla korundu (YH2-G23).
