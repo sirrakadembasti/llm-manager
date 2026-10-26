@@ -269,6 +269,8 @@ sürüm yayını için `npm run release:patch|minor|major` çalıştırın (test
 
 `createLLMManager({ adminPassword: process.env.LLM_ADMIN_PASSWORD, chatTokens: process.env.LLM_CHAT_TOKENS })` Web adaptörünü korur. `/llm`, betik ve yönetim API'si admin kimliği gerektirir. Yapılandırma yoksa `AUTH_NOT_CONFIGURED` ile kapalı kalır. `authorize: async request => principal | null` ile host kimliği kullanılabilir; `fetch(request, options)` çağrısındaki seçenekler varsayılanları ezer.
 
+İstek kotası önce hostun `clientKey` / Web `getClientId(request)` değerini (Express'te `req.ip`), ardından `principal.id` değerini kullanır. Web'de farklı kullanıcıları ayırmak için host kararlı bir `principal.id` sağlamalıdır; kimlik yoksa ortak anonim kota uygulanır. Profil değiştirmek test/model kotasını yenilemez; model önizleme ve profil model listesi aynı kotayı paylaşır. Sohbet kotası ayrıdır. Express IP tespitinde host `trust proxy` ayarından sorumludur. `rateLimit: false` kotaları kapatır.
+
 | Kimlik | Erişim | Saklama |
 |---|---|---|
 | Basic admin veya host principal (`isAdmin: true`) | Yönetim ve sohbet | Sunucuda ortam değişkeni/session |

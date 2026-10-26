@@ -248,9 +248,15 @@ export function createLLMManager({
     return null;
   }
 
-  async function testProfile(id, body, { clientKey, requestId } = {}) {
+  function rateIdentity(clientKey, principal) {
+    if (clientKey) return `client:${clientKey}`;
+    if (typeof principal?.id === 'string' && principal.id) return `principal:${principal.id}`;
+    return 'anonymous';
+  }
+
+  async function testProfile(id, body, { principal, clientKey, requestId } = {}) {
     if (rateLimiters) {
-      const key = clientKey || id;
+      const key = rateIdentity(clientKey, principal);
       const res = rateLimiters.test.take(key);
       if (!res.ok) {
         return ok(
@@ -333,9 +339,9 @@ export function createLLMManager({
     }
   }
 
-  async function listModels(id, { clientKey, requestId } = {}) {
+  async function listModels(id, { principal, clientKey, requestId } = {}) {
     if (rateLimiters) {
-      const key = clientKey || id;
+      const key = rateIdentity(clientKey, principal);
       const res = rateLimiters.models.take(key);
       if (!res.ok) {
         return ok(
@@ -380,7 +386,7 @@ export function createLLMManager({
       return ok({ error: 'Yönetici yetkisi gerekli.', code: 'FORBIDDEN', requestId }, 403);
     }
     if (rateLimiters) {
-      const key = clientKey || 'preview';
+      const key = rateIdentity(clientKey, principal);
       const res = rateLimiters.models.take(key);
       if (!res.ok) {
         return ok(
@@ -462,7 +468,7 @@ export function createLLMManager({
     }
 
     if (rateLimiters) {
-      const key = clientKey || (principal?.isAdmin ? 'admin' : principal?.id || 'client');
+      const key = rateIdentity(clientKey, principal);
       const res = rateLimiters.chat.take(key);
       if (!res.ok) {
         return ok(
@@ -917,8 +923,8 @@ export function createLLMManager({
       return null;
     }
     if (action === 'activate' && verb === 'POST') return guarded(() => store.activate(id, body?.revision));
-    if (action === 'test' && verb === 'POST') return testProfile(id, body, { clientKey, requestId });
-    if (action === 'models' && verb === 'GET') return listModels(id, { clientKey, requestId });
+    if (action === 'test' && verb === 'POST') return testProfile(id, body, { principal, clientKey, requestId });
+    if (action === 'models' && verb === 'GET') return listModels(id, { principal, clientKey, requestId });
     return null;
   }
 
@@ -1091,6 +1097,9 @@ export function createLLMManager({
         signal: responseSignal
       });
       if (!result) return new Response(null, { status: 404, headers: commonHeaders });
+      if (result.status === 429 && result.body?.retryAfterSec) {
+        commonHeaders['Retry-After'] = String(result.body.retryAfterSec);
+      }
 
       if (result.isStream && result.stream) {
         let cancelled = false;
