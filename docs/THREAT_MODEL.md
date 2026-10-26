@@ -1,6 +1,6 @@
 # Threat Model: LLM Manager
 
-This document identifies the protected assets, threat vectors, attack surfaces, and mitigation controls implemented in `llm-manager`.
+This document identifies the protected assets, threat vectors, attack surfaces, and current mitigation controls in `llm-manager`. Future controls are explicitly labeled as planned and are not enforced today.
 
 ---
 
@@ -67,6 +67,22 @@ This document identifies the protected assets, threat vectors, attack surfaces, 
   - Atomic advisory file lock (`src/store/fileLock.js`) with stale lock expiration (>10s) and PID check.
   - Automatic single-generation backup (`llm-profiles.json.bak`) generated prior to every write.
   - Windows `EBUSY`/`EPERM` retry loop with exponential backoff on atomic rename operations.
+
+---
+
+### 2.7 Supply Chain
+
+- **Threat**: A compromised dependency update, manipulated lockfile, CI action, or publisher account can introduce malicious code or publish a package from an untrusted origin, exposing API keys, admin credentials, and prompt content.
+- **Current controls**:
+  - `package.json` declares `undici` as the runtime dependency and optional peer `express`; development tools and test hosts are separate development dependencies. A small runtime dependency set reduces exposure but does not eliminate transitive or build-tool risk.
+  - CI uses `npm ci` with the committed `package-lock.json` for repeatable dependency resolution. Lockfile integrity checks detect changed downloaded bytes against recorded hashes, not malicious code already accepted into the lockfile.
+  - CI runs `npm audit --omit=dev`; this checks known production dependency advisories and does not cover development dependencies or prove that a package is trustworthy.
+  - The package `files` allowlist and CI `npm pack --dry-run` check exclude test/data directories and `.env` secrets from the publish bundle. These checks do not authenticate the publisher or the source of a release.
+  - The repository has no publishing workflow; `publishConfig.access` is `public` and local release scripts run tests and increment versions. CI uses `actions/checkout@v4` and `actions/setup-node@v4` tags, not immutable commit pins. No release provenance or signing enforcement is configured here.
+- **Planned controls (not implemented)**:
+  - Establish dependency and lockfile update review, including development tooling and install scripts, and evaluate automated update/advisory monitoring beyond the production-only audit.
+  - Pin third-party CI actions to reviewed immutable commit SHAs and define a process for reviewing pin updates.
+  - Define a publishing-origin policy before adding automation: verify reviewed source/tag identity, restrict publisher credentials, and evaluate npm provenance and artifact signing. These are future protections, not guarantees for current packages.
 
 ---
 

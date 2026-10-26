@@ -16,6 +16,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - Async host deposu sözleşmesi metot/dönüş/hata tablosuyla belgelendi; güvenli DTO ve revizyon denetimli Map örneği ile async CRUD, test ve sohbet regresyonları eklendi (YH2-G08).
 
 ### Security
+- Tedarik zinciri tehditleri, mevcut bağımlılık/kilit dosyası/CI/paket kontrolleri ve henüz uygulanmayan yayın kökeni önlemleri ayrıştırıldı; SECURITY yerel 2.0.0 Unreleased geliştirme bağlamını mevcut 1.x destek politikasını değiştirmeden açıklar (YH1-F5).
 - Electron panel parolası yalnız kendi loopback HTTP origin'inin proxy olmayan Basic challenge'ına verilir; dış navigasyon, yönlendirme ve yeni pencere açma engellenir. Tauri ayrı HTTP istemcisi/sunucu süreci olarak belgelenir; lazy userData, IPC filtresi ve preload koruması çalıştırılan şablon testleriyle doğrulanır (YH2-G15, YH2-G16).
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 

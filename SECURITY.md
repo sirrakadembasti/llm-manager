@@ -9,6 +9,10 @@ Only the latest major/minor release is actively maintained with security updates
 | 1.x.x   | :white_check_mark: |
 | < 1.0   | :x:                |
 
+### Current development
+
+The local `package.json` version is `2.0.0`, tracked as **Unreleased** in `CHANGELOG.md`. This is development context, not evidence of a published 2.x release. The existing 1.x support policy above remains in place; this clarification does not add a maintenance or backport commitment for another release line. Report development vulnerabilities through the same private reporting channels below, including the commit and local version so the affected code can be identified.
+
 ## Reporting a Vulnerability
 
 If you discover a potential security vulnerability in `@sirrakadembasti/llm-manager` (or `llm-manager`), please do **not** disclose it publicly via GitHub issues or discussions.
