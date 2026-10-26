@@ -23,20 +23,47 @@ function parseSimpleEnv(content) {
   return result;
 }
 
-export function ensureLLMEncryptionKey({
-  envPath = path.join(process.cwd(), '.env'),
-  profilePath = process.env.LLM_CONFIG_PATH || path.join(process.cwd(), 'data', 'llm-profiles.json'),
-  environment = process.env,
-  keyPath = environment.LLM_CONFIG_KEY_PATH || path.join(path.dirname(profilePath), 'llm-encryption.key'),
-  writeEnv
-} = {}) {
+export function ensureLLMEncryptionKey(options = {}) {
+  return ensureEncryptionKey(options);
+}
+
+function ensureEncryptionKey(
+  {
+    envPath = path.join(process.cwd(), '.env'),
+    profilePath = process.env.LLM_CONFIG_PATH || path.join(process.cwd(), 'data', 'llm-profiles.json'),
+    environment = process.env,
+    keyPath = environment.LLM_CONFIG_KEY_PATH || path.join(path.dirname(profilePath), 'llm-encryption.key'),
+    writeEnv
+  } = {},
+  lockHeld = false
+) {
+  const fileKey =
+    !environment.LLM_CONFIG_ENCRYPTION_KEY && fs.existsSync(keyPath) && fs.readFileSync(keyPath, 'utf8').trim();
+  if (writeEnv !== true && !environment.LLM_CONFIG_ENCRYPTION_KEY && !fileKey && !lockHeld) {
+    return withFileLockSync(`${profilePath}.lock`, () =>
+      ensureEncryptionKey({ envPath, profilePath, environment, keyPath, writeEnv }, true)
+    );
+  }
   const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : null;
   const configured =
     environment.LLM_CONFIG_ENCRYPTION_KEY ||
-    (fs.existsSync(keyPath) && fs.readFileSync(keyPath, 'utf8').trim()) ||
+    fileKey ||
     (envContent && parseSimpleEnv(envContent).LLM_CONFIG_ENCRYPTION_KEY);
   if (configured) {
     parseEncryptionKey(configured);
+    if (writeEnv !== true && !environment.LLM_CONFIG_ENCRYPTION_KEY && !fileKey) {
+      fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+      try {
+        fs.writeFileSync(keyPath, `${configured}\n`, { mode: 0o600, flag: 'wx' });
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        // An independent key-file writer won; validate and use its key without overwriting it.
+        const winner = fs.readFileSync(keyPath, 'utf8').trim();
+        parseEncryptionKey(winner);
+        environment.LLM_CONFIG_ENCRYPTION_KEY = winner;
+        return winner;
+      }
+    }
     environment.LLM_CONFIG_ENCRYPTION_KEY = configured;
     return configured;
   }
@@ -72,7 +99,7 @@ export function ensureLLMEncryptionKey({
     fs.writeFileSync(keyPath, `${key}\n`, { mode: 0o600, flag: 'wx' });
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
-    return ensureLLMEncryptionKey({ envPath, profilePath, environment, keyPath, writeEnv });
+    return ensureEncryptionKey({ envPath, profilePath, environment, keyPath, writeEnv }, lockHeld);
   }
   environment.LLM_CONFIG_ENCRYPTION_KEY = key;
   return key;
@@ -99,7 +126,7 @@ export function rotateEncryptionKey({
     const newKeyBytes = parseEncryptionKey(activeNewKey);
 
     const originalProfiles = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
-    const backupKeyPath = `${keyPath}.old-${crypto.randomUUID()}`;
+    const backupKeyPath = `${keyPath}.old-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID()}`;
     fs.mkdirSync(path.dirname(keyPath), { recursive: true });
     fs.writeFileSync(backupKeyPath, `${activeOldKey}\n`, { mode: 0o600, flag: 'wx' });
     let reEncryptedCount = 0;
@@ -292,7 +319,7 @@ export function importProfiles({
       process.env.LLM_CONFIG_ENCRYPTION_KEY ||
       (fs.existsSync(keyPath) ? fs.readFileSync(keyPath, 'utf8').trim() : null);
     if (!targetKey) {
-      targetKey = ensureLLMEncryptionKey({ profilePath: filePath, keyPath });
+      targetKey = ensureEncryptionKey({ profilePath: filePath, keyPath }, true);
     }
     const targetKeyBytes = parseEncryptionKey(targetKey);
     let existingData = { version: 1, activeId: null, profiles: [] };

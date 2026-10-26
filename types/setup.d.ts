@@ -8,6 +8,7 @@ export function ensureLLMEncryptionKey(options?: {
   profilePath?: string;
   environment?: Record<string, string | undefined>;
   keyPath?: string;
+  /** @deprecated Use the default key file persistence instead. */
   writeEnv?: boolean;
 }): string;
 export function rotateEncryptionKey(options?: KeyFileOptions & { oldKey?: string; newKey?: string }): {

@@ -57,6 +57,7 @@ test('rotateEncryptionKey re-encrypts all profile secrets and backs up old key',
     assert.equal(rotResult.count, 1);
     assert.notEqual(rotResult.newKey, key1);
     assert.ok(rotResult.backupKeyPath && fs.existsSync(rotResult.backupKeyPath));
+    assert.match(path.basename(rotResult.backupKeyPath), /^llm-encryption\.key\.old-\d{4}-\d{2}-\d{2}T/);
     assert.equal(fs.readFileSync(rotResult.backupKeyPath, 'utf8').trim(), key1);
 
     // Verify current key in file is new key

@@ -64,6 +64,8 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 > [!WARNING]
 > **Anahtar kaybedilirse profiller kurtarılamaz!** `data/` altındaki `llm-encryption.key` dosyasını `llm-profiles.json` ile birlikte mutlaka yedekleyin.
 
+Eski kurulumlarda anahtar yalnız `.env` içindeyse, `ensureLLMEncryptionKey` varsayılan çağrısı bu anahtarı profil kilidi altında anahtar dosyasına taşır; `.env` ve şifreli profiller değiştirilmez. Açık ortam anahtarı ve mevcut anahtar dosyası eski `.env` değerinden önceliklidir. Taşımadan sonra `.env` yüklemeyen gömülü süreçler aynı profilleri okuyabilir. Eski `.env` yazımı yalnız deprecated `{ writeEnv: true }` ile korunur. Döndürme yedeği tarih ve benzersiz ek içeren `llm-encryption.key.old-<tarih>-<kimlik>` adıyla saklanır.
+
 ```sh
 # 1. Şifreleme anahtarını döndürme (yeni anahtar üretir, tüm kayıtlı API anahtarlarını yeni anahtarla yeniden şifreler, eski anahtarı yedekler):
 npx llm-manager key rotate
