@@ -5,6 +5,9 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Deprecated
+- 2.0 sürümünde kök girişten `detectProjectType`, `detectEntryFile` ve `formatVerificationReport` senkron dışa aktarımları kaldırıldı; bu yardımcıları `@sirrakadembasti/llm-manager/init` alt yolundan içe aktarın. Kök girişteki `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration` ve `injectIntoEntryFile` tembel async sarmalayıcıları bir uyumluluk sürümü boyunca korunur ve kullanımdan kaldırılmıştır; bunlar için de aynı alt yolu kullanın (YH1-A1).
+
 ### Added
 - YH2 FAZ 2'nin dört kartı görev ve genel incelemelerle kapatıldı; 283 test ve %93,03 satır / %85,33 dal kapsamı, kabul kanıtları ve doğrulama sınırları FAZ 2 denetim raporunda toplandı.
 - Express 5 hostunda gerçek HTTP ile auth-önce-ayrıştırma ve yapılandırılmış 400/413 hata sözleşmesi doğrulandı; README Express 4.19+ ve 5.x desteğini ve 4.19.2 peer alt sınırını belirtir (YH2-G26).

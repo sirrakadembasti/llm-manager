@@ -36,13 +36,13 @@ export interface MountedLLMManager {
 }
 export function mountLLMManagement(app: any, options?: MountOptions): MountedLLMManager;
 
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export function runInteractiveInit(options?: Init.InteractiveInitOptions): Promise<Init.InteractiveInitResult>;
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export function probeAndOpenBrowser(options?: Init.ProbeOptions): Promise<Init.ProbeResult>;
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export function initLLMProject(options?: Init.InitProjectOptions): Promise<Init.InitProjectResult>;
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export function verifyIntegration(options?: Init.VerifyOptions): Promise<Init.VerificationReport>;
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export function injectIntoEntryFile(options?: Init.InjectOptions): Promise<Init.InjectResult>;

@@ -250,6 +250,14 @@ raporlanır. Gizli muhakeme kullanıcıya gösterilmez; yalnız son cevap kullan
 
 Eklenti dağıtımı kullanıcı verilerini/anahtarlarını içermez.
 
+2.0 sürümünde kök girişten `detectProjectType`, `detectEntryFile` ve `formatVerificationReport` senkron dışa aktarımları kaldırıldı. Bu yardımcılar için içe aktarımı şöyle değiştirin:
+
+```js
+import { detectProjectType, detectEntryFile, formatVerificationReport } from '@sirrakadembasti/llm-manager/init';
+```
+
+Kök girişteki `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration` ve `injectIntoEntryFile` tembel async sarmalayıcıları kullanımdan kaldırılmıştır ve bir uyumluluk sürümü boyunca korunur. Yeni kodda bu işlevleri de `@sirrakadembasti/llm-manager/init` alt yolundan içe aktarın.
+
 
 ## Sağlayıcı uyumluluğu ve revizyon sözleşmesi
 

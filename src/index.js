@@ -39,23 +39,23 @@ export {
 };
 export { CSRF_HEADER, SAFE_METHODS, isValidMountPath, createUiAssets, createLLMManager };
 
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export async function runInteractiveInit(...a) {
   return (await import('./init.js')).runInteractiveInit(...a);
 }
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export async function probeAndOpenBrowser(...a) {
   return (await import('./init.js')).probeAndOpenBrowser(...a);
 }
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export async function initLLMProject(...a) {
   return (await import('./init.js')).initLLMProject(...a);
 }
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export async function verifyIntegration(...a) {
   return (await import('./init.js')).verifyIntegration(...a);
 }
-/** @deprecated `llm-manager/init` alt yolunu kullanın. */
+/** @deprecated `@sirrakadembasti/llm-manager/init` alt yolunu kullanın. */
 export async function injectIntoEntryFile(...a) {
   return (await import('./init.js')).injectIntoEntryFile(...a);
 }
