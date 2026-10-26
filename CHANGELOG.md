@@ -20,6 +20,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - YH2 Faz 0 denetimi: geçerli sohbet Bearer belirteci Express yönetim sayfası/betiğinde 403 ile reddedilir (G01/G24). Wildcard CORS yalnız yapılandırılmış API sohbet rotasına uygulanır; Vite dışı SPA/Tauri kurulumları origin sorar, etkileşimsiz kurulum açık izin verilmeden CORS açmaz (G06).
 
 ### Fixed
+- Bozuk veya daha yeni sürümlü profil dosyası Web/Express uçlarında tipli 500 yanıtı döndürür; yönetim arayüzü Türkçe `.bak` kurtarma talimatını gösterir. Sohbet, model ve test okumaları aynı hatayı korur; genel sağlık yanıtı depo ayrıntılarını gizler, dosya ve yedek değiştirilmez (YH1-B3).
 - Akış kullanım kaydı hata, iptal, süre aşımı ve erken iterator dönüşünde de mantıksal istek başına bir kez tutulur; fallback hataları son adayın profil/model kimliğini kullanır. Yalnız gözlenen güvenli token sayıları saklanır ve aylık profil kartları Türkçe/İngilizce gerçek render kabulüyle doğrulanır (YH1-D4).
 - Sağlayıcı sohbeti tamamlanma kancası akış başarı, hata, iptal ve erken iterator dönüşünde bir kez kullanım/kod ve son profil metadatası bildirir; eski akış başarı olayı ve sabit içerik redaksiyonu korunur (YH1-D1).
 - Web test/model/önizleme ve sohbet kotaları host istemci kimliği yoksa kararlı principal kimliğini kullanır; profil değiştirerek kota aşımı ve farklı adminlerin ortak kotaya düşmesi düzeltildi. Web 429 yanıtları `Retry-After` başlığını taşır (YH1-C3).

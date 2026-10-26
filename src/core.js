@@ -6,7 +6,7 @@ import { checkBasicAuth, checkBearerToken } from './auth.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
-import { LLMError, ErrorCodes } from './errors.js';
+import { LLMError, ErrorCodes, isLLMError } from './errors.js';
 import { createRateLimiter } from './rateLimit.js';
 import { createStructuredLogger, redact, sanitizeRequestId } from './logger.js';
 import {
@@ -135,6 +135,8 @@ const profileError = error => ({
     (error.code === ErrorCodes.PROFILE_NOT_FOUND ? 404 : error.code === ErrorCodes.PROFILE_CONFLICT ? 409 : 400),
   body: { error: error.message, code: error.code || ErrorCodes.PROFILE_INVALID }
 });
+const isStoreFormatError = error =>
+  isLLMError(error) && (error.code === ErrorCodes.STORE_CORRUPT || error.code === ErrorCodes.STORE_VERSION_UNSUPPORTED);
 
 export function createLLMManager({
   adminPassword = process.env.LLM_ADMIN_PASSWORD,
@@ -323,6 +325,7 @@ export function createLLMManager({
         requestId
       });
     } catch (error) {
+      if (isStoreFormatError(error)) throw error;
       const classified = classifyLLMError(error);
       if (profile) {
         try {
@@ -376,7 +379,8 @@ export function createLLMManager({
           502
         );
       return ok({ models: extractModelIds(await response.json(), profile), requestId });
-    } catch {
+    } catch (error) {
+      if (isStoreFormatError(error)) throw error;
       return ok({ error: 'Model listesi alınamadı. Model kimliğini elle girebilirsiniz.', requestId }, 502);
     }
   }
@@ -803,6 +807,7 @@ export function createLLMManager({
 
       throw lastError;
     } catch (error) {
+      if (isStoreFormatError(error)) throw error;
       const classified = classifyLLMError(error);
       if (classified.code === ErrorCodes.RUNTIME_OPTIONS_INVALID) {
         return ok({ error: error.message, code: ErrorCodes.RUNTIME_OPTIONS_INVALID, requestId }, 400);
@@ -872,7 +877,25 @@ export function createLLMManager({
   }
 
   // path: eklenti köküne göre göreli yol, örn. '/profiles/abc/test' veya '/chat'.
-  async function handle({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
+  async function handle(input = {}) {
+    try {
+      return await handleRoute(input);
+    } catch (error) {
+      if (!isStoreFormatError(error)) throw error;
+      const publicHealth =
+        String(input.method || 'GET').toUpperCase() === 'GET' && /^\/health\/?(?:\?|$)/.test(input.path || '');
+      return ok(
+        {
+          code: error.code,
+          error: publicHealth ? 'Profil depolama alanı okunamadı. Yöneticiyle iletişime geçin.' : error.message,
+          requestId: input.requestId
+        },
+        500
+      );
+    }
+  }
+
+  async function handleRoute({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const cleanPath = (routePath || '').split('?')[0];
     const match = /^\/(catalog|chat|profiles|models|health|usage)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
