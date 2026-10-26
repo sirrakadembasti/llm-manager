@@ -10,6 +10,7 @@ export async function createStandaloneServer({
   dataDir,
   chatTokens,
   logger = console,
+  handleSignals = false,
   ...managerOptions
 } = {}) {
   if (!adminPassword) {
@@ -98,10 +99,37 @@ export async function createStandaloneServer({
   const actualPort = server.address().port;
   const url = `http://${host.includes(':') ? `[${host}]` : host}:${actualPort}/llm`;
 
-  const close = () =>
-    new Promise(resolve => {
-      server.close(() => resolve());
+  let closed = false;
+  let closePromise;
+  let shutdownTimer;
+  let shuttingDown = false;
+  const close = () => {
+    closePromise ??= new Promise(resolve => {
+      if (closed) return resolve();
+      server.once('close', resolve);
+      // A raw server.close() may already be draining active requests.
+      if (server.listening) server.close();
     });
+    return closePromise;
+  };
+  const shutdown = () => {
+    if (shuttingDown || closed) return;
+    shuttingDown = true;
+    shutdownTimer = setTimeout(() => process.exit(1), 10000);
+    close().then(() => process.exit(0));
+  };
+  server.once('close', () => {
+    closed = true;
+    clearTimeout(shutdownTimer);
+    if (handleSignals === true) {
+      process.off('SIGINT', shutdown);
+      process.off('SIGTERM', shutdown);
+    }
+  });
+  if (handleSignals === true) {
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  }
 
   return { app, server, url, port: actualPort, close };
 }

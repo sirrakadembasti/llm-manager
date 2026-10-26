@@ -78,6 +78,8 @@ export interface ProbeOptions {
   startServerIfNeeded?: boolean;
   openBrowser?: boolean;
   autoCloseStartedServer?: boolean;
+  /** Opt into process signal ownership only for a server started by this probe. Default false. */
+  handleSignals?: boolean;
   browserOpener?: (url: string) => unknown | Promise<unknown>;
 }
 export interface ProbeResult {
@@ -94,6 +96,8 @@ export interface InteractiveInitOptions extends InitProjectOptions {
   yes?: boolean;
   openBrowser?: boolean;
   autoCloseServer?: boolean;
+  /** Pass process signal ownership to a server started by the probe. Default false. */
+  handleSignals?: boolean;
   askQuestion?: (prompt: string) => string | Promise<string>;
   logger?: (message: string) => void;
   browserOpener?: ProbeOptions['browserOpener'];

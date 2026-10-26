@@ -32,6 +32,7 @@ export async function runInteractiveInit({
   yes = false,
   openBrowser = true,
   autoCloseServer = false,
+  handleSignals = false,
   askQuestion,
   logger = console.log,
   browserOpener,
@@ -183,6 +184,7 @@ export async function runInteractiveInit({
       password,
       openBrowser,
       autoCloseStartedServer: autoCloseServer,
+      handleSignals,
       startServerIfNeeded: !(['spa', 'tauri'].includes(detectedType) && !needsHostPackage(cwd, detectedType)),
       browserOpener
     });

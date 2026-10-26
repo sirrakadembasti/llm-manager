@@ -28,6 +28,7 @@ export async function probeAndOpenBrowser({
   startServerIfNeeded = true,
   openBrowser = true,
   autoCloseStartedServer = false,
+  handleSignals = false,
   browserOpener
 } = {}) {
   const env = readEnv(path.join(cwd, '.env'));
@@ -63,7 +64,8 @@ export async function probeAndOpenBrowser({
         adminPassword: password,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
-        dataDir: path.join(cwd, 'data')
+        dataDir: path.join(cwd, 'data'),
+        handleSignals
       });
     } catch {
       srvInstance = await createStandaloneServer({
@@ -72,7 +74,8 @@ export async function probeAndOpenBrowser({
         adminPassword: password,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
-        dataDir: path.join(cwd, 'data')
+        dataDir: path.join(cwd, 'data'),
+        handleSignals
       });
     }
     server = srvInstance.server;

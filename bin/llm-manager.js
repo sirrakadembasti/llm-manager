@@ -175,7 +175,8 @@ if (isInit) {
     port: Number(process.env.PORT) || 8010,
     force,
     yes,
-    openBrowser
+    openBrowser,
+    handleSignals: true
   });
   if (result.aborted) {
     process.exit(0);
@@ -202,15 +203,9 @@ if (isInit) {
     adminPassword: process.env.LLM_ADMIN_PASSWORD,
     allowedOrigins: process.env.LLM_ALLOWED_ORIGINS || '',
     dataDir,
-    chatTokens
+    chatTokens,
+    handleSignals: true
   });
 
   console.log(`LLM yönetimi: ${serverInstance.url} (Kullanıcı: ${process.env.LLM_ADMIN_USER || 'admin'})`);
-
-  const shutdown = () => {
-    serverInstance.close().then(() => process.exit(0));
-    setTimeout(() => process.exit(1), 10000).unref();
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
 }

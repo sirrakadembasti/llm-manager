@@ -11,7 +11,7 @@ import {
   type LLMStore
 } from '@sirrakadembasti/llm-manager';
 import { createStandaloneServer } from '@sirrakadembasti/llm-manager/server';
-import { detectProjectType, initLLMProject } from '@sirrakadembasti/llm-manager/init';
+import { detectProjectType, initLLMProject, runInteractiveInit } from '@sirrakadembasti/llm-manager/init';
 
 // 1. Core Manager and Message types
 const messages: LLMMessage[] = [
@@ -83,7 +83,7 @@ async function runTests() {
   console.log(masked);
 
   // 5. Server types
-  const server = await createStandaloneServer({ port: 8080 });
+  const server = await createStandaloneServer({ port: 8080, handleSignals: true });
   await server.close();
 
   // 6. Init types
@@ -91,6 +91,7 @@ async function runTests() {
   console.log(projectType);
 
   initLLMProject({ type: 'express' });
+  await runInteractiveInit({ type: 'express', handleSignals: false });
 }
 
 // 7. Express Mount
@@ -134,7 +135,7 @@ async function publicContract() {
   const files: string[] = init.createdFiles;
   const verified = verifyIntegration({ entryFile: null });
   const passed: boolean = verified.checks[0].ok;
-  const probe = await probeAndOpenBrowser({ password: 'test', openBrowser: false });
+  const probe = await probeAndOpenBrowser({ password: 'test', openBrowser: false, handleSignals: false });
   const started: boolean = probe.startedServer;
   const normalized = normalizeRuntimeOptions({ thinking: 'enabled', stop: 'END', temperature: 0.5 });
   const stop: string[] | undefined = normalized.stop;

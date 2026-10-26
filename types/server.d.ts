@@ -20,6 +20,8 @@ export interface StandaloneServerOptions {
   dataDir?: string;
   chatTokens?: string | string[];
   logger?: LoggerInput | null;
+  /** Own this standalone process: SIGINT/SIGTERM close, exit 0, or exit 1 after 10s. Default false. */
+  handleSignals?: boolean;
 }
 
 export interface StandaloneServerInstance {

@@ -33,7 +33,11 @@ npx github:sirrakadembasti/llm-manager init --password guclu-parola
 npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
 ```
 
-Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler `./data/` altında otomatik oluşturulur.
+Seçenekler: `init`, `-t/--type` (`express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri`), `-f/--force`, `-y/--yes` (otomatik onay), `--no-open` (tarayıcı açmama), `-w/--password`, `-u/--user` (varsayılan: `admin`), `-c/--cors` (ör. `http://localhost:5173` veya `*`), `-p/--port`, `-h/--help`, `-v/--version`. Doğrudan sunucu başlatırken `--host` (varsayılan: `127.0.0.1`), `--data-dir` ve `--chat-token` da kullanılabilir. Çalışma dizinindeki `.env` otomatik okunur; şifreleme anahtarı ve veriler varsayılan olarak `./data/` altında otomatik oluşturulur.
+
+CLI'nin başlattığı sunucular (`init` canlı yoklaması dahil) ve `examples/server.js`, SIGINT/SIGTERM geldiğinde yeni bağlantıları kapatıp sürmekte olan isteklerin bitmesini bekler. Kapanış tamamlanınca süreç 0 ile; 10 saniye içinde tamamlanmazsa 1 ile çıkar. Windows'ta işletim sisteminin zorla sonlandırması bu Node sinyal işleyicilerini çalıştırmayabilir.
+
+`createStandaloneServer`, `probeAndOpenBrowser` ve `runInteractiveInit` programatik kullanımda varsayılan olarak host sürecinin sinyallerini yönetmez. `handleSignals: true`, yalnız bağımsız süreçte tek sunucunun bu kapanış/çıkış politikasını sahiplenmesi içindir; probe seçeneği yalnız kendisinin başlattığı sunucuya uygulanır. Gömülü kullanımda varsayılanı koruyun ve kendi kapanış akışınızda `await instance.close()` çağırın. `close()` tekrarlı çağrılarda aynı kapanışı bekler; ham `instance.server.close()` da sunucunun kendi sinyal dinleyicilerini ve zamanlayıcısını temizler.
 
 ### Kaynaktan
 
