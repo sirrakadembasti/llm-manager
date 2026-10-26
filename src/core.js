@@ -566,6 +566,7 @@ export function createLLMManager({
     }
 
     const start = Date.now();
+    let completionProfile = profile;
     try {
       const overrides = {};
       if (canOverride) {
@@ -596,66 +597,106 @@ export function createLLMManager({
         async function* streamGenerator() {
           let lastStreamError;
           let yieldedAny = false;
-          for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
-            const currentProfile = candidateProfiles[pIdx];
-            const isFallback = pIdx > 0;
-            const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
-            const options = {
-              ...currentProfile,
-              ...runtimeOpts,
-              purpose,
-              ...networkOptions,
-              signal: requestSignal
-            };
+          let finalStreamUsage = null;
+          let completionCode = ErrorCodes.LLM_ABORTED;
+          let currentProfile = profile;
+          let isFallback = false;
+          try {
+            for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
+              currentProfile = candidateProfiles[pIdx];
+              isFallback = pIdx > 0;
+              const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
+              const options = {
+                ...currentProfile,
+                ...runtimeOpts,
+                purpose,
+                ...networkOptions,
+                signal: requestSignal
+              };
 
-            try {
-              const streamIterable = generateStream
-                ? generateStream(messages, options)
-                : generateProfileStream(messages, currentProfile, options);
+              try {
+                const streamIterable = generateStream
+                  ? generateStream(messages, options)
+                  : generateProfileStream(messages, currentProfile, options);
 
-              let finalStreamUsage = null;
-              for await (const chunk of streamIterable) {
-                yieldedAny = true;
-                if (chunk.type === 'done' && chunk.usage) {
-                  finalStreamUsage = safeUsage(chunk.usage);
+                finalStreamUsage = null;
+                for await (const chunk of streamIterable) {
+                  yieldedAny = true;
+                  if (chunk.type === 'done') {
+                    finalStreamUsage = safeUsage(chunk.usage);
+                    completionCode = 'OK';
+                  }
+                  yield chunk.type === 'done' ? { ...chunk, usage: safeUsage(chunk.usage) } : chunk;
                 }
-                yield chunk.type === 'done' ? { ...chunk, usage: safeUsage(chunk.usage) } : chunk;
-              }
 
-              await usageTracker.record({
-                profileId: currentProfile.id,
-                model: currentProfile.model,
-                durationMs: Date.now() - start,
-                inputTokens: finalStreamUsage?.inputTokens || 0,
-                outputTokens: finalStreamUsage?.outputTokens || 0,
-                code: 'OK'
-              });
+                if (requestSignal.aborted) {
+                  throw new LLMError(
+                    requestSignal.reason?.name === 'TimeoutError' ? ErrorCodes.LLM_TIMEOUT : ErrorCodes.LLM_ABORTED,
+                    requestSignal.reason?.name === 'TimeoutError'
+                      ? 'Model yanıtı süre sınırını aştı.'
+                      : 'İstek iptal edildi.',
+                    { retryable: false }
+                  );
+                }
+                await usageTracker.record({
+                  profileId: currentProfile.id,
+                  model: currentProfile.model,
+                  durationMs: Date.now() - start,
+                  inputTokens: finalStreamUsage?.inputTokens || 0,
+                  outputTokens: finalStreamUsage?.outputTokens || 0,
+                  code: 'OK'
+                });
 
-              logger.info('chat.stream.completed', {
-                requestId,
-                profileId: currentProfile.id,
-                provider: currentProfile.provider,
-                model: currentProfile.model,
-                durationMs: Date.now() - start,
-                fallbackUsed: isFallback
-              });
-              return;
-            } catch (err) {
-              lastStreamError = err;
-              const classified = classifyLLMError(err);
-              if (yieldedAny || !classified.retryable || pIdx === candidateProfiles.length - 1) {
-                throw err;
+                completionCode = 'OK';
+                logger.info('chat.stream.completed', {
+                  requestId,
+                  profileId: currentProfile.id,
+                  provider: currentProfile.provider,
+                  model: currentProfile.model,
+                  durationMs: Date.now() - start,
+                  fallbackUsed: isFallback
+                });
+                return;
+              } catch (err) {
+                lastStreamError = err;
+                const classified = classifyLLMError(err);
+                if (
+                  requestSignal.aborted ||
+                  yieldedAny ||
+                  !classified.retryable ||
+                  pIdx === candidateProfiles.length - 1
+                ) {
+                  throw err;
+                }
+                logger.warn('chat.fallback', {
+                  requestId,
+                  failedProfileId: currentProfile.id,
+                  nextProfileId: candidateProfiles[pIdx + 1]?.id,
+                  error: classified.error,
+                  code: classified.code
+                });
               }
-              logger.warn('chat.fallback', {
-                requestId,
-                failedProfileId: currentProfile.id,
-                nextProfileId: candidateProfiles[pIdx + 1]?.id,
-                error: classified.error,
-                code: classified.code
-              });
             }
+            throw lastStreamError;
+          } catch (error) {
+            completionCode = classifyLLMError(error).code;
+            throw error;
+          } finally {
+            if (requestSignal.aborted) {
+              completionCode =
+                requestSignal.reason?.name === 'TimeoutError' ? ErrorCodes.LLM_TIMEOUT : ErrorCodes.LLM_ABORTED;
+            }
+            logger[completionCode === 'OK' ? 'info' : 'warn']('chat.completed', {
+              requestId,
+              profileId: currentProfile.id,
+              provider: currentProfile.provider,
+              model: currentProfile.model,
+              durationMs: Date.now() - start,
+              usage: finalStreamUsage,
+              code: completionCode,
+              fallbackUsed: isFallback
+            });
           }
-          throw lastStreamError;
         }
 
         return {
@@ -669,6 +710,7 @@ export function createLLMManager({
       let lastError;
       for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
         const currentProfile = candidateProfiles[pIdx];
+        completionProfile = currentProfile;
         const isFallback = pIdx > 0;
         const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
         const options = {
@@ -777,10 +819,12 @@ export function createLLMManager({
       });
       logger.warn('chat.completed', {
         requestId,
-        profileId: profile.id,
-        provider: profile.provider,
-        model: profile.model,
+        profileId: completionProfile.id,
+        provider: completionProfile.provider,
+        model: completionProfile.model,
         durationMs,
+        usage: null,
+        fallbackUsed: completionProfile.id !== profile.id,
         code: classified.code
       });
       return ok({ ...classified, durationMs, requestId }, classified.status);

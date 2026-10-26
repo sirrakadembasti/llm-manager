@@ -146,6 +146,8 @@ export interface LLMManagerOptions {
   rateLimit?: boolean | LLMManagerRateLimitConfig;
   retry?: boolean | { attempts?: number; baseMs?: number; maxMs?: number };
   logger?: LoggerInput | null;
+  /** Content logging is disabled; prompts and responses are always redacted. */
+  logContent?: false;
   getClientId?: (request: Request) => string | null;
   proxyUrl?: string;
   allowedHosts?: string[];
