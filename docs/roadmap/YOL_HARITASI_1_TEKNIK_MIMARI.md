@@ -1,5 +1,7 @@
 # Yol Haritası 1 — Teknik / Mimari İnceleme ve Geliştirme Planı
 
+> **Kapanış (2026-10-27):** 32 görev kartının zorunlu kapsamı tamamlandı. On görev düzeltmesi ve genel incelemenin beş ek ürün bulgusu kapatıldı; C1 kabul kanıtı eklendi. Son tam paket 386/386, sıfır hata/atlama/iptal; src %94,78 satır / %87,70 dal, kalite ve son inceleme onaylı. Kanıtlar ve doğrulama sınırları: [kapanış denetimi](YH1_KAPANIS_DENETIM_2026-10-26.md). Aşağıdaki mimari inceleme, ilk tarihin tarihsel anlık görüntüsüdür; görev kartları uygulama gereksinimidir.
+
 > **Hedef kitle:** Bu belgeyi uygulayacak yazılım geliştirici / kod yazan yapay zekâ modeli.
 > **İnceleme tarihi:** 2026-10-22 · Sürüm v1.0.0 · commit `2a204c1` · 33/33 test geçiyor.
 > **Kardeş belge:** [YOL_HARITASI_2_VAAT_GERCEK_UYUMU.md](YOL_HARITASI_2_VAAT_GERCEK_UYUMU.md). Güvenlik açısından kritik olan **YH2 Faz 0 bu belgeden önce** uygulanmalıdır. Genel sıra için YH2 §5'e bakın.
@@ -572,9 +574,9 @@ Biçim: **Öncelik** (P0/P1/P2) · **Efor** (S ≤ 2 saat, M ≤ 1 gün, L > 1 g
 
 ## 4. "Bitti" tanımı (Definition of Done) — her görev için
 
-- [ ] Kabul kriterlerinin tamamı sağlandı ve her biri için bir test var.
-- [ ] `npm test` (ve varsa `lint`, `typecheck`) yerelde yeşil.
-- [ ] Genel API değiştiyse README ve tipler güncellendi.
-- [ ] CHANGELOG `[Unreleased]` güncellendi.
-- [ ] Sır sızıntısı kontrolü: yeni log, yanıt ve şablonlarda anahtar ya da parola yok.
-- [ ] `GEMINI.md` "Durum" bölümüne tek satırlık not düşüldü.
+- [x] Kabul kriterlerinin tamamı sağlandı ve her biri için bir test var.
+- [x] `npm test` (ve varsa `lint`, `typecheck`) yerelde yeşil.
+- [x] Genel API değiştiyse README ve tipler güncellendi.
+- [x] CHANGELOG `[Unreleased]` güncellendi.
+- [x] Sır sızıntısı kontrolü: yeni log, yanıt ve şablonlarda anahtar ya da parola yok.
+- [x] `GEMINI.md` "Durum" bölümüne tek satırlık not düşüldü.

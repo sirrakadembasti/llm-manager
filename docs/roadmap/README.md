@@ -12,4 +12,4 @@ YH2 FAZ 0'ın güncel madde/kabul kanıtları: [2026-10-25 FAZ 0 denetimi](YH2_F
 
 FAZ 1'in ayrı kabul kaydı: [2026-10-25 FAZ 1 denetimi](YH2_FAZ1_DENETIM_2026-10-25.md). FAZ 2'nin dört kartı ve genel inceleme kapanışı: [2026-10-26 FAZ 2 denetimi](YH2_FAZ2_DENETIM_2026-10-26.md), son tam paket 283/283.
 
-YH1 uygulama sonrası durum ve kanıtlar: [YH1 denetim raporu](YH1_DENETIM_2026-10-24.md). Uygulama planı: [YH1_UYGULAMA_PLANI.md](YH1_UYGULAMA_PLANI.md). Model kimliklerinin resmî kaynakları: [katalog kaynakları](CATALOG_SOURCES_2026-10-24.md).
+YH1'in 32 zorunlu kartı ve genel inceleme düzeltmeleri 2026-10-27'de tamamlandı: [kapanış denetimi ve doğrulama sınırları](YH1_KAPANIS_DENETIM_2026-10-26.md), son tam paket 386/386; src %94,78 satır / %87,70 dal. Önceki uygulama anlık görüntüsü: [2026-10-24 denetimi](YH1_DENETIM_2026-10-24.md). Uygulama planı: [YH1_UYGULAMA_PLANI.md](YH1_UYGULAMA_PLANI.md). Model kimliklerinin resmî kaynakları: [katalog kaynakları](CATALOG_SOURCES_2026-10-24.md).

@@ -9,6 +9,7 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 - 2.0 sürümünde kök girişten `detectProjectType`, `detectEntryFile` ve `formatVerificationReport` senkron dışa aktarımları kaldırıldı; bu yardımcıları `@sirrakadembasti/llm-manager/init` alt yolundan içe aktarın. Kök girişteki `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration` ve `injectIntoEntryFile` tembel async sarmalayıcıları bir uyumluluk sürümü boyunca korunur ve kullanımdan kaldırılmıştır; bunlar için de aynı alt yolu kullanın (YH1-A1).
 
 ### Added
+- YH1 teknik mimari yol haritasının 32 zorunlu kartı, on görev düzeltmesi ve son genel inceleme düzeltmeleriyle kapatıldı; 386/386 test, %94,78 satır / %87,70 dal kapsamı, gerçek kurulum/paket kanıtları ve çalıştırılmamış ortamların sınırları kapanış denetiminde kaydedildi. Yerel 2.0.0 korunur; yayın/push yapılmadı.
 - YH2 FAZ 2'nin dört kartı görev ve genel incelemelerle kapatıldı; 283 test ve %93,03 satır / %85,33 dal kapsamı, kabul kanıtları ve doğrulama sınırları FAZ 2 denetim raporunda toplandı.
 - Express 5 hostunda gerçek HTTP ile auth-önce-ayrıştırma ve yapılandırılmış 400/413 hata sözleşmesi doğrulandı; README Express 4.19+ ve 5.x desteğini ve 4.19.2 peer alt sınırını belirtir (YH2-G26).
 - YH2 FAZ 1'in 12 görev kartı ve genel inceleme kapatıldı; 276 test, gerçek .NET 4.0 referans derlemesi, modern C#/TypeScript/Python kanıtları ve doğrulama sınırları denetim raporunda toplandı. Kapanış kapsamı %92,94 satır / %85,13 dal.
