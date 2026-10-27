@@ -570,6 +570,11 @@ test('UI Modelleri getir action preserves in-progress form edits and keeps exist
 
   for (const [id, tag] of [
     ['message', 'p'],
+    ['notification', 'div'],
+    ['notification-title', 'strong'],
+    ['notification-icon', 'span'],
+    ['notification-meta', 'div'],
+    ['notification-close', 'button'],
     ['profile-form', 'form'],
     ['model-select', 'select'],
     ['model', 'input'],

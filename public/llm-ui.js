@@ -47,8 +47,30 @@ let editingRevision;
 let editingProfile = null;
 const disabledBefore = new Map();
 
-function message(text, error = false) {
-  $('message').textContent = text;
+const profileTestResults = new Map();
+
+function resultMeta({ code, supportId, durationMs } = {}) {
+  return [
+    code ? t('dynamic.error_code', { code }) : '',
+    supportId ? t('dynamic.support', { id: supportId }) : '',
+    Number.isFinite(durationMs) ? t('dynamic.elapsed', { seconds: (durationMs / 1000).toFixed(1) }) : ''
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function message(text, error = false, details = {}) {
+  const state = error ? 'error' : details.state || 'info';
+  const panel = $('notification');
+  panel.hidden = !text;
+  panel.className = `notification ${state}`;
+  panel.setAttribute?.('role', error ? 'alert' : 'status');
+  panel.setAttribute?.('aria-live', error ? 'assertive' : 'polite');
+  $('notification-title').textContent = t(`notice.${state}`);
+  $('notification-icon').textContent = { error: '!', success: '✓', loading: '◌', info: 'i' }[state];
+  $('notification-meta').textContent = resultMeta(details);
+  $('notification-close').hidden = state === 'loading';
+  $('message').textContent = details.detail || text;
   $('message').className = error ? 'error' : 'success';
 }
 
@@ -97,9 +119,13 @@ async function request(path, options = {}) {
               ? t('dynamic.session_expired', {}, 'Oturum sona erdi. Yeniden giriş yapın.')
               : t('dynamic.http_error', { status: response.status });
           const detail = typeof body?.error === 'string' ? body.error : fallback;
-          throw new Error(
+          const error = new Error(
             `${detail}${body?.code ? ` · ${t('dynamic.error_code', { code: body.code })}` : ''}${supportId ? ` · ${t('dynamic.support', { id: supportId })}` : ''}`
           );
+          error.detail = detail;
+          error.code = body?.code;
+          error.supportId = supportId;
+          throw error;
         }
         if (!body || typeof body !== 'object')
           throw new Error(t('dynamic.invalid_json', {}, 'Sunucu geçerli JSON yanıtı döndürmedi.'));
@@ -113,7 +139,7 @@ async function request(path, options = {}) {
 
 function lockControls() {
   for (const control of document.querySelectorAll('button, input, select, textarea')) {
-    if (control.closest?.('#confirm-dialog')) continue;
+    if (control.closest?.('#confirm-dialog') || control.closest?.('#notification')) continue;
     if (!disabledBefore.has(control)) disabledBefore.set(control, control.disabled);
     control.disabled = true;
   }
@@ -126,20 +152,22 @@ async function operation(label, action) {
   stateVersion++;
   lockControls();
   const started = Date.now();
-  const progress = () => message(`${label}… ${((Date.now() - started) / 1000).toFixed(1)} ${t('dynamic.seconds')}`);
+  const progress = () => message(`${label}…`, false, { state: 'loading', durationMs: Date.now() - started });
   progress();
   const timer = setInterval(progress, 1000);
   try {
     const result = await action();
     clearInterval(timer);
-    if (result) message(`${result} · ${t('dynamic.elapsed', { seconds: ((Date.now() - started) / 1000).toFixed(1) })}`);
+    if (result) message(result, false, { state: 'success', durationMs: Date.now() - started });
     else message('');
   } catch (error) {
     clearInterval(timer);
-    message(
-      `${error.message} · ${t('dynamic.elapsed', { seconds: ((Date.now() - started) / 1000).toFixed(1) })}`,
-      true
-    );
+    message(error.message, true, {
+      detail: error.detail,
+      code: error.code,
+      supportId: error.supportId,
+      durationMs: Date.now() - started
+    });
   } finally {
     clearInterval(timer);
     pending = false;
@@ -508,19 +536,41 @@ function lastTestText(profile, mode) {
 }
 
 async function testProfile(profile, mode) {
+  const started = Date.now();
+  const label = t(mode === 'quick' ? 'dynamic.test_quick' : 'dynamic.test_chat');
+  profileTestResults.set(profile.id, { state: 'loading', text: `${label}…`, revision: profile.revision ?? null });
+  render();
   let failure;
   try {
-    await request(`/profiles/${encodeURIComponent(profile.id)}/test`, {
+    const result = await request(`/profiles/${encodeURIComponent(profile.id)}/test`, {
       method: 'POST',
       body: JSON.stringify({ mode }),
       timeoutMs: Math.min(330000, (profile.timeoutMs || 120000) + 30000)
     });
+    profileTestResults.set(profile.id, {
+      state: 'success',
+      text: result.truncated
+        ? t('notice.test_truncated')
+        : t(mode === 'quick' ? 'notice.test_quick_success' : 'notice.test_chat_success'),
+      revision: profile.revision ?? null,
+      supportId: result.requestId,
+      durationMs: result.durationMs ?? Date.now() - started
+    });
   } catch (error) {
     failure = error;
+    profileTestResults.set(profile.id, {
+      state: 'error',
+      revision: profile.revision ?? null,
+      text: error.detail || error.message,
+      code: error.code,
+      supportId: error.supportId,
+      durationMs: Date.now() - started
+    });
   }
   try {
     await loadProfiles();
   } catch (error) {
+    render();
     if (!failure) failure = error;
   }
   if (failure) throw failure;
@@ -569,6 +619,27 @@ function render() {
       const result = document.createElement('p');
       result.textContent = lastTestText(profile, mode);
       testStatus.append(result);
+    }
+
+    let latestResult = profileTestResults.get(profile.id);
+    if (latestResult && latestResult.revision !== (profile.revision ?? null)) {
+      profileTestResults.delete(profile.id);
+      latestResult = null;
+    }
+    let resultPanel;
+    if (latestResult) {
+      const result = document.createElement('div');
+      result.className = `profile-result ${latestResult.state}`;
+      result.setAttribute('role', 'status');
+      const heading = document.createElement('strong');
+      heading.textContent = t(`notice.${latestResult.state}`);
+      const description = document.createElement('p');
+      description.textContent = latestResult.text;
+      const metadata = document.createElement('div');
+      metadata.className = 'result-meta';
+      metadata.textContent = resultMeta(latestResult);
+      result.append(heading, description, metadata);
+      resultPanel = result;
     }
 
     const usageStat = document.createElement('p');
@@ -647,7 +718,9 @@ function render() {
         return t('profiles.deleted', {}, 'Profil silindi.');
       })
     );
-    card.append(title, details, settings, usageStat, testStatus, actions);
+    card.append(title, details, settings);
+    if (resultPanel) card.append(resultPanel);
+    card.append(usageStat, testStatus, actions);
     container.append(card);
   }
 
@@ -703,6 +776,7 @@ async function loadProfiles() {
 }
 
 async function init() {
+  $('notification-close')?.addEventListener('click', () => message(''));
   for (const control of document.querySelectorAll('input, select, textarea')) {
     control.addEventListener('invalid', () => {
       control.setAttribute('aria-invalid', 'true');
@@ -919,6 +993,7 @@ async function init() {
         body: JSON.stringify(input),
         timeoutMs: 30000
       });
+      profileTestResults.delete(saved.id);
       await loadProfiles();
       const latestProfile = profiles.find(p => p.id === saved.id) || saved;
       editProfile(latestProfile);

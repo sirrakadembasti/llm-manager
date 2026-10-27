@@ -105,6 +105,8 @@ Next.js App Router ve Node runtime desteklenir; Edge desteklenmez. Sunucusuz ort
 
 Düzenlerken API anahtarını boş bırakmak kayıtlı anahtarı korur. Zaman sınırı, çıktı tokenı, düşünme modu ve gelişmiş üretim ayarları profil bazındadır; destek modele bağlıdır. Yedek profiller, hata durumunda sırayla denenecek profillerdir.
 
+İşlem bildirimleri üstte görünür kalır; hata, başarı, bilgi ve bekleme durumları ayrı gösterilir. Hata açıklamasının altında kod, destek kimliği ve süre yer alır. Bildirimi **×** ile kapatabilirsiniz; test sonucu ilgili profil kartında kalır. Karttaki ayrıntı bu sekmede korunur, profil değişince sıfırlanır; sayfayı yeniden açınca sunucuda saklanan test geçmişi gösterilir. Açık/koyu görünüm sistem tercihini izler.
+
 ### Arayüz dili
 
 `public/i18n/tr.json` ve `en.json` arayüz çevirileridir. Dil başlangıçta `locale` ile seçilir; varsayılan Türkçedir. Ekranda dil değiştirme düğmesi ve otomatik tarayıcı dili seçimi yoktur. Örneğin kendi sunucu başlangıç dosyanızda:

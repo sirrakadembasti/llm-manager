@@ -5,17 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="app.title">LLM Yönetimi</title>
   <style>
-    :root { font-family: system-ui, sans-serif; color: #1e293b; background: #f5f6fb; }
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, sans-serif;
+      --page: #f5f7fb; --surface: #fff; --soft: #f1f5f9; --text: #172033;
+      --muted: #52627a; --border: #dce3ee; --accent: #4f46e5;
+      --info-bg: #eef2ff; --info-fg: #3730a3; --info-border: #a5b4fc;
+      --error-bg: #fff1f2; --error-fg: #9f1239; --error-border: #fda4af;
+      --success-bg: #ecfdf5; --success-fg: #065f46; --success-border: #6ee7b7;
+      color: var(--text); background: var(--page);
+    }
     * { box-sizing: border-box; }
     body { margin: 0; }
     header {
       background: linear-gradient(120deg, #172554, #312e81);
       color: white;
-      padding: 28px max(20px, calc((100vw - 1100px) / 2));
+      padding: 28px 0;
     }
     header a { color: #c7d2fe; }
     header h1 { margin: 12px 0; font-size: 30px; }
-    main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+    .header-inner, main { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    main { margin: 24px auto 48px; }
     h1, h2 { margin: 0 0 12px; }
     p { line-height: 1.5; }
     .grid {
@@ -87,16 +97,13 @@
     .muted { color: #64748b; font-size: 13px; line-height: 1.6; }
     .empty { padding: 24px; border: 1px dashed #aebbd0; border-radius: 10px; color: #64748b; }
     #message {
-      min-height: 24px;
-      margin: 14px 0;
-      padding: 12px 14px;
-      background: #eef2ff;
-      border-radius: 8px;
+      margin: 5px 0 0;
+      padding: 0;
+      line-height: 1.55;
       overflow-wrap: anywhere;
     }
     #message:empty { display: none; }
-    #message.error { color: #b91c1c; }
-    #message.success { color: #047857; }
+    #message.error, #message.success { color: inherit; }
     code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
     dialog.confirm-dialog {
       border: 1px solid #dce2ef;
@@ -108,10 +115,69 @@
     dialog.confirm-dialog::backdrop {
       background: rgba(0, 0, 0, 0.4);
     }
+    /* Shared surfaces keep contrast consistent in light and dark themes. */
+    section, .card, .playground-card, dialog.confirm-dialog {
+      background: var(--surface); color: var(--text); border-color: var(--border);
+    }
+    .muted, .empty, .result-meta { color: var(--muted); }
+    .card .actions { border-color: var(--border); }
+    .card h3 { font-size: 19px; line-height: 1.4; overflow-wrap: anywhere; }
+    .card p { margin: 10px 0; }
+    .card.active, section.active-summary { background: var(--info-bg); border-color: var(--info-border); }
+    section.active-summary { line-height: 1.6; }
+    input, select, textarea { background: var(--surface); color: var(--text); border-color: var(--border); min-height: 44px; }
+    .sub-select, button.secondary, code, #playground-output { background: var(--soft); color: var(--text); border-color: var(--border); }
+    button { min-height: 42px; transition: background .15s, box-shadow .15s; }
+    button:not(:disabled):hover { box-shadow: 0 0 0 2px var(--info-border); }
+    textarea:focus, summary:focus-visible, a:focus-visible { outline: 3px solid var(--info-border); outline-offset: 3px; }
+    .notification {
+      position: sticky; top: 12px; z-index: 20;
+      display: flex; align-items: flex-start; gap: 12px;
+      margin-bottom: 20px; padding: 16px;
+      border: 1px solid var(--info-border); border-left-width: 4px; border-radius: 12px;
+      background: var(--info-bg); color: var(--info-fg);
+      box-shadow: 0 8px 28px #1725541a;
+      max-height: 36vh; overflow: auto;
+    }
+    .notification.error, .profile-result.error { background: var(--error-bg); color: var(--error-fg); border-color: var(--error-border); }
+    .notification.success, .profile-result.success { background: var(--success-bg); color: var(--success-fg); border-color: var(--success-border); }
+    .notification-copy { flex: 1; min-width: 0; }
+    #notification-title { font-size: 15px; line-height: 1.5; }
+    #notification-icon { display: grid; place-items: center; flex: 0 0 26px; height: 26px; border: 1px solid currentColor; border-radius: 50%; font-weight: 800; }
+    .notification.loading #notification-icon { animation: notice-spin 1.5s linear infinite; }
+    #notification-close { flex: 0 0 32px; min-height: 32px; padding: 0; background: transparent; color: inherit; font-size: 24px; line-height: 1; }
+    .result-meta { margin-top: 8px; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+    #notification-meta { color: inherit; opacity: .85; }
+    .profile-result { margin: 16px 0; padding: 14px; border: 1px solid var(--info-border); border-radius: 10px; background: var(--info-bg); color: var(--info-fg); overflow-wrap: anywhere; }
+    .profile-result p { margin: 6px 0; line-height: 1.55; }
+    .profile-result .result-meta { color: inherit; }
+    .card > .muted:has(> p) { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; font-size: 12px; }
+    @keyframes notice-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #101722; --surface: #182231; --soft: #223044; --text: #edf2fa;
+        --muted: #b0bed1; --border: #34445c; --accent: #a5b4fc;
+        --info-bg: #222d4b; --info-fg: #d4ddff; --info-border: #6274ac;
+        --error-bg: #3b222d; --error-fg: #ffcad2; --error-border: #b45c70;
+        --success-bg: #15372f; --success-fg: #a7f3d0; --success-border: #408e75;
+      }
+      header { background: linear-gradient(120deg, #17243c, #2b2b50); }
+      input.has-saved-key, .key-status.saved { background: #15372f; color: #a7f3d0; border-color: #408e75; }
+      input.updating-key, .key-status.updating { background: #1e3152; color: #c1d8ff; border-color: #597eae; }
+      input.warning-key, .key-status.warning { background: #3c311d; color: #fde68a; border-color: #a38a4c; }
+      details summary { color: var(--accent) !important; }
+    }
     [hidden] { display: none !important; }
     @media (max-width: 760px) {
       .grid, .summary-grid, .field-grid { grid-template-columns: 1fr; }
       main { margin: 20px auto; }
+      .header-inner, main { padding-left: 16px; padding-right: 16px; }
+      header { padding: 22px 0; }
+      header h1 { font-size: 25px; }
+      .grid { min-width: 0; }
+      .grid > section { min-width: 0; }
+      .notification { top: 8px; gap: 9px; padding: 12px; max-height: 40vh; }
       section { padding: 18px; }
       .actions button { flex: 1 1 140px; }
     }
@@ -120,12 +186,22 @@
 </head>
 <body>
   <header>
+    <div class="header-inner">
     <a id="home-link" href="/" data-i18n="app.home">← Ana sayfaya dön</a>
     <h1 data-i18n="app.title">LLM Profil Yönetimi</h1>
     <div data-i18n="app.subtitle">Sağlayıcı, model ve API anahtarlarını tek yerden yönetin.</div>
+    </div>
   </header>
   <main>
-    <p id="message" role="status" aria-live="polite"></p>
+    <div id="notification" class="notification info" role="status" aria-live="polite" hidden>
+      <span id="notification-icon" aria-hidden="true">i</span>
+      <div class="notification-copy">
+        <strong id="notification-title" data-i18n="notice.info">Bilgilendirme</strong>
+        <p id="message"></p>
+        <div id="notification-meta" class="result-meta" aria-live="off"></div>
+      </div>
+      <button id="notification-close" type="button" data-i18n-aria-label="notice.close" aria-label="Bildirimi kapat">×</button>
+    </div>
     <div class="summary-grid">
       <section class="summary-card">
         <span class="muted" data-i18n="app.summary_total">Kayıtlı profil sayısı</span>

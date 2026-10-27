@@ -132,5 +132,13 @@
   "dynamic.profile_updated": "Profil güncellendi (mevcut şifreli API anahtarı korundu).",
   "app.home": "← Ana sayfaya dön",
   "app.subtitle": "Sağlayıcı, model ve API anahtarlarını tek yerden yönetin.",
-  "form.model_options": "Önerilen modeller"
+  "form.model_options": "Önerilen modeller",
+  "notice.loading": "İşlem sürüyor",
+  "notice.success": "İşlem başarılı",
+  "notice.error": "İşlem tamamlanamadı",
+  "notice.info": "Bilgilendirme",
+  "notice.close": "Bildirimi kapat",
+  "notice.test_quick_success": "Bağlantı ve model yanıtı doğrulandı.",
+  "notice.test_chat_success": "Sohbet yanıtı doğrulandı.",
+  "notice.test_truncated": "Bağlantı doğrulandı; tam yanıt için sohbet testini çalıştırın."
 }

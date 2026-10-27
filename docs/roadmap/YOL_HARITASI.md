@@ -1,5 +1,18 @@
 # LLM Manager — tek yol haritası
 
+## Arayüz iyileştirmesi — onaylı tasarım ve uygulama planı
+
+2026-10-27: Kullanıcı tasarımı onayladı. Amaç: başlık/içerik hizası, görünür bildirimler ve profil kartında kalıcı test sonucu. HTML/CSS ve mevcut tarayıcı JS'i kullanılacak; yeni bağımlılık ve API değişikliği yok. TR/EN, klavye erişimi ve mobil ekran korunacak.
+
+- [x] `tests/ui-completion.test.js`: yükleniyor/hata/bilgi ayrımı, teknik ayrıntıların ayrılması ve kartta test sonucunun korunması için davranış testlerini ekle; eksik davranış nedeniyle başarısızlığı doğrula.
+- [x] `public/llm.html`: başlık ve içerikte ortak 1200px kapsayıcı; masaüstünde görünür yapışkan bildirim, mobilde daralmayan düzen, açık/koyu tema ve odak stilleri.
+- [x] `public/llm-ui.js`: durum başlığı, güvenli metin renderı, kapatma; hata kodu/destek kimliği/süreyi ayrı göster. Test sırasında ve sonrasında ilgili kartta sonuç göster; sayfa yenilendiğinde sunucunun kayıtlı test geçmişini kullan.
+- [x] `public/i18n/{tr,en}.json`: bildirim başlıkları ve ayrıntı etiketlerini ekle. İlgili UI/i18n testleri, lint/typecheck/format ve gerçek tarayıcıda masaüstü/mobil görünüm ile hata/başarı durumlarını doğrula; kılavuz ve changelog'u güncelle.
+
+Kabul: hata kaybolmaz, sonraki işlem veya kapatma ile değişir; test sonucu yalnız test edilen kartta kalır; uzun destek kimliği taşmaz; yükleniyor başarı gibi görünmez; başlık ve içerik sol/sağ kenarları eşittir. Geçici toast yerine kalıcı durum paneli seçildi.
+
+Doğrulama: UI/sohbet/kurtarma/i18n/hardening seçkisinde 50/50 test, lint/typecheck/format geçti. Gerçek tarayıcıda 1600px masaüstü ve 390px mobilde yatay taşma yok; başlık ve kartın sol kenarı eşit. Örnek API ile bekleme/hata/başarı ve kapatma kontrol edildi; üst bildirim kapanınca kart sonucu kaldı. Açık/koyu görünüm incelendi. Bağımsız incelemenin eski revizyon ve İngilizce başarı metni bulguları testlerle kapatıldı; açık bulgu yok.
+
 Güncelleme: **2026-10-27** · Paket: `@sirrakadembasti/llm-manager` · Yerel sürüm: **2.0.0 / Unreleased**.
 
 **Durum:** YH1'in 32 mimari kartı ve YH2'nin G01–G26 kapsamı tamamlandı. YH2 yalnız FAZ 0/1/2 içerir; FAZ 3 yoktur. Aşağıdaki kimlikler önceki belgelerle izlenebilirlik için korunur. G13 ayrı görev kartı değildi; gerçek derleyici doğrulaması kapsamında kapatıldı.

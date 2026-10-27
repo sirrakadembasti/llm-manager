@@ -132,5 +132,13 @@
   "dynamic.profile_updated": "Profile updated (existing encrypted API key preserved).",
   "app.home": "← Back to home",
   "app.subtitle": "Manage providers, models and API keys in one place.",
-  "form.model_options": "Suggested models"
+  "form.model_options": "Suggested models",
+  "notice.loading": "In progress",
+  "notice.success": "Action completed",
+  "notice.error": "Action failed",
+  "notice.info": "Information",
+  "notice.close": "Dismiss notification",
+  "notice.test_quick_success": "Connection and model response verified.",
+  "notice.test_chat_success": "Conversation response verified.",
+  "notice.test_truncated": "Connection verified; run a conversation test for a full response."
 }

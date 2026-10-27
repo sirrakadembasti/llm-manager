@@ -38,6 +38,7 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 
 ### Düzeltildi
 
+- Yönetim arayüzünde başlık/içerik hizası eşitlendi; mobil ve açık/koyu tema kontrastı iyileştirildi. Kalıcı, kapatılabilir durum bildirimi ve profil kartında revizyona bağlı test sonucu eklendi; hata açıklaması ile teknik ayrıntılar ayrıldı.
 - Yanlış şifreleme anahtarıyla profil açma, sağlayıcıya istek yapılmadan `STORE_DECRYPT_FAILED` döndürür. Güvenli kurtarma mesajı, tr/en açıklamaları ve veri korunumu regresyon testi eklendi; anahtar önceliği değişmedi.
 - `npm start` çalışma dizinindeki `.env` dosyasını okur ve `LLM_ADMIN_USER` ayarını uygular. Terminal ortamı önceliklidir; eksik `.env` engel değildir, diğer okuma hataları gizlenmez.
 - `chatAccess: false` 404 döndürür; Bearer yönetim sayfası/betiğine giremez. Özel API yolu ve wildcard CORS yalnız sohbet kapsamındadır.

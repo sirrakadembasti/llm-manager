@@ -53,6 +53,74 @@ function ui(locale = 'en') {
   };
 }
 
+test('notifications distinguish progress, information and errors while separating technical details', () => {
+  const { element, run } = ui('en');
+  run("message('Checking', false, { state: 'loading' })");
+  assert.equal(element('notification').className, 'notification loading');
+  assert.equal(element('notification-title').textContent, 'In progress');
+  run(
+    "message('<unsafe text>', true, { detail: 'Check billing.', code: 'LLM_BILLING', supportId: 'support-123', durationMs: 1200 })"
+  );
+  assert.equal(element('message').textContent, 'Check billing.');
+  assert.equal(element('notification-title').textContent, 'Action failed');
+  assert.match(element('notification-meta').textContent, /LLM_BILLING/);
+  assert.match(element('notification-meta').textContent, /support-123/);
+  assert.match(element('notification-meta').textContent, /1\.2/);
+  run("message('<unsafe text>')");
+  assert.equal(element('message').textContent, '<unsafe text>');
+  assert.equal(element('notification').className, 'notification info');
+  run("message('')");
+  assert.equal(element('notification').hidden, true);
+});
+
+test('failed test stays on the affected profile card after profiles refresh', async () => {
+  const { element, run } = ui('en');
+  await run(`
+    profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm' }, { id: 'b', name: 'B', provider: 'google', model: 'n' }];
+    request = async () => { const error = new Error('Check billing.'); error.code = 'LLM_BILLING'; error.supportId = 'support-123'; throw error; };
+    loadProfiles = async () => render();
+    testProfile(profiles[0], 'quick').catch(() => {});
+  `);
+  const cards = element('profiles').options;
+  const result = cards[0].options.find(child => child.className === 'profile-result error');
+  assert.ok(result, 'the tested card must retain its result');
+  assert.ok(result.options.some(child => child.textContent.includes('Check billing.')));
+  assert.equal(
+    cards[1].options.some(child => child.className === 'profile-result error'),
+    false
+  );
+  run('render()');
+  assert.ok(element('profiles').options[0].options.some(child => child.className === 'profile-result error'));
+});
+
+test('English success uses translated copy instead of the server Turkish message', async () => {
+  const { element, run } = ui('en');
+  await run(`
+    profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm', revision: 'one' }];
+    request = async () => ({ message: 'Kısa bağlantı ve model yanıtı doğrulandı.', durationMs: 1200 });
+    loadProfiles = async () => render();
+    testProfile(profiles[0], 'quick');
+  `);
+  const result = element('profiles').options[0].options.find(child => child.className === 'profile-result success');
+  assert.ok(result.options.some(child => child.textContent === 'Connection and model response verified.'));
+});
+
+test('an external profile revision change clears the old test result', async () => {
+  const { element, run } = ui('en');
+  await run(`
+    profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm', revision: 'one' }];
+    request = async () => ({ ok: true, durationMs: 1200 });
+    loadProfiles = async () => render();
+    testProfile(profiles[0], 'quick');
+  `);
+  assert.ok(element('profiles').options[0].options.some(child => child.className === 'profile-result success'));
+  run("profiles[0] = { ...profiles[0], model: 'changed-model', revision: 'two' }; render()");
+  assert.equal(
+    element('profiles').options[0].options.some(child => child.className === 'profile-result success'),
+    false
+  );
+});
+
 test('MiMo test-policy hint follows provider switches and remains scoped after Turkish/English translation', () => {
   for (const locale of ['tr', 'en']) {
     const { element, translated, run } = ui(locale);
