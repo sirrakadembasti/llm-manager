@@ -125,6 +125,10 @@ npx llm-manager import backup.json --password backup-password
 
 Key priority: explicit encryptionKey > LLM_CONFIG_ENCRYPTION_KEY > key file. Default setup migrates a legacy key to the file under lock, leaving `.env` unchanged. Deprecated `writeEnv: true` preserves legacy writing. Rotation backs up `llm-encryption.key.old-<date>-<id>`.
 
+`STORE_DECRYPT_FAILED` means the saved API key could not be decrypted. An old `.env` key can override the correct key file. Back up `.env`, profiles and the key first. Only after verifying that the key file decrypts existing profiles, remove the conflicting `.env` override and restart. Generating a new key cannot recover existing ciphertext; corrupted ciphertext can cause the same error.
+
+`auth.failed` records a request with missing or incorrect management credentials. A browser's initial Basic Auth challenge or cached old password can trigger it; it is separate from provider access.
+
 STORE_CORRUPT and STORE_VERSION_UNSUPPORTED return typed500 errors and UI recovery guidance. Preserve the damaged/newer file and its key; restore a matching good `.bak` for corruption, or use a compatible version for newer data. Do not overwrite with an empty store.
 
 CLI/example processes own SIGINT/SIGTERM shutdown with a limit of 10 seconds. Programmatic factories/probes/init leave host signals alone by default. Use `handleSignals: true` only for an owned standalone process; embedded hosts call `await instance.close()`. [Docker, PM2, systemd, NSSM and recovery](DEPLOY.md).

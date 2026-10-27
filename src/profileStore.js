@@ -78,9 +78,17 @@ export function decrypt(payload, key) {
       retryable: false
     });
   }
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+  } catch (cause) {
+    throw new LLMError(
+      ErrorCodes.STORE_DECRYPT_FAILED,
+      'Kayıtlı API anahtarı çözülemedi. LLM_CONFIG_ENCRYPTION_KEY ayarını ve profil dosyasıyla eşleşen şifreleme anahtarı yedeğini kontrol edin.',
+      { status: 500, retryable: false, cause }
+    );
+  }
 }
 
 // API anahtarı (secret) içermeyen, dışarı verilebilir profil görünümü.

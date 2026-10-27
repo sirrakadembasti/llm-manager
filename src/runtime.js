@@ -224,6 +224,12 @@ export async function executeWithRetry(
 }
 
 const KNOWN_CODE_DEFAULTS = {
+  [ErrorCodes.STORE_DECRYPT_FAILED]: {
+    status: 500,
+    message:
+      'Kayıtlı API anahtarı çözülemedi. LLM_CONFIG_ENCRYPTION_KEY ayarını ve profil dosyasıyla eşleşen şifreleme anahtarı yedeğini kontrol edin.',
+    retryable: false
+  },
   [ErrorCodes.LLM_ABORTED]: {
     status: 499,
     message: 'İstek iptal edildi.',

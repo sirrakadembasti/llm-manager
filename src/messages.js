@@ -8,6 +8,8 @@ export const MESSAGES = {
     [ErrorCodes.PROFILE_CONFLICT]: 'Profil başka bir işlem tarafından değiştirildi.',
     [ErrorCodes.STORE_LOCKED]: 'Depo dosyası şu anda başka bir işlem tarafından kilitli.',
     [ErrorCodes.STORE_CORRUPT]: 'Profil veri dosyası bozuk veya geçersiz JSON içeriyor.',
+    [ErrorCodes.STORE_DECRYPT_FAILED]:
+      'Kayıtlı API anahtarı çözülemedi. LLM_CONFIG_ENCRYPTION_KEY ayarını ve profil dosyasıyla eşleşen şifreleme anahtarı yedeğini kontrol edin.',
     [ErrorCodes.STORE_VERSION_UNSUPPORTED]: 'Desteklenmeyen profil depolama sürümü.',
     [ErrorCodes.MESSAGES_INVALID]: 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.',
     [ErrorCodes.FORBIDDEN]: 'Yönetici yetkisi gerekli.',
@@ -33,6 +35,8 @@ export const MESSAGES = {
     [ErrorCodes.PROFILE_CONFLICT]: 'Profile was modified by another operation.',
     [ErrorCodes.STORE_LOCKED]: 'Store file is currently locked by another process.',
     [ErrorCodes.STORE_CORRUPT]: 'Profile data file is corrupted or contains invalid JSON.',
+    [ErrorCodes.STORE_DECRYPT_FAILED]:
+      'The saved API key could not be decrypted. Check LLM_CONFIG_ENCRYPTION_KEY and the encryption key backup matching the profile file.',
     [ErrorCodes.STORE_VERSION_UNSUPPORTED]: 'Unsupported profile storage version.',
     [ErrorCodes.MESSAGES_INVALID]: 'A valid list of messages or prompt is required.',
     [ErrorCodes.FORBIDDEN]: 'Administrator access required.',

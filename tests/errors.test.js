@@ -9,6 +9,38 @@ import { providerFetch, createPublicLookup } from '../src/providerTransport.js';
 import { createLLMProfileStore } from '../src/profileStore.js';
 import { createLLMManager } from '../src/core.js';
 
+test('wrong profile encryption key returns a local recovery error without calling the provider or changing data', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-key-mismatch-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const filePath = path.join(dir, 'profiles.json');
+  const store = createLLMProfileStore({ filePath, encryptionKey: 'ab'.repeat(32) });
+  const profile = await store.save({
+    name: 'Test',
+    provider: 'custom',
+    model: 'test',
+    baseURL: 'https://example.com/v1',
+    apiKey: 'private-fixture-secret'
+  });
+  const savedBytes = fs.readFileSync(filePath, 'utf8');
+  let providerCalled = false;
+  const manager = createLLMManager({
+    store: createLLMProfileStore({ filePath, encryptionKey: 'cd'.repeat(32) }),
+    generate: async () => {
+      providerCalled = true;
+      return 'should not run';
+    }
+  });
+  const result = await manager.handle({ method: 'POST', path: `/profiles/${profile.id}/test`, body: {} });
+  assert.equal(result.status, 500);
+  assert.equal(result.body.code, 'STORE_DECRYPT_FAILED');
+  assert.equal(result.body.retryable, false);
+  assert.match(result.body.error, /LLM_CONFIG_ENCRYPTION_KEY/);
+  assert.doesNotMatch(JSON.stringify(result), /private-fixture-secret|Unsupported state|authenticate data/);
+  assert.equal(providerCalled, false);
+  assert.equal(fs.readFileSync(filePath, 'utf8'), savedBytes);
+  assert.equal((await store.get(profile.id)).apiKey, 'private-fixture-secret');
+});
+
 test('YH1-A4: LLMError constructor assigns code, status, retryable, upstreamStatus and preserves cause', () => {
   const cause = new Error('root cause');
   const err = new LLMError(ErrorCodes.LLM_NETWORK, 'Bağlantı hatası', {

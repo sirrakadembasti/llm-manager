@@ -190,6 +190,10 @@ npx llm-manager import yedek.json --password yedek-parolasi
 
 Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup eski `.env` anahtarını kilit altında dosyaya taşır; `.env` değişmez. `writeEnv: true` deprecated uyumluluk yoludur. Döndürme eski anahtarı `.old-<tarih>-<kimlik>` adıyla saklar.
 
+`STORE_DECRYPT_FAILED`, kayıtlı API anahtarının açılamadığını bildirir; sağlayıcı hatası değildir. `.env` içindeki eski `LLM_CONFIG_ENCRYPTION_KEY`, doğru anahtar dosyasının önüne geçebilir. Önce `.env`, profil ve anahtarı yedekleyin. Dosyadaki anahtarın mevcut profilleri açtığı doğrulanmışsa çakışan `.env` ayarını kaldırıp sunucuyu yeniden başlatın. Yeni bir anahtar üretmek eski profilleri kurtarmaz; şifreli verinin bozulması da aynı hatayı verebilir.
+
+Terminaldeki `auth.failed`, eksik veya yanlış yönetim kimlik bilgili isteği gösterir. Tarayıcının ilk Basic Auth isteğinde veya eski parola önbellekte kaldığında görülebilir; sağlayıcı bağlantısıyla ilgili değildir.
+
 Depo Promise tabanlıdır; yerel disk kilidi, FIFO yazma, revizyon ve `.bak` yedeği kullanır. NFS/SMB garantisi yoktur. `STORE_CORRUPT` için bozuk dosyayı koruyup eşleşen anahtar ve sağlam `.bak` ile dönün; `STORE_VERSION_UNSUPPORTED` için uyumlu sürüm kullanın. Boş depoyla üzerine yazmayın.
 
 `logger` request-id ile güvenli metadata yazar. `logContent: false` sabittir; sır/istem/cevap loglanmaz. `chat.completed` başarı, hata, iptal ve erken iterator dönüşünde bir mantıksal sohbet için bir kez code/usage/son profil bilgisi verir; bilinmeyen usage null'dır. `usageLog: true` aylık sayısal JSONL ve admin `/usage` özeti açar. Public `/health` sırsızdır; `health: false` kapatır. UI: `locale: 'tr' | 'en'`, `homeUrl`.
