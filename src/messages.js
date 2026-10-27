@@ -27,37 +27,10 @@ export const MESSAGES = {
     [ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH]: 'Kimlik bilgileri ile API adresi uyumsuz.',
     [ErrorCodes.PARAMS_INVALID]: 'Geçersiz istek parametreleri.',
     [ErrorCodes.API_KEY_REQUIRED]: 'API anahtarı girilmelidir.'
-  },
-  en: {
-    [ErrorCodes.RUNTIME_OPTIONS_INVALID]: 'Invalid runtime options.',
-    [ErrorCodes.PROFILE_INVALID]: 'Invalid profile data.',
-    [ErrorCodes.PROFILE_NOT_FOUND]: 'Profile not found.',
-    [ErrorCodes.PROFILE_CONFLICT]: 'Profile was modified by another operation.',
-    [ErrorCodes.STORE_LOCKED]: 'Store file is currently locked by another process.',
-    [ErrorCodes.STORE_CORRUPT]: 'Profile data file is corrupted or contains invalid JSON.',
-    [ErrorCodes.STORE_DECRYPT_FAILED]:
-      'The saved API key could not be decrypted. Check LLM_CONFIG_ENCRYPTION_KEY and the encryption key backup matching the profile file.',
-    [ErrorCodes.STORE_VERSION_UNSUPPORTED]: 'Unsupported profile storage version.',
-    [ErrorCodes.MESSAGES_INVALID]: 'A valid list of messages or prompt is required.',
-    [ErrorCodes.FORBIDDEN]: 'Administrator access required.',
-    [ErrorCodes.RATE_LIMITED]: 'Too many requests. Please wait a moment.',
-    [ErrorCodes.CSRF_REQUIRED]: 'CSRF verification header is missing.',
-    [ErrorCodes.BODY_TOO_LARGE]: 'Payload size exceeded the limit.',
-    [ErrorCodes.BODY_INVALID]: 'Invalid JSON payload.',
-    [ErrorCodes.LLM_TIMEOUT]: 'Model response timed out.',
-    [ErrorCodes.LLM_ABORTED]: 'Request was aborted by the client.',
-    [ErrorCodes.LLM_UPSTREAM_UNAVAILABLE]: 'Upstream provider is temporarily unavailable (5xx).',
-    [ErrorCodes.LLM_NETWORK]: 'Failed to connect to the model provider.',
-    [ErrorCodes.LLM_DNS_BLOCKED]: 'Destination address blocked by security policy.',
-    [ErrorCodes.LLM_CONTENT_FILTERED]: 'Response was blocked by content or safety filters.',
-    [ErrorCodes.LLM_RESPONSE_TOO_LARGE]: 'Provider response exceeded payload size limit.',
-    [ErrorCodes.AI_CREDENTIAL_ENDPOINT_MISMATCH]: 'Credentials and endpoint mismatch.',
-    [ErrorCodes.PARAMS_INVALID]: 'Invalid request parameters.',
-    [ErrorCodes.API_KEY_REQUIRED]: 'API key is required.'
   }
 };
 
-export function getErrorMessage(code, locale = 'tr', fallback = null) {
-  const normalizedLocale = locale === 'en' ? 'en' : 'tr';
-  return MESSAGES[normalizedLocale]?.[code] || fallback || MESSAGES.tr[code] || 'Bir hata oluştu.';
+// İkinci parametre eski çağrıların üçüncü fallback değerini korumak için tutulur.
+export function getErrorMessage(code, _legacyLocale = 'tr', fallback = null) {
+  return MESSAGES.tr[code] || fallback || 'Bir hata oluştu.';
 }

@@ -130,7 +130,6 @@ export function mountLLMManagement(
     chatOverrides = 'admin',
     health = true,
     usageLog = false,
-    locale = 'tr',
     homeUrl = '/',
     limits,
     bodyLimit,
@@ -176,7 +175,7 @@ export function mountLLMManagement(
       : next();
   const protectPage = [requestIdMiddleware, securityHeaders, rejectChatToken, authMiddleware, admin];
 
-  const { html, script } = createUiAssets({ apiPath, pagePath, locale, homeUrl });
+  const { html, script } = createUiAssets({ apiPath, pagePath, homeUrl });
   app.get(pagePath, ...protectPage, (_req, res) => {
     res.set('Content-Security-Policy', PAGE_CSP).type('html').send(html);
   });
@@ -202,7 +201,6 @@ export function mountLLMManagement(
     logger,
     health,
     usageLog,
-    locale,
     homeUrl,
     ...(allowLocalHttp !== undefined ? { allowLocalHttp } : {})
   });

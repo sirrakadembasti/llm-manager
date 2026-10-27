@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const english = fs.readFileSync(new URL('../docs/README.en.md', import.meta.url), 'utf8');
+const guide = fs.readFileSync(new URL('../docs/TEKNIK_KILAVUZ.md', import.meta.url), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
-test('English deployment matrix covers the ten supported scenarios and manual/serverless boundaries', () => {
-  const matrix = english.split('## Supported environments')[1]?.split('\n## ')[0] ?? '';
+test('Turkish technical guide matrix covers the ten supported scenarios and manual/serverless boundaries', () => {
+  const matrix = guide.split('## Desteklenen ortamlar')[1]?.split('\n## ')[0] ?? '';
   const rows = matrix
     .split('\n')
     .filter(line => /^\|/.test(line))
@@ -26,16 +26,16 @@ test('English deployment matrix covers the ten supported scenarios and manual/se
       'dotnet'
     ]
   );
-  assert.match(matrix, /Edge is unsupported/);
-  assert.match(matrix, /persistent host store/);
-  assert.match(matrix, /manual bridge/);
+  assert.match(matrix, /Edge desteklenmez/);
+  assert.match(matrix, /kalıcı ana uygulama deposu/);
+  assert.match(matrix, /elle köprü/);
 });
 
-test('English operators can find lifecycle, quota, recovery and privacy instructions', () => {
+test('Turkish operators can find lifecycle, quota, recovery and privacy instructions', () => {
   for (const instruction of [
     /handleSignals: true/,
     /await instance\.close\(\)/,
-    /10 seconds/,
+    /10 saniye/,
     /getClientId\(request\)/,
     /principal\.id/,
     /trust proxy/,
@@ -44,9 +44,9 @@ test('English operators can find lifecycle, quota, recovery and privacy instruct
     /STORE_VERSION_UNSUPPORTED/,
     /\.bak/,
     /logContent: false/,
-    /cannot be enabled/,
+    /açılamaz/,
     /chat\.completed/,
-    /early iterator return/,
+    /erken yineleyici dönüşü/,
     /maxSingleMessageChars/,
     /BODY_TOO_LARGE/,
     /MESSAGES_INVALID/,
@@ -55,19 +55,19 @@ test('English operators can find lifecycle, quota, recovery and privacy instruct
     /purpose: 'default'/,
     /writeEnv: true/,
     /llm-encryption\.key\.old-/,
-    /\.env.*unchanged/
+    /\.env.*değişmez/
   ])
-    assert.match(english, instruction);
+    assert.match(guide, instruction);
 });
 
-test('English migration documents every public subpath and removed synchronous root exports', () => {
+test('Turkish migration documents every public subpath and removed synchronous root exports', () => {
   for (const subpath of Object.keys(pkg.exports).filter(key => key !== '.')) {
-    assert.ok(english.includes(`${pkg.name}${subpath.slice(1)}`), `missing ${subpath}`);
+    assert.ok(guide.includes(`${pkg.name}${subpath.slice(1)}`), `missing ${subpath}`);
   }
   assert.match(
-    english,
+    guide,
     /import \{ detectProjectType, detectEntryFile, formatVerificationReport \} from '@sirrakadembasti\/llm-manager\/init'/
   );
-  assert.match(english, /removed from the root/);
-  assert.match(english, /one compatibility release/);
+  assert.match(guide, /kökten kaldırılmıştır/);
+  assert.match(guide, /bir uyumluluk sürümü/);
 });

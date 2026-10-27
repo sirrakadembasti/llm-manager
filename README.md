@@ -26,14 +26,14 @@ npm install github:sirrakadembasti/llm-manager express
 npx llm-manager init
 ```
 
-Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başka bir projedir. Yerel 2.0.0 sürümü henüz **Unreleased** durumundadır.
+Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başka bir projedir. Yerel 2.0.0 sürümü henüz **yayımlanmamış** durumundadır.
 
 ## Belgeler
 
 - [Kullanıcı kılavuzu](docs/KULLANICI_KILAVUZU.md): arayüz, API, ayarlar, güvenlik ve yedekleme.
-- [Entegrasyon](docs/ENTEGRASYON.md) · [Dağıtım](docs/DEPLOY.md) · [English guide](docs/README.en.md)
+- [Entegrasyon](docs/ENTEGRASYON.md) · [Dağıtım](docs/DAGITIM.md) · [Teknik kılavuz](docs/TEKNIK_KILAVUZ.md)
 - [Yol haritası](docs/roadmap/YOL_HARITASI.md) · [Klasörlerin amacı ve temizlik listesi](docs/KLASORLER.md)
-- [Değişiklikler](docs/CHANGELOG.md) · [Katkı](docs/CONTRIBUTING.md) · [Güvenlik](docs/SECURITY.md)
+- [Değişiklikler](docs/DEGISIKLIKLER.md) · [Katkı](docs/KATKI_REHBERI.md) · [Güvenlik](docs/GUVENLIK.md)
 
 **Yedekleme:** `data/llm-profiles.json` ile `data/llm-encryption.key` dosyalarını birlikte saklayın. Anahtar kaybolursa kayıtlı API anahtarları çözülemez.
 

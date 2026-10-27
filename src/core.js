@@ -57,14 +57,14 @@ export function isValidMountPath(value) {
 }
 
 // Yönetim sayfası ve betiği bir kez okunup yol ayarlarıyla önbelleğe alınır.
-export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', locale = 'tr', homeUrl = '/' } = {}) {
+export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', homeUrl = '/' } = {}) {
   if (![apiPath, pagePath].every(isValidMountPath)) {
     throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Geçersiz eklenti mount yolu.', {
       status: 400,
       retryable: false
     });
   }
-  const normalizedLocale = String(locale).toLowerCase() === 'en' ? 'en' : 'tr';
+  const normalizedLocale = 'tr';
   const dictPath = path.join(publicDir, 'i18n', `${normalizedLocale}.json`);
   const dictJson = fs.existsSync(dictPath) ? fs.readFileSync(dictPath, 'utf8') : '{}';
   const dict = JSON.parse(dictJson);
@@ -164,7 +164,6 @@ export function createLLMManager({
   logger: customLogger = null,
   health = true,
   usageLog = false,
-  locale = 'tr',
   homeUrl = '/',
   getClientId
 } = {}) {
@@ -1033,7 +1032,6 @@ export function createLLMManager({
       apiPath = '/api/llm',
       pagePath = '/llm',
       requireCsrf = true,
-      locale: customLocale,
       homeUrl: customHomeUrl,
       adminPassword: password = adminPassword,
       adminUser: user = adminUser,
@@ -1042,11 +1040,10 @@ export function createLLMManager({
       insecureNoAuth: allowNoAuth = insecureNoAuth
     } = {}
   ) {
-    const activeLocale = customLocale || locale || 'tr';
     const activeHomeUrl = customHomeUrl || homeUrl || '/';
-    const key = `${apiPath}|${pagePath}|${activeLocale}|${activeHomeUrl}`;
+    const key = `${apiPath}|${pagePath}|${activeHomeUrl}`;
     if (cachedUiKey !== key) {
-      cachedUi = createUiAssets({ apiPath, pagePath, locale: activeLocale, homeUrl: activeHomeUrl });
+      cachedUi = createUiAssets({ apiPath, pagePath, homeUrl: activeHomeUrl });
       cachedUiKey = key;
     }
     const requestId = sanitizeRequestId(request.headers.get('x-request-id'));

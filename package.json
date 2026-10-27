@@ -51,7 +51,7 @@
     "docs",
     "README.md",
     "LICENSE",
-    "docs/CHANGELOG.md",
+    "docs/DEGISIKLIKLER.md",
     ".env.example"
   ],
   "scripts": {

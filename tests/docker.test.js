@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-test('YH1-D3: Dockerfile, .dockerignore and DEPLOY.md exist and meet production specs', () => {
+test('YH1-D3: Dockerfile, .dockerignore and DAGITIM.md exist and meet production specs', () => {
   const root = path.resolve();
 
   // 1. Dockerfile checks
@@ -29,9 +29,9 @@ test('YH1-D3: Dockerfile, .dockerignore and DEPLOY.md exist and meet production 
   assert.ok(dockerignore.includes('.git'));
   assert.ok(dockerignore.includes('.env*'));
 
-  // 3. docs/DEPLOY.md checks
-  const deployPath = path.join(root, 'docs/DEPLOY.md');
-  assert.ok(fs.existsSync(deployPath), 'docs/DEPLOY.md should exist');
+  // 3. docs/DAGITIM.md checks
+  const deployPath = path.join(root, 'docs/DAGITIM.md');
+  assert.ok(fs.existsSync(deployPath), 'docs/DAGITIM.md should exist');
   const deploy = fs.readFileSync(deployPath, 'utf8');
 
   assert.ok(deploy.includes('docker run'));

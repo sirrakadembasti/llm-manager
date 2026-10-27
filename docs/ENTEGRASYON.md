@@ -136,7 +136,7 @@ Helper hazırlanır; host girişine otomatik framework kodu eklenmez. Web Reques
 
 > [!WARNING]
 > **Güvenlik ve sınırlar** — **Kimlik:** Sohbet Bearer; admin verilmez. **Çalışma:** HTTP istemcisi.
-> **Sunucusuz:** İstemci olabilir, yönetim sürekli Node ister. **Ayrı süreç:** Gerekir. [Servis kurulumu](DEPLOY.md).
+> **Sunucusuz:** İstemci olabilir, yönetim sürekli Node ister. **Ayrı süreç:** Gerekir. [Servis kurulumu](DAGITIM.md).
 
 ## .NET ve .NET Framework
 

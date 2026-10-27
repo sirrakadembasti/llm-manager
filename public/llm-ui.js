@@ -530,7 +530,7 @@ function lastTestText(profile, mode) {
         : t('dynamic.test_quick_short', {}, 'Hızlı bağlantı')
     );
   if (Number.isFinite(test.durationMs)) parts.push(`${(test.durationMs / 1000).toFixed(1)} ${t('dynamic.seconds')}`);
-  if (!Number.isNaN(at.getTime())) parts.push(at.toLocaleString(document.body.dataset.locale || 'tr'));
+  if (!Number.isNaN(at.getTime())) parts.push(at.toLocaleString('tr-TR'));
   if (test.code) parts.push(t('dynamic.error_code', { code: test.code }));
   return `${parts.join(' · ')}. ${t('dynamic.history')}`;
 }
@@ -648,7 +648,7 @@ function render() {
     if (profUsage && profUsage.requests > 0) {
       usageStat.textContent = t(
         'profiles.this_month',
-        { requests: profUsage.requests.toLocaleString(), tokens: profUsage.totalTokens.toLocaleString() },
+        { requests: profUsage.requests.toLocaleString('tr-TR'), tokens: profUsage.totalTokens.toLocaleString('tr-TR') },
         `📊 Bu ay: ${profUsage.requests} istek · ${profUsage.totalTokens} token`
       );
     } else {
@@ -925,7 +925,7 @@ async function init() {
         if (meta) {
           meta.textContent = t('dynamic.metrics', {
             duration: durationMs,
-            tokens: usage?.totalTokens ? usage.totalTokens.toLocaleString(document.body.dataset.locale || 'tr') : '—',
+            tokens: usage?.totalTokens ? usage.totalTokens.toLocaleString('tr-TR') : '—',
             reason: finishReason
           });
         }
@@ -939,9 +939,7 @@ async function init() {
         if (meta) {
           meta.textContent = t('dynamic.metrics', {
             duration: durationMs,
-            tokens: res.usage?.totalTokens
-              ? res.usage.totalTokens.toLocaleString(document.body.dataset.locale || 'tr')
-              : '—',
+            tokens: res.usage?.totalTokens ? res.usage.totalTokens.toLocaleString('tr-TR') : '—',
             reason: res.finishReason || 'stop'
           });
         }

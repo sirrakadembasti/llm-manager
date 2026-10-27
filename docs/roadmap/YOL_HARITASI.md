@@ -2,29 +2,29 @@
 
 ## Arayüz iyileştirmesi — onaylı tasarım ve uygulama planı
 
-2026-10-27: Kullanıcı tasarımı onayladı. Amaç: başlık/içerik hizası, görünür bildirimler ve profil kartında kalıcı test sonucu. HTML/CSS ve mevcut tarayıcı JS'i kullanılacak; yeni bağımlılık ve API değişikliği yok. TR/EN, klavye erişimi ve mobil ekran korunacak.
+2026-10-27: Kullanıcı tasarımı onayladı. Amaç: başlık/içerik hizası, görünür bildirimler ve profil kartında kalıcı test sonucu. HTML/CSS ve mevcut tarayıcı JS'i kullanıldı; yeni bağımlılık ve API değişikliği yok. Klavye erişimi ve mobil ekran korundu; ilk teslimdeki İngilizce destek sonraki kullanıcı kararıyla kaldırıldı.
 
 - [x] `tests/ui-completion.test.js`: yükleniyor/hata/bilgi ayrımı, teknik ayrıntıların ayrılması ve kartta test sonucunun korunması için davranış testlerini ekle; eksik davranış nedeniyle başarısızlığı doğrula.
 - [x] `public/llm.html`: başlık ve içerikte ortak 1200px kapsayıcı; masaüstünde görünür yapışkan bildirim, mobilde daralmayan düzen, açık/koyu tema ve odak stilleri.
 - [x] `public/llm-ui.js`: durum başlığı, güvenli metin renderı, kapatma; hata kodu/destek kimliği/süreyi ayrı göster. Test sırasında ve sonrasında ilgili kartta sonuç göster; sayfa yenilendiğinde sunucunun kayıtlı test geçmişini kullan.
-- [x] `public/i18n/{tr,en}.json`: bildirim başlıkları ve ayrıntı etiketlerini ekle. İlgili UI/i18n testleri, lint/typecheck/format ve gerçek tarayıcıda masaüstü/mobil görünüm ile hata/başarı durumlarını doğrula; kılavuz ve changelog'u güncelle.
+- [x] `public/i18n/tr.json`: bildirim başlıkları ve ayrıntı etiketleri eklendi. İlk teslimdeki İngilizce sözlük daha sonra kaldırıldı. İlgili UI/i18n testleri, lint/typecheck/format ve gerçek tarayıcıda masaüstü/mobil görünüm ile hata/başarı durumları doğrulandı; kılavuz ve değişiklik günlüğü güncellendi.
 
 Kabul: hata kaybolmaz, sonraki işlem veya kapatma ile değişir; test sonucu yalnız test edilen kartta kalır; uzun destek kimliği taşmaz; yükleniyor başarı gibi görünmez; başlık ve içerik sol/sağ kenarları eşittir. Geçici toast yerine kalıcı durum paneli seçildi.
 
 Doğrulama: UI/sohbet/kurtarma/i18n/hardening seçkisinde 50/50 test, lint/typecheck/format geçti. Gerçek tarayıcıda 1600px masaüstü ve 390px mobilde yatay taşma yok; başlık ve kartın sol kenarı eşit. Örnek API ile bekleme/hata/başarı ve kapatma kontrol edildi; üst bildirim kapanınca kart sonucu kaldı. Açık/koyu görünüm incelendi. Bağımsız incelemenin eski revizyon ve İngilizce başarı metni bulguları testlerle kapatıldı; açık bulgu yok.
 
-Güncelleme: **2026-10-27** · Paket: `@sirrakadembasti/llm-manager` · Yerel sürüm: **2.0.0 / Unreleased**.
+Güncelleme: **2026-10-27** · Paket: `@sirrakadembasti/llm-manager` · Yerel sürüm: **2.0.0 / yayımlanmamış**.
 
 **Durum:** YH1'in 32 mimari kartı ve YH2'nin G01–G26 kapsamı tamamlandı. YH2 yalnız FAZ 0/1/2 içerir; FAZ 3 yoktur. Aşağıdaki kimlikler önceki belgelerle izlenebilirlik için korunur. G13 ayrı görev kartı değildi; gerçek derleyici doğrulaması kapsamında kapatıldı.
 
-Bu dosya eski iki yol haritasını, uygulama planını, denetim ve katalog kaynak kayıtlarını birleştirir. Ayrıntılı tarihçe Git'te `6efbe32` ve önceki commitlerdedir; eski dosyalardaki başlangıç bulguları güncel açıklar değildir. Kullanım: [README](../../README.md), [entegrasyon](../ENTEGRASYON.md), [dağıtım](../DEPLOY.md).
+Bu dosya eski iki yol haritasını, uygulama planını, denetim ve katalog kaynak kayıtlarını birleştirir. Ayrıntılı tarihçe Git'te `6efbe32` ve önceki commitlerdedir; eski dosyalardaki başlangıç bulguları güncel açıklar değildir. Kullanım: [README](../../README.md), [entegrasyon](../ENTEGRASYON.md), [dağıtım](../DAGITIM.md).
 
 ## Uygulama sırası ve kurallar
 
 Sıra: güvenlik P0 → mimari temel → entegrasyon/depo P1 → runtime/arayüz/kalite P2. YH2 FAZ0 önce, FAZ1 çalışan senaryolar, FAZ2 belge/bağımsızlık uyumudur. Aşağıdaki bütün zorunlu işler kapalıdır; yeni işleri bu dosyada ayrı açık madde olarak kaydedin.
 
 - Önce davranış testi, sonra düzeltme; bir görev bir commit. Kabul, tüm testler ve ilgili kalite kontrolleri geçmeli.
-- API uyumu korunur; değişen API için tipler/README/CHANGELOG güncellenir, ilgili görev kaydına kısa durum yazılır.
+- API uyumu korunur; değişen API için tipler/README/değişiklik günlüğü güncellenir, ilgili görev kaydına kısa durum yazılır.
 - Yeni runtime bağımlılığı eklenmez; dosya taşınırsa eski yol bir uyumluluk sürümü re-export sağlar.
 - Anahtar/parola/istem/cevap loglanmaz. HTTP kimlik denetimi adaptörde, doğrudan ask/handle güvenilir host sınırındadır.
 - Yayın, push, etiket veya sürüm artışı ayrıca yetki gerektirir. Tamamlanmış yerel çalışma yayımlanmış paket değildir.
@@ -60,13 +60,13 @@ Tüm satırlar tamamlandı. Kanıtlar `tests/` altında, aksi belirtilmedikçe `
 | YH1-D3 | node:22-alpine, non-root, volume, host, healthcheck ve dockerignore/dağıtım kılavuzu. Gerçek imaj çalıştırılmadı. | docker |
 | YH1-D4 | Async içeriksiz JSONL, admin aylık özet/UI; hata/iptal/erken dönüş dahil tek güvenli usage kaydı. | usage, usage-lifecycle, ui-completion |
 | YH1-E1 | Etkin profil varsayılan playground; textContent, SSE, süre/token gösterimi. | playground, streaming |
-| YH1-E2 | tr/en sözlük ve dinamik UI, mesaj sözlüğü, İngilizce kritik kullanım uyumu; tüm HTTP hataları çevrilmiş sayılmaz. | i18n, english-docs, ui-completion |
+| YH1-E2 | Tarihsel iki dilli arayüz görevi tamamlandı; sonraki kararla İngilizce sözlük/dil ayarı kaldırıldı, arayüz ve belgeler Türkçeleştirildi. Kart kimliği izlenebilirlik için korunur. | i18n, turkce-docs, ui-completion |
 | YH1-E3 | homeUrl, sırsız klon, erişilebilir onay/Escape, form kilidi ve katalog tarihi. | ui-enhancements, ui-completion |
 | YH1-F1 | ESLint/Prettier/LF, üç OS×Node 22/24 CI. Node 20, düşük engine seçilmediği için matris dışında. | kalite komutları, CI |
 | YH1-F2 | Gerçek Express 4 ESM/CJS/5 host+junction+HTTP; Node Request köprüsü ve üç mock SSE sağlayıcısı. Framework iskelet E2E opsiyonel. | integration/, helpers/mockProvider.js |
 | YH1-F3 | src kapsam eşikleri ≥%80 satır/%70 dal; beş temel modül hedefi ≥%85 satır. | test:coverage |
 | YH1-F4 | Scoped kimlik, Node ≥22.12, optional Express, metadata/types; paket test/data/gerçek .env içermez. Funding opsiyonel. | package-identity, package-metadata |
-| YH1-F5 | SECURITY/CONTRIBUTING/tehdit modeli, mevcut-planlanan ayrımı ve CI üretim audit. | security-docs |
+| YH1-F5 | Güvenlik/katkı rehberi/tehdit modeli, mevcut-planlanan ayrımı ve CI üretim audit. | security-docs |
 
 ## YH2 — vaat ve gerçek uyumu
 
@@ -96,7 +96,7 @@ Tüm satırlar tamamlandı. Kanıtlar `tests/` altında, aksi belirtilmedikçe `
 | 2 · YH2-G22 | Nötr UI/test mesajları, legacy purpose başına tek uyarı, eski generate bayraklarını iletmeme. | purpose-compat, ui-completion |
 | 2 · YH2-G23 | Varsayılan liste tarihi gerçek katalogdan; canlı liste talimatı görünür. | catalog-docs |
 | 0 · YH2-G24 | Admin ve sohbet kimliği ayrıldı; Bearer yönetimde 403, chat 200. | phase0-security, auth-policy |
-| 2 · YH2-G25 | Aynı 10 senaryo, üretim/auth/serverless/süreç sınırları ve Windows ACL notu. | integration-docs, english-docs |
+| 2 · YH2-G25 | Aynı 10 senaryo, üretim/auth/serverless/süreç sınırları ve Windows ACL notu. | integration-docs, turkce-docs |
 | 2 · YH2-G26 | Optional peer Express 4/5; gerçek ESM/CJS/5 auth/parser HTTP uyumu. | integration/hosts, integration/express5-errors |
 
 ## Kabul ve doğrulama
@@ -134,6 +134,8 @@ PATH sorununun nedeni geçici .NET SDK evlerinin kullanıcı PATH'ine eklenmesiy
 
 ## Sonraki isteğe bağlı işler
 
+Güncel dil düzenlemesi: İngilizce arayüz ve etkin dil ayarı kaldırıldı; eski JavaScript `locale` değeri yok sayılır. Teknik kılavuz ve politika dosyaları Türkçe adlara taşındı, yerel bağlantılar güncellendi. Tam seri test paketi 395/395 geçti; hata/atlama/iptal yok (282395 ms). Lint, tip ve biçim kontrolleri, paket içeriği, 59 yerel bağlantı ve 58 görev kimliği doğrulandı; bağımsız incelemede açık bulgu yok. Bu çalışma yayın veya yeni canlı sağlayıcı doğrulaması içermez.
+
 Zorunlu eski kartlarda açık iş yok. Aşağıdakiler henüz uygulanmış/çalıştırılmış sayılmaz:
 
 - [ ] Uygun ortamda Docker build/run, kalıcı volume ve auth smoke testi.
@@ -142,7 +144,7 @@ Zorunlu eski kartlarda açık iş yok. Aşağıdakiler henüz uygulanmış/çal�
 - [ ] Pozitif proxy CONNECT ve izinli canlı sağlayıcı/hesap kontrolleri.
 - [ ] Tedarik zinciri: dependency/lockfile inceleme süreci, immutable action pinleri, yayın kaynağı politikası/provenance/imza.
 
-Yayın bu listeyle otomatik yetkilendirilmez. Katalog güncellemesinde resmi kesin kimlik doğrulanamazsa öneriyi kaldırın; boş liste kabul edilir. [Tehdit modeli](../THREAT_MODEL.md).
+Yayın bu listeyle otomatik yetkilendirilmez. Katalog güncellemesinde resmi kesin kimlik doğrulanamazsa öneriyi kaldırın; boş liste kabul edilir. [Tehdit modeli](../TEHDIT_MODELI.md).
 
 ## Katalog kaynakları
 

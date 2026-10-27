@@ -4,17 +4,18 @@ import express from 'express';
 import { createUiAssets, createLLMManager, MESSAGES, getErrorMessage, ErrorCodes } from '../src/core.js';
 import { mountLLMManagement } from '../src/index.js';
 
-test('getErrorMessage returns localized messages', () => {
-  assert.ok(MESSAGES.tr && MESSAGES.en);
+test('getErrorMessage returns only Turkish messages and ignores the legacy language argument', () => {
+  assert.ok(MESSAGES.tr);
+  assert.equal(MESSAGES.en, undefined);
   assert.equal(
     getErrorMessage(ErrorCodes.STORE_CORRUPT, 'tr'),
     'Profil veri dosyası bozuk veya geçersiz JSON içeriyor.'
   );
   assert.equal(
     getErrorMessage(ErrorCodes.STORE_CORRUPT, 'en'),
-    'Profile data file is corrupted or contains invalid JSON.'
+    'Profil veri dosyası bozuk veya geçersiz JSON içeriyor.'
   );
-  assert.equal(getErrorMessage(ErrorCodes.RATE_LIMITED, 'en'), 'Too many requests. Please wait a moment.');
+  assert.equal(getErrorMessage(ErrorCodes.RATE_LIMITED, 'en'), 'Çok fazla istek yapıldı. Lütfen biraz bekleyin.');
 
   // Default is Turkish
   assert.equal(getErrorMessage(ErrorCodes.RATE_LIMITED), 'Çok fazla istek yapıldı. Lütfen biraz bekleyin.');
@@ -34,16 +35,16 @@ test('createUiAssets pre-renders Turkish by default', () => {
   assert.match(assets.html, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
 });
 
-test('createUiAssets pre-renders English when locale is en', () => {
+test('legacy English option cannot switch the Turkish interface', () => {
   const assets = createUiAssets({ apiPath: '/api/llm', pagePath: '/llm', locale: 'en' });
-  assert.equal(assets.locale, 'en');
-  assert.match(assets.html, /<html lang="en"/);
-  assert.match(assets.html, /data-locale="en"/);
+  assert.equal(assets.locale, 'tr');
+  assert.match(assets.html, /<html lang="tr"/);
+  assert.match(assets.html, /data-locale="tr"/);
   assert.match(assets.html, /<script id="llm-i18n" type="application\/json">/);
-  assert.match(assets.html, /data-i18n="app\.title">LLM Profile Management</);
-  assert.match(assets.html, /data-i18n="playground\.title">Playground</);
-  assert.match(assets.html, /data-i18n="profiles\.title">Saved profiles</);
-  assert.match(assets.html, /data-i18n-placeholder="form\.name_placeholder" placeholder="e\.g\. Production Model"/);
+  assert.match(assets.html, /data-i18n="app\.title">LLM Profil Yönetimi</);
+  assert.match(assets.html, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
+  assert.match(assets.html, /data-i18n="profiles\.title">Kayıtlı profiller</);
+  assert.match(assets.html, /data-i18n-placeholder="form\.name_placeholder" placeholder="Örn\. Üretim modeli"/);
 });
 
 test('mountLLMManagement serves localized page for express', async () => {
@@ -64,9 +65,9 @@ test('mountLLMManagement serves localized page for express', async () => {
     });
     assert.equal(res.status, 200);
     const body = await res.text();
-    assert.match(body, /<html lang="en"/);
-    assert.match(body, /data-locale="en"/);
-    assert.match(body, /data-i18n="playground\.title">Playground</);
+    assert.match(body, /<html lang="tr"/);
+    assert.match(body, /data-locale="tr"/);
+    assert.match(body, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
   } finally {
     server.close();
   }
@@ -79,7 +80,7 @@ test('fetchHandler serves localized page for Web standard request', async () => 
   const res = await llm.fetch(new Request('http://127.0.0.1:8010/llm'));
   assert.equal(res.status, 200);
   const body = await res.text();
-  assert.match(body, /<html lang="en"/);
-  assert.match(body, /data-locale="en"/);
-  assert.match(body, /data-i18n="playground\.title">Playground</);
+  assert.match(body, /<html lang="tr"/);
+  assert.match(body, /data-locale="tr"/);
+  assert.match(body, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
 });

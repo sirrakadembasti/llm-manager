@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const source = fs.readFileSync('public/llm-ui.js', 'utf8').replace(/init\(\)\.catch[\s\S]*$/, '');
-function ui(locale = 'en') {
+function ui() {
   const elements = new Map();
   const translatedElements = [];
   const element = id => {
@@ -26,7 +26,7 @@ function ui(locale = 'en') {
       });
     return elements.get(id);
   };
-  element('llm-i18n').textContent = fs.readFileSync(`public/i18n/${locale}.json`, 'utf8');
+  element('llm-i18n').textContent = fs.readFileSync('public/i18n/tr.json', 'utf8');
   const html = fs.readFileSync('public/llm.html', 'utf8');
   for (const [index, match] of [...html.matchAll(/<([\w-]+)\b([^>]*\bdata-i18n="([^"]+)"[^>]*)>([^<]*)/g)].entries()) {
     const [, , attributes, key, text] = match;
@@ -38,7 +38,7 @@ function ui(locale = 'en') {
   }
   const context = vm.createContext({
     document: {
-      body: { dataset: { locale } },
+      body: { dataset: { locale: 'tr' } },
       getElementById: element,
       createElement: () => element(Symbol()),
       querySelectorAll: selector => (selector === '[data-i18n]' ? translatedElements : [])
@@ -54,15 +54,15 @@ function ui(locale = 'en') {
 }
 
 test('notifications distinguish progress, information and errors while separating technical details', () => {
-  const { element, run } = ui('en');
+  const { element, run } = ui();
   run("message('Checking', false, { state: 'loading' })");
   assert.equal(element('notification').className, 'notification loading');
-  assert.equal(element('notification-title').textContent, 'In progress');
+  assert.equal(element('notification-title').textContent, 'İşlem sürüyor');
   run(
     "message('<unsafe text>', true, { detail: 'Check billing.', code: 'LLM_BILLING', supportId: 'support-123', durationMs: 1200 })"
   );
   assert.equal(element('message').textContent, 'Check billing.');
-  assert.equal(element('notification-title').textContent, 'Action failed');
+  assert.equal(element('notification-title').textContent, 'İşlem tamamlanamadı');
   assert.match(element('notification-meta').textContent, /LLM_BILLING/);
   assert.match(element('notification-meta').textContent, /support-123/);
   assert.match(element('notification-meta').textContent, /1\.2/);
@@ -74,7 +74,7 @@ test('notifications distinguish progress, information and errors while separatin
 });
 
 test('failed test stays on the affected profile card after profiles refresh', async () => {
-  const { element, run } = ui('en');
+  const { element, run } = ui();
   await run(`
     profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm' }, { id: 'b', name: 'B', provider: 'google', model: 'n' }];
     request = async () => { const error = new Error('Check billing.'); error.code = 'LLM_BILLING'; error.supportId = 'support-123'; throw error; };
@@ -93,8 +93,8 @@ test('failed test stays on the affected profile card after profiles refresh', as
   assert.ok(element('profiles').options[0].options.some(child => child.className === 'profile-result error'));
 });
 
-test('English success uses translated copy instead of the server Turkish message', async () => {
-  const { element, run } = ui('en');
+test('Turkish success uses consistent UI copy', async () => {
+  const { element, run } = ui();
   await run(`
     profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm', revision: 'one' }];
     request = async () => ({ message: 'Kısa bağlantı ve model yanıtı doğrulandı.', durationMs: 1200 });
@@ -102,11 +102,11 @@ test('English success uses translated copy instead of the server Turkish message
     testProfile(profiles[0], 'quick');
   `);
   const result = element('profiles').options[0].options.find(child => child.className === 'profile-result success');
-  assert.ok(result.options.some(child => child.textContent === 'Connection and model response verified.'));
+  assert.ok(result.options.some(child => child.textContent === 'Bağlantı ve model yanıtı doğrulandı.'));
 });
 
 test('an external profile revision change clears the old test result', async () => {
-  const { element, run } = ui('en');
+  const { element, run } = ui();
   await run(`
     profiles = [{ id: 'a', name: 'A', provider: 'google', model: 'm', revision: 'one' }];
     request = async () => ({ ok: true, durationMs: 1200 });
@@ -121,9 +121,9 @@ test('an external profile revision change clears the old test result', async () 
   );
 });
 
-test('MiMo test-policy hint follows provider switches and remains scoped after Turkish/English translation', () => {
-  for (const locale of ['tr', 'en']) {
-    const { element, translated, run } = ui(locale);
+test('MiMo test-policy hint follows provider switches and remains scoped after Turkish labels', () => {
+  {
+    const { element, translated, run } = ui();
     const hint = translated('form.thinking_hint');
     for (const provider of [
       'xiaomi_mimo',
@@ -139,13 +139,11 @@ test('MiMo test-policy hint follows provider switches and remains scoped after T
     ]) {
       element('provider').value = provider;
       run('updateThinking(); translateDom();');
-      assert.equal(element('thinking-field').hidden, provider === 'custom', `${locale}/${provider}: reasoning control`);
-      assert.equal(hint.hidden, provider !== 'xiaomi_mimo', `${locale}/${provider}: MiMo-only policy hint`);
+      assert.equal(element('thinking-field').hidden, provider === 'custom', `${provider}: reasoning control`);
+      assert.equal(hint.hidden, provider !== 'xiaomi_mimo', `${provider}: MiMo-only policy hint`);
       assert.equal(
         hint.textContent,
-        locale === 'tr'
-          ? 'Otomatik mod; testlerde düşünmeyi kapatır, normal çağrılarda modelin varsayılanını kullanır.'
-          : 'Automatic mode disables reasoning in tests and uses the model default for normal calls.'
+        'Otomatik mod; testlerde düşünmeyi kapatır, normal çağrılarda modelin varsayılanını kullanır.'
       );
     }
     run("catalog = [{id: 'custom', capabilities: {thinking: true}}]");
@@ -175,19 +173,17 @@ test('fallback selector restores edit selection, excludes self, and preserves cl
   run('clearForm()');
   assert.deepEqual(Array.from(run('selectedFallbackIds()')), []);
 });
-test('dynamic English UI messages and historical status are translated', () => {
+test('dynamic UI messages and historical status are Turkish', () => {
   const { element, run } = ui();
   run('updateApiKeyFieldState()');
-  assert.equal(element('api-key').placeholder, 'Enter API key');
-  assert.equal(run(`lastTestText({}, 'quick')`), 'Connection test: Not run');
-  assert.match(run(`lastTestText({lastTest:{status:'passed',code:'OK',at:'2026-01-01'} })`), /Passed.*Code: OK/);
+  assert.equal(element('api-key').placeholder, 'API anahtarını girin');
+  assert.equal(run(`lastTestText({}, 'quick')`), 'Bağlantı testi: Yapılmadı');
+  assert.match(run(`lastTestText({lastTest:{status:'passed',code:'OK',at:'2026-01-01'} })`), /Başarılı.*Kod: OK/);
 });
-test('every literal translation key has matching tr/en dictionary entries', () => {
+test('every literal label key has a Turkish dictionary entry', () => {
   const tr = JSON.parse(fs.readFileSync('public/i18n/tr.json'));
-  const en = JSON.parse(fs.readFileSync('public/i18n/en.json'));
   for (const [, key] of source.matchAll(/\bt\('([^']+)'/g)) {
     assert.ok(tr[key], `missing Turkish ${key}`);
-    assert.ok(en[key], `missing English ${key}`);
   }
 });
 
@@ -237,9 +233,9 @@ test('confirmation remains usable while an operation locks other form controls',
   assert.equal(await result, true);
 });
 
-test('monthly usage response renders nonzero per-profile request and token counts in both locales', async () => {
-  for (const locale of ['tr', 'en']) {
-    const { element, run } = ui(locale);
+test('monthly usage response renders nonzero per-profile request and token counts in Turkish', async () => {
+  {
+    const { element, run } = ui();
     await run(`
       request = async path => path === '/usage'
         ? { byProfile: { a: { requests: 7, totalTokens: 83 }, b: { requests: 2, totalTokens: 19 } } }
@@ -249,15 +245,10 @@ test('monthly usage response renders nonzero per-profile request and token count
     const labels = element('profiles').options.map(
       card => card.options.find(child => child.className === 'muted usage-stat').textContent
     );
-    assert.deepEqual(
-      labels,
-      locale === 'tr'
-        ? ['📊 Bu ay: 7 istek · 83 token', '📊 Bu ay: 2 istek · 19 token', '📊 Bu ay: Henüz istek yok']
-        : [
-            '📊 This month: 7 requests · 83 tokens',
-            '📊 This month: 2 requests · 19 tokens',
-            '📊 This month: No requests yet'
-          ]
-    );
+    assert.deepEqual(labels, [
+      '📊 Bu ay: 7 istek · 83 token',
+      '📊 Bu ay: 2 istek · 19 token',
+      '📊 Bu ay: Henüz istek yok'
+    ]);
   }
 });

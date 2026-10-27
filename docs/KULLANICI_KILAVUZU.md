@@ -2,9 +2,9 @@
 
 Node.js **22.12+** için sağlayıcı, profil ve API anahtarı yönetimi. Bağımsız sunucu veya uygulama eklentisi olarak çalışır; Docker ve veritabanı zorunlu değildir.
 
-Paket adı **`@sirrakadembasti/llm-manager`**, CLI adı `llm-manager`. npm'deki çıplak `llm-manager` başka bir projedir. Yerel sürüm **2.0.0 / Unreleased**; bu, npm yayını veya yayımlanmış Git etiketi anlamına gelmez.
+Paket adı **`@sirrakadembasti/llm-manager`**, CLI adı `llm-manager`. npm'deki çıplak `llm-manager` başka bir projedir. Yerel sürüm **2.0.0 / yayımlanmamış**; bu, npm yayını veya yayımlanmış Git etiketi anlamına gelmez.
 
-[English guide](README.en.md) · [Başlangıç](../README.md) · [Entegrasyon](ENTEGRASYON.md) · [Dağıtım](DEPLOY.md) · [Yol haritası](roadmap/YOL_HARITASI.md)
+[Teknik kılavuz](TEKNIK_KILAVUZ.md) · [Başlangıç](../README.md) · [Entegrasyon](ENTEGRASYON.md) · [Dağıtım](DAGITIM.md) · [Yol haritası](roadmap/YOL_HARITASI.md)
 
 İçindekiler: [Başlatma](#hızlı-başlangıç) · [Entegrasyon](#uygulamaya-ekleme) · [Arayüz](#arayüzü-kullanma) · [API](#api-kullanımı) · [Güvenlik](#kimlik-ve-güvenlik) · [Yedekleme](#veri-yedek-ve-işletim) · [2.0 geçişi](#20-geçişi-ve-alt-yollar)
 
@@ -91,7 +91,7 @@ Next.js App Router ve Node runtime desteklenir; Edge desteklenmez. Sunucusuz ort
 
 ## Neler sağlar?
 
-- Şifreli profiller, etkin profil, test, canlı model listesi, klonlama ve tr/en arayüz.
+- Şifreli profiller, etkin profil, test, canlı model listesi, klonlama ve Türkçe arayüz.
 - OpenAI/Anthropic/Google transportları, SSE akışı, iptal, retry ve sıralı fallback.
 - Sağlayıcı kataloğu ve varsayılan model listeleri (katalog tarihi: 2026-10; güncel liste için **Modelleri getir** kullanın). [Tarihli kaynaklar ve model sınırları](roadmap/YOL_HARITASI.md#katalog-kaynakları).
 - Yetkilendirme, CSRF, SSRF, kota, güvenli loglar ve isteğe bağlı aylık kullanım özeti.
@@ -109,18 +109,7 @@ Düzenlerken API anahtarını boş bırakmak kayıtlı anahtarı korur. Zaman s�
 
 ### Arayüz dili
 
-`public/i18n/tr.json` ve `en.json` arayüz çevirileridir. Dil başlangıçta `locale` ile seçilir; varsayılan Türkçedir. Ekranda dil değiştirme düğmesi ve otomatik tarayıcı dili seçimi yoktur. Örneğin kendi sunucu başlangıç dosyanızda:
-
-```js
-import { createStandaloneServer } from '@sirrakadembasti/llm-manager/server';
-await createStandaloneServer({
-  adminPassword: process.env.LLM_ADMIN_PASSWORD,
-  locale: 'en',
-  handleSignals: true
-});
-```
-
-Depodaki `npm start`, `examples/server.js` dosyasını kullanır; dil seçimi için buradaki sunucu seçeneklerine `locale: 'en'` eklenebilir. Express `mountLLMManagement()` ve core `createLLMManager()` da aynı seçeneği alır.
+Arayüz metinleri `public/i18n/tr.json` içindedir. Arayüz ve paket hata sözlüğü yalnız Türkçedir; etkin dil ayarı yoktur. Eski JavaScript `locale: 'en'` seçeneği dikkate alınmaz ve Türkçe kullanılır. `getErrorMessage` işlevinin kullanım dışı ikinci parametresi uyumluluk için kabul edilir; dili değiştirmez.
 
 ## API kullanımı
 
@@ -198,9 +187,9 @@ Terminaldeki `auth.failed`, eksik veya yanlış yönetim kimlik bilgili isteği 
 
 Depo Promise tabanlıdır; yerel disk kilidi, FIFO yazma, revizyon ve `.bak` yedeği kullanır. NFS/SMB garantisi yoktur. `STORE_CORRUPT` için bozuk dosyayı koruyup eşleşen anahtar ve sağlam `.bak` ile dönün; `STORE_VERSION_UNSUPPORTED` için uyumlu sürüm kullanın. Boş depoyla üzerine yazmayın.
 
-`logger` request-id ile güvenli metadata yazar. `logContent: false` sabittir; sır/istem/cevap loglanmaz. `chat.completed` başarı, hata, iptal ve erken iterator dönüşünde bir mantıksal sohbet için bir kez code/usage/son profil bilgisi verir; bilinmeyen usage null'dır. `usageLog: true` aylık sayısal JSONL ve admin `/usage` özeti açar. Public `/health` sırsızdır; `health: false` kapatır. UI: `locale: 'tr' | 'en'`, `homeUrl`.
+`logger` istek kimliğiyle güvenli üstveri yazar. `logContent: false` sabittir; sır/istem/cevap günlüğe yazılmaz. `chat.completed` başarı, hata, iptal ve erken yineleyici dönüşünde bir mantıksal sohbet için bir kez code/usage/son profil bilgisi verir; bilinmeyen usage null'dır. `usageLog: true` aylık sayısal JSONL ve yönetici `/usage` özeti açar. Herkese açık `/health` sırsızdır; `health: false` kapatır. `homeUrl`, ana uygulamaya dönüş bağlantısını ayarlar.
 
-CLI/örnek sunucu SIGINT/SIGTERM'de kapanır; üst sınır 10 saniyedir. Programatik factory/probe/init host sinyallerini varsayılan olarak yönetmez; sahipli bağımsız süreçte `handleSignals: true`, gömülü kullanımda `await instance.close()` kullanın. [Docker, servis ve kurtarma](DEPLOY.md).
+CLI/örnek sunucu SIGINT/SIGTERM'de kapanır; üst sınır 10 saniyedir. Programatik factory/probe/init host sinyallerini varsayılan olarak yönetmez; sahipli bağımsız süreçte `handleSignals: true`, gömülü kullanımda `await instance.close()` kullanın. [Docker, servis ve kurtarma](DAGITIM.md).
 
 ## 2.0 geçişi ve alt yollar
 
@@ -227,4 +216,4 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 
 Amaçlar `quick | diagnostic | default`; eski `manager` → `diagnostic`, `production` → `default` eşlemesi birer uyarı verir. MiMo auto'da `purpose: 'diagnostic'` ve `purpose: 'quick'` düşünmeyi kapatır; `purpose: 'default'` model varsayılanını korur. MiMo quick testi açık düşünme seçimini de kapatır. Başarılı test sağlayıcı hızını/üretim uygunluğunu garanti etmez; kota, izin, ağ, filtre ve kesilme ayrı kodlarla bildirilir. [Xiaomi açıklaması](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/other/deep-thinking).
 
-MIT · [Lisans](../LICENSE) · [Değişiklikler](CHANGELOG.md) · [Güvenlik](SECURITY.md) · [Katkı](CONTRIBUTING.md)
+MIT · [Lisans](../LICENSE) · [Değişiklikler](DEGISIKLIKLER.md) · [Güvenlik](GUVENLIK.md) · [Katkı](KATKI_REHBERI.md)

@@ -154,7 +154,6 @@ export interface LLMManagerOptions {
   allowedPrivateHosts?: string[];
   health?: boolean;
   usageLog?: boolean;
-  locale?: 'tr' | 'en' | string;
   homeUrl?: string;
 }
 
@@ -227,7 +226,6 @@ export interface FetchOptions {
   apiPath?: string;
   pagePath?: string;
   requireCsrf?: boolean;
-  locale?: string;
   homeUrl?: string;
   adminPassword?: string;
   adminUser?: string;
@@ -296,15 +294,15 @@ export function createUsageTracker(options?: { dataDir?: string; enabled?: boole
 export const CSRF_HEADER: string;
 export const SAFE_METHODS: readonly string[];
 export function isValidMountPath(value: unknown): boolean;
-export function createUiAssets(options?: {
-  apiPath?: string;
-  pagePath?: string;
-  locale?: 'tr' | 'en' | string;
-  homeUrl?: string;
-}): { html: string; script: string; locale: string };
+export function createUiAssets(options?: { apiPath?: string; pagePath?: string; homeUrl?: string }): {
+  html: string;
+  script: string;
+  locale: 'tr';
+};
 
-export const MESSAGES: Record<string, Record<string, string>>;
-export function getErrorMessage(code: string, locale?: string, fallback?: string | null): string;
+export const MESSAGES: { tr: Record<string, string> };
+/** İkinci parametre eski çağrılar için korunur; mesajlar yalnız Türkçedir. */
+export function getErrorMessage(code: string, legacyLocale?: string, fallback?: string | null): string;
 
 export { LLMError, ErrorCodes, LLMErrorCode };
 export interface ProviderCatalogEntry {
