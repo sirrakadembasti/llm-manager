@@ -43,13 +43,6 @@ test('YH2-G25: scenario names, order and types agree across both environment tab
     scenarios
   );
   assert.deepEqual(rows(matrix), rows(environments), 'deployment and injection boundaries must agree');
-  const scaffold = readme.split('| Uygulama Türü |')[1].split('\n.NET 4.0')[0];
-  assert.deepEqual(
-    rows(scaffold)
-      .slice(1)
-      .map(row => row.slice(0, 2).map(cell => cell.replaceAll('`', ''))),
-    scenarios
-  );
 });
 
 test('YH2-G25: each scenario states identity, deployment, serverless and process boundaries', () => {

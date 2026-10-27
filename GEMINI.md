@@ -1,91 +1,32 @@
-# Proje Hafızası: llm-manager
+# Proje hafızası
 
-## Ana hedef (kullanıcı kararı, 2026-10-19)
-- Bu uygulama **bağımsız bir API / eklenti** olacak. Önceden türetildiği uygulamanın (XFactor) tüm bağımlılıkları, adlandırmaları ve varsayımları koparılacak.
-- **Her GitHub reposundaki uygulamaya** (Express tabanlı) entegre edilebilir ve tek başına çalıştırılabilir olacak.
-- **Basit ama çalışır** bir eklenti: az kurulum, net README, sıfır host-proje bağımlılığı.
-- Sıra: önce kendi tespit ettiğim gözlemlerin düzeltilmesi, adım adım.
+## Amaç ve sabit kararlar
+
+- Bağımsız LLM profil yönetimi: Node.js **>=22.12**, optional Express **4.19.2+/5.x**; Docker/veritabanı zorunlu değil.
+- Paket `@sirrakadembasti/llm-manager`; CLI `llm-manager`. Yerel **2.0.0 / Unreleased**, yayımlanmış sürüm değildir. npm'deki çıplak paket başka projedir.
+- Core framework bağımsız; init ayrı alt yol. Eski taşınan yollar re-export ile korunur. Yeni runtime bağımlılığı eklenmez; mevcut bağımlılık `undici`.
+- Tek görev/durum kaydı: [docs/roadmap/YOL_HARITASI.md](docs/roadmap/YOL_HARITASI.md). Tarihsel ayrıntılar Git geçmişindedir.
 
 ## Çalışma kuralları
-- Her değişiklikten sonra `npm test` ile doğrula.
-- Mevcut yorum ve dokümantasyon, değişiklikle ilgisi yoksa korunur.
-- API anahtarı hiçbir zaman tarayıcıya/listeye/loglara dönmez.
 
-## Düzeltme listesi (sırayla)
-1. XFactor izlerini kaldır (paket adı, CSRF başlığı, README, yorumlar).
-2. `index.js` gereksiz koşul (`'models' : 'models'`) temizliği.
-3. Yönetim HTML/JS dosyalarını her istekte okumak yerine önbelleğe al.
-4. `setup.js` `.env.example` ve `.env` zorunluluğunu kaldır; bağımsız anahtar dosyası.
-5. Bağımsız paket metaverisi (isim, lisans, .env.example, .gitignore, bin/start).
-6. README'yi bağımsız kullanıma göre güncelle, testleri çalıştır.
+- Önce test, sonra düzeltme; `npm test`, lint, typecheck, format kontrolleri geçmeli. Bir görev bir commit; Conventional Commits.
+- Değişiklikle ilgili yorumları koru; CHANGELOG `[Unreleased]`, README/tipler ve bu dosyayı güncelle.
+- Anahtar/parola içeren iç profili tarayıcıya, listeye veya loga verme. İstem/cevap loglanmaz; `logContent: false` sabit.
+- HTTP adaptörü kimlik/yetkiyi uygular. `ask()` ve doğrudan `handle()` güvenilir host API'sidir; bu uyumluluğu bozma.
+- Bearer yalnız sohbet; yönetim admin ister. Varsayılan override yetkisi admin, CORS açık origin listesi. Tarayıcıdaki her belirteç herkese açıktır.
+- Dosya deposu async; özel store `T | Promise<T>`. Revizyon denetimi ve yazma atomik; anahtar+profil birlikte yedeklenir. NFS/SMB garantisi yok.
+- Akış retry/fallback yalnız ilk çıktıdan önce; tek toplam bütçe, bir mantıksal kullanım/tamamlanma kaydı. Reasoning son yanıta katılmaz.
+- İşletim sistemi/SDK kontrolleri kalıcı kullanıcı ortamını değiştirmemeli. .NET için `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` korunur.
+- Kullanıcının mevcut değişikliklerini koru; açık yetki olmadan yayın, push veya sürüm artırma yapma.
 
-## Durum (2026-10-27)
-- 2026-10-27 npm start düzeltmesi: .NET doğrulamasının geçici SDK evlerini kullanıcı PATH'ine eklemesi, Windows cmd sınırını aştırıyordu. Üretim doğrulaması ve test SDK çağrılarında DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false zorunlu; regresyon RED/GREEN, gerçek npm start health/auth ve gerçek C# derleme/HTTP kabulü 6/6 geçti. Son seri tam paket 388/388, sıfır hata/atlama/iptal (234588 ms); npm run lint/typecheck/format:check geçti, bağımsız inceleme onaylı. Kalıcı kullanıcı PATH'i koşu öncesi/sonrası 986 karakterde sabit kaldı. Bu makinedeki yalnız 106 silinmiş test yolu yedeklenerek temizlendi; başlangıç komutu değişmedi. Önceki yol haritası ölçümleri aşağıda tarihseldir.
-- 2026-10-27 YH1 teknik mimari yol haritasının 32 zorunlu kartı tamamlandı: on görev düzeltmesi, beş genel inceleme bulgusu ve C1 kabul kanıtı kapalı; görev/genel/dar kapsamlı son incelemeler onaylı. Doğrulanan ürün başı `7297204`; 386/386 test, sıfır hata/atlama/iptal, src %94,78 satır / %87,70 dal, lint/typecheck/format ve doğrulama betiği geçti; pack 89 dosya/yasak içerik 0, üretim audit 0. Kanıt ve Docker/CI/sinyal/CLR/canlı sağlayıcı sınırları: docs/roadmap/YH1_KAPANIS_DENETIM_2026-10-26.md. Yerel 2.0.0 ve codex/yh1-completion dalı korundu; yayın/push yok. Aşağıdaki eski denetim sayıları tarihçedir.
-- YH1-A4/C1/C4/C6/C9 (`7297204`): LAN izin listesinin depo kaydına aktarılması, yalnız yanıt içeriği, timeout/iptal ve filtre/kesilme sınıflandırması, tek bütçeli ilk-çıktı-öncesi retry ve gerçek fallback metadatası düzeltildi; 57+4 hedefli test, aktif iptal/iterator temizliği, gerçek npm kurulumu/paketi ve 386/386 son tam testle doğrulandı; dar kapsamlı incelemede açık bulgu yok.
-- YH1-A4 (`f2c4b0a`): Türkçe hata regex yedeği sınıflandırıcıda toplandı; tipli kod yolları 13 hedefli / 286 tam test ve görev incelemesiyle doğrulandı.
-- YH1-B4 (`9f189f0`): Eski `.env` anahtarı kilit altında dosyaya taşınır; öncelik/uyumluluk ve tarihli benzersiz rotate yedeği 28 hedefli / 290 tam testle doğrulandı.
-- YH1-C3 (`7078c1c`): Web kotaları kararlı principal kimliğini kullanır ve 429 Retry-After korunur; 18 hedefli / 296 tam test, görev incelemesi onaylı.
-- YH1-D1 (`ff711ec`): Akışın tüm terminal yollarında bir ortak chat.completed olayı ve güvenli son aday metadatası; 33 hedefli / 309 tam test, görev incelemesi onaylı.
-- YH1-D4 (`f10ef20`): Başarısız/iptal/erken dönüş dahil bir mantıksal kullanım kaydı ve tr/en aylık sayaç render kabulü; 49 hedefli / 324 tam test, görev incelemesi onaylı.
-- YH1-B3 (`a836033`): Bozuk/yeni sürümlü depo Web/Express ve UI'da tipli kurtarma mesajı verir, public health ayrıntı gizler; 30 hedefli / 338 tam test, görev incelemesi onaylı.
-- YH1-A2 (`873f94c`): Sahipli CLI/init/örnek süreçlerde opt-in sinyal yönetimi ve 10 saniyelik kapanış sınırı; 38 hedefli / 355 tam test, görev incelemesi onaylı; POSIX yerelde çalıştırılmadı.
-- YH1-F5 (`9c3c12a`): Tedarik zincirinde mevcut/planlanan kontroller ve yerel Unreleased sürüm bağlamı açıklandı; 6 hedefli / 357 tam test, görev incelemesi onaylı.
-- YH1-A1 (`4cd807a`): Kaldırılmış senkron kök export'ları için init alt yoluna geçiş ve async uyumluluk sarmalayıcıları belgelendi; 5 hedefli / 358 tam test, görev incelemesi onaylı.
-- YH1-E2 (`44024fa`): İngilizce README kritik API/güvenlik/kurulum/süreç bilgileriyle hizalandı; 6 hedefli / 361 tam test, görev incelemesi onaylı.
-- 2026-10-26 YH2 FAZ 2 tamamlandı: G22/G23/G25/G26 ayrı görev commitleriyle, görev ve genel incelemelerle kapatıldı. Nötr UI/metinler, katalog tarihi, aynı on senaryolu belgeler, güvenlik sınırları ve Express 4.19+/5.x kabul kanıtı hizalıdır. Genel inceleme düzeltmesiyle MiMo düşünme açıklaması yalnız ilgili sağlayıcıya gösterilir. Son tam kapsam paketi 283/283, sıfır hata/atlama; src %93,03 satır / %85,33 dal, lint/typecheck/format ve doğrulama betiği geçti. Kanıt/sınırlar: docs/roadmap/YH2_FAZ2_DENETIM_2026-10-26.md. Yerel 2.0.0 ve codex/yh1-completion dalı korundu; yayın/push yapılmadı.
-- 2026-10-25 YH2 FAZ 1 tamamlandı: 12 kartın görev ve genel incelemesi onaylı. Son kapsam ölçümlü seri paket 276/276 (sıfır hata/atlama), src %92,94 satır / %85,13 dal; lint/typecheck/format ve roadmap doğrulama betiği geçti. Genel incelemede bulunan .NET 4.0 API ve SDK net48 referans açıkları giderildi; gerçek 4.0 referanslarıyla C# 4 derlemesi ve CLR 4.8.1 üzerinde HTTP/iptal doğrulandı. Yerel sürüm 2.0.0, değişiklikler codex/yh1-completion dalında görev commitleriyle korundu. Kanıt ve sınırlar: docs/roadmap/YH2_FAZ1_DENETIM_2026-10-25.md. FAZ 2 ayrı kapsamdır; yayın/push yapılmadı.
-- 2026-10-25 YH2 FAZ 0 kabul denetimi tamamlandı: G01–G07/G24, 195/195 test, lint/typecheck/format ve doğrulama betiği geçti. Express sohbet Bearer 403, Vite dışı açık origin seçimi, özel API yolu CORS ve boş origin iptali düzeltildi. Kullanıcı mevcut YH1 çalışmasının da commitlenmesini onayladı; yayın/push yok. Kanıt: docs/roadmap/YH2_FAZ0_DENETIM_2026-10-25.md. FAZ 1'in ayrı kabul kaydı yukarıdadır.
-- 2026-10-25 güncel durum: YH1'in 32 kartı kaynak ve kabul testleriyle denetlendi; auth/init/async store/B4/tipler/arayüz/Express5 açıkları tamamlandı. Yerel 2.0.0 scoped paket, Node>=22.12; 182/182 test, src kapsamı %91,44 satır/%81,27 dal, lint/typecheck yeşil ve üretim audit 0. Ayrıntılı güncel kanıt: docs/roadmap/YH1_DENETIM_2026-10-24.md. Docker build/run ve uzak CI matrisi çalıştırılmadı; yayın/push yok. Aşağıdaki eski tarihli notlar tarihçedir.
-- Düzeltme listesi 1-6 ve ek geliştirmeler TAMAMLANDI. Sürüm: **v1.0.0** (etiket `33de7d7`), paket adı `llm-manager`, lisans MIT.
-- GitHub: https://github.com/sirrakadembasti/llm-manager (branch `main`, remote `origin`).
-- Sürümleme: SemVer + CHANGELOG.md (Keep a Changelog). Yayın: değişiklikleri `[Unreleased]` altına yaz, commit et, `npm run release:patch|minor|major`, `git push origin main --follow-tags`.
-- CSRF başlığı `X-LLM-CSRF: 1`. Git kimliği (yerel): llm-yonetimi <noreply@users.noreply.github.com>.
-- Klasör adı `llm-yonetimi` -> `llm-manager` olarak güncellendi.
+## Güncel durum — 2026-10-27
 
-## Mimari inceleme ve yol haritaları (2026-10-22)
-- `docs/roadmap/` altında iki yol haritası var: YH1 (teknik/mimari, A–F fazları) ve YH2 (vaat ↔ gerçek, G01–G26). Uygulama sırası YH2 §5'te.
-- Doğrulanmış kritik bulgular (`node docs/roadmap/dogrulama.mjs`): `chatAccess:false` sohbeti kapatmıyor, `llm.fetch` kimlik doğrulamasız (Next/Nuxt/SvelteKit rotaları açık), async store bozuk, gövde ayrıştırıcı sırası, SPA şablonu admin parolasını tarayıcıya gömüyor, init parolayı koda/package.json'a yazıyor ve `.gitignore` güncellemiyor, `--cors *` + credentials, npm'de `llm-manager` adı başkasına ait.
-- YH2 Faz 0 (G03 → G02 → G04+G05 → G06 → G01+G24 → G07) 2026-10-25 kabul denetimiyle tamamlandı; sonraki iş FAZ 1 kartlarını ayrı ayrı denetlemek.
-- **Karar (kullanıcı onayı, 2026-10-23; yerel uygulama 2026-10-25):** Paket adı `@sirrakadembasti/llm-manager`, yerel sürüm **2.0.0**. CLI komutu `llm-manager` ve GitHub deposu değişmez. G07'nin yerel scoped kurulum testi geçti; bu bir uzak npm yayını veya Git etiketi değildir.
+YH1'in 32 kartı ve YH2'nin G01–G26 işleri tamamlandı; YH2 yalnız FAZ 0/1/2 içerir. Ürün kapanışı `7297204`, belge kapanışı `46551a1`; bağımsız incelemeler onaylı.
 
-## Tamamlanan ek geliştirmeler (2026-10-19)
-- Tüm kaynak (`src/*`), arayüz (`public/*`), örnek (`examples/*`) ve test (`tests/*`) dosyalarındaki sıkıştırılmış kodların okunabilir hale getirilmesi ve `public/llm.html` içindeki mükerrer stil bloklarının birleştirilmesi.
-- `src/runtime.js` ile `src/core.js` arasındaki ortak sağlayıcı adresi, yetki başlığı ve çalışma zamanı seçenek çözümlemesinin (`providerEndpoint`, `providerAuthHeaders`, `resolveRuntimeOptions`) tekilleştirilmesi.
-- `src/profileStore.js` ile `src/setup.js` arasındaki şifreleme anahtarı doğrulamasının (`parseEncryptionKey`) ortaklaştırılması.
-- `bin/llm-manager.js` ile CLI başlatma (`npx llm-manager`).
-- Framework-agnostik çekirdek API (`src/core.js`, `llm-manager/core` export'u; Express adaptörü `src/index.js` içinde).
-- README'de kalan eski (geçmişe dönük) notların sadeleştirilmesi ve alt modül export'larının belgelenmesi.
-- Sağlayıcı kataloğuna varsayılan model listeleri/bölgesel uç noktalar ve yönetim arayüzüne model seçici + 3 durumlu şifreli API anahtarı rozeti eklenmesi.
-- Express 4 async hata yakalama (`next(err)`), yönetim sayfası/API güvenlik başlıkları (`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy`), `createUiAssets` yol doğrulaması ve örnek sunucuda SHA-256 sabit zamanlı Basic Auth.
-- AES-256-GCM şifre çözmede 12 bayt IV ve 16 bayt doğrulama etiketi (`authTagLength: 16`) zorunluluğu, hedef/model/anahtar değişmeyen profil düzenlemelerinde `lastTests` korunumu, bulunamayan profiller için `404 PROFILE_NOT_FOUND` durum kodu ve `setup.js` `.env` iyileştirmesi.
-- Programatik `allowLocalHttp` seçeneğinin tüm katmanlara iletilmesi, `resolveRuntimeOptions` içinde Xiaomi MiMo `purpose: 'manager'` düşünme tutarlılığı, Anthropic boş `system` alanının çıkarılması, Google `models/` önekinin temizlenmesi, ön yüzde "Modelleri getir" form durumu korunumu ve 23 birim/entegrasyon testi.
-- SPA, masaüstü ve diğer dillerden güvenli çağrı için `POST /chat` uç noktası (`{ prompt }` ve `{ messages }` desteği), `chatAccess` (`'authenticated' | 'admin' | false`) yetkilendirme ayarı, `LLM_ALLOWED_ORIGINS` / `--cors` desteği ve `docs/ENTEGRASYON.md` çoklu platform entegrasyon kılavuzu.
-- Sıfır konfigürasyonlu entegrasyon: `dataDir` ile otomatik şifreleme anahtarı (`llm-encryption.key`), `await llm.ask(prompt)` tek satır çağrısı, `await llm.fetch(request)` Web standart adaptörü, Express `adminPassword` yerleşik Basic Auth ve CLI `--password` / `--cors` parametreleri.
-- Etkileşimli otomatik kurulum ve doğrulama sihirbazı (`src/init.js`, `npx llm-manager init`): Express (ESM/CJS), React/Vue (`.vue`)/Vite (`spa`), Next.js (`nextjs`), Nuxt 3 (`nuxt`), SvelteKit (`sveltekit`), C# / .NET Core / ASP.NET MVC / .NET MVP / Desktop (`dotnet`), Python (`python`) ve Electron (`electron`) projelerinde otomatik mimari ve hedef dosya algılama (`detectEntryFile`), kullanıcı onaylı otomatik kod enjeksiyonu ve geri alma (`injectIntoEntryFile` + `rollback`), sözdizimi/entegrasyon iç kontrolü ve Türkçe hata rehberi (`verifyIntegration`), canlı `/llm` yoklaması ve varsayılan tarayıcıda otomatik açma (`probeAndOpenBrowser`, `runInteractiveInit` — toplam 33 test).
-- YH1-A4: Tipli hata modeli (`src/errors.js`, `LLMError`, `ErrorCodes`, `isLLMError`); `classifyLLMError`, `profileStore` ve `runtime` hatalarının tipli kodlara bağlanması, abort/timeout ayrımı, upstream 5xx, content filter ve payload boyutu tipleri (46 test).
-- YH1-B1: Okuma ve anahtar önbelleği (`src/profileStore.js`); `mtimeMs` + `size` stat önbelleği, `structuredClone` izolasyonu, closure anahtar önbelleği ve 1000 okumada tek disk erişimi doğrulaması (49 test).
-- YH1-B2 & B3: Çok süreçli dosya kilidi (`src/store/fileLock.js`, `withFileLockSync`, `withFileLock`), Windows EBUSY/EPERM yeniden deneme (`robustRenameSync`), şema sürümü `{ version: 1 }`, v0 migration, tek kuşak yedek (`.bak`), bozuk JSON kurtarma rehberi ve asenkron store uyumluluğu (56 test).
-- YH1-C1, C2, C3, D1: Mesaj/karakter sınırları ve rol doğrulaması (`limits`), override izinleri (`chatOverrides`), akışlı gövde boyutu sınırı (413) ve geçersiz JSON (400), token bucket hız sınırlayıcı (`src/rateLimit.js`, `createRateLimiter`), Basic Auth brute-force koruması, `x-request-id` yayılımı (`src/logger.js`, `sanitizeRequestId`), hassas veri maskeleme (`redact`) ve yapılandırılmış loglayıcı (`createStructuredLogger`, 61 test).
-- YH1-F2: Gerçek entegrasyon testleri ve mock sağlayıcı sunucusu (`tests/helpers/mockProvider.js`, Express 4 ESM, Express 4 CommonJS `app.cjs`, Web standart `llm.fetch` Node HTTP sunucu köprüsü, 64 test).
-- YH1-A3: TypeScript tip tanımları (`types/*.d.ts`, `types/tsconfig.json`, `types/test.ts`, `package.json#exports` types, `npm run typecheck`, CI adımı).
-- YH1-A5: Sağlayıcı dönüşümleri strateji deseni (`src/transports/openai.js`, `anthropic.js`, `google.js`, `index.js`; `normalizeMessages`, `usage` normalizasyonu, 69 test).
-- YH1-C5: Üretim parametreleri ve kullanım bilgisi (`temperature`, `topP`, `stop`, `responseFormat`; `/chat` `usage` ve `finishReason`, `ask(p, { raw: true })`, arayüzde `<details>` gelişmiş parametreler, 71 test).
-- YH1-C6: Yeniden deneme ve yedek profil aktarımı (`executeWithRetry`, jittered backoff, `Retry-After` uyumu, `fallbackProfileIds`, `fallbackUsed`, 74 test).
-- YH1-C4: Akış (Streaming SSE) desteği (`parseStreamEvent`, sayaçlı `stream: true`, `llm.stream` AsyncIterable, `POST /chat` SSE `event: delta|done|error`, istemci kopmasında üst akış abort, 79 test).
-- YH1-C7: Düşünme (reasoning) ayarı genelleştirmesi (`capabilities.thinking`, OpenAI `reasoning_effort`, Anthropic `budget_tokens`, Gemini `thinkingBudget`, Qwen `enable_thinking`, UI tüm sağlayıcı desteği, 85 test).
-- YH1-C8 & C9: Kurumsal proxy ve LAN modelleri (`proxyUrl`, Undici `ProxyAgent`, bilinen sağlayıcı ve `allowedHosts` doğrulaması, `allowedPrivateHosts`, `ollama` katalog girdisi ve arayüz notu, 88 test).
-- YH1-C10: Model kataloğu veri dosyası ve canlı model önizleme (`src/catalog/providers.json`, `src/providers.js`, `GET /catalog` `updatedAt`, `POST /models/preview`, `scripts/check-catalog.js`, derin dondurma ve UI rozeti, 93 test).
-- YH1-D2: Sağlık uç noktası (`GET /health`, `{ ok: true, version, hasActiveProfile }`, kimlik doğrulamasız/sır sızdırmaz, `health: false` kapatma seçeneği, 96 test).
-- YH1-D3: Docker ve dağıtım (`Dockerfile` node:22-alpine non-root, `VOLUME /data`, `HEALTHCHECK` `/api/llm/health`, `.dockerignore`, `docs/DEPLOY.md`, 97 test).
-- YH1-D4: Kullanım kaydı ve aylık özet (`src/usageLogger.js`, `data/usage-YYYY-MM.jsonl`, `GET /usage`, kart rozeti "Bu ay: N istek · X token", 100 test).
-- YH1-E1: Deneme sohbeti (Playground) paneli (`public/llm.html`, `public/llm-ui.js`, profil seçimi, streaming SSE çıktısı, latency ve token sayaç rozeti, 102 test).
-- YH1-E2: Çoklu dil desteği (Türkçe & İngilizce) (`public/i18n/tr.json`, `public/i18n/en.json`, `src/messages.js`, `README.en.md`, `mountLLMManagement({ locale })`, `createUiAssets`, HTML `<html lang="...">` ve `data-i18n` ön oluşturma, 107 test).
-- YH1-E3: Kullanıcı arayüzü geliştirmeleri (`homeUrl` desteği, profil klonlama `cloneProfile`, onay modalı `<dialog id="confirm-dialog">`, form `aria-describedby` hata/ipucu bağları, 112 test).
-- YH1-F3: Test kapsam ölçümü (`package.json#scripts.test:coverage`, %93+ satır ve %81+ dal kapsamı).
-- YH1-F4: Paket metaverisi ve uyumluluk (`engines.node: >=20.12.0`, `keywords`, `author`, `sideEffects: false`, `publishConfig`, `npm pack --dry-run` denetimi, 114 test).
-- YH1-F5: Güvenlik dokümantasyonu ve denetimi (`SECURITY.md`, `CONTRIBUTING.md`, `docs/THREAT_MODEL.md`, `npm audit --omit=dev`, 118 test).
+Son kod düzeltmesi `6efbe32`: .NET kontrolünün geçici araç yollarını kullanıcı PATH'ine eklemesi engellendi. Bu makinede 106 eski test girdisi yedeklenerek temizlendi; `npm start` gerçek health/auth HTTP kabulünü geçti. Son seri paket **388/388**, sıfır hata/atlama/iptal; standart npm lint/typecheck/format yeşil. Kullanıcı PATH'i test öncesi/sonrası sabit kaldı.
 
+Son kapsam ölçümü önceki ürün başındadır: **386/386**, src **%94,78 satır / %87,70 dal**; beş temel modül ≥%85 satır. Bunu 388 testlik koşunun yeni kapsam ölçümü sayma. Paket denetimi 89 dosya/yasak içerik 0, üretim audit 0 o kapanışın kanıtıdır; yeni iddia için yeniden doğrula.
 
-- 2026-10-24 YH1 denetimi: docs/roadmap/YH1_DENETIM_2026-10-24.md; eksik init/auth/async store/Express 5 kabul kriterleri tespit edildi. Sandbox dışı test: 120/121; B4 ve kalite kapıları henüz tamamlanmadı.
-- 2026-10-24 ek doğrulama: B4 testleri geçici env/cwd ile izole edildi; sandbox dışı npm test 121/121 geçti. YH1 kabul kriterlerinin tamamı henüz sağlanmadı.
+Docker imajı, uzak OS/Node CI, native POSIX/Windows konsol sinyalleri, canlı ücretli sağlayıcı ve pozitif proxy CONNECT çalıştırılmadı. Eski .NET 4.0 referanslarıyla derleme, kurulu CLR 4.8.1 üzerinde çalıştırıldı; özgün .NET 4.0 runtime kanıtı değildir.
+
+Belge sadeleştirmesi tamamlandı: kök/kılavuz metinleri kısaltıldı; 10 roadmap belgesi tek dosyada birleştirildi. 58 kimlik ve 37 yerel bağlantı sağlam; 13 belge/geçiş testi ve 388/388 tam paket (271215 ms) geçti. Lint/typecheck/format ve bağımsız inceleme onaylı; paket 80 dosya, yasak içerik yok. Çalışma zamanı değişmedi; eski ayrıntılar Git geçmişindedir.
