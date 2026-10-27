@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const readme = fs
+  .readFileSync(new URL('../docs/KULLANICI_KILAVUZU.md', import.meta.url), 'utf8')
+  .replaceAll('\r\n', '\n');
 const guide = fs.readFileSync(new URL('../docs/ENTEGRASYON.md', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const scenarios = [
   ['Express', 'express'],

@@ -11,7 +11,7 @@ Bu dosya eski iki yol haritasını, uygulama planını, denetim ve katalog kayna
 Sıra: güvenlik P0 → mimari temel → entegrasyon/depo P1 → runtime/arayüz/kalite P2. YH2 FAZ0 önce, FAZ1 çalışan senaryolar, FAZ2 belge/bağımsızlık uyumudur. Aşağıdaki bütün zorunlu işler kapalıdır; yeni işleri bu dosyada ayrı açık madde olarak kaydedin.
 
 - Önce davranış testi, sonra düzeltme; bir görev bir commit. Kabul, tüm testler ve ilgili kalite kontrolleri geçmeli.
-- API uyumu korunur; değişen API için tipler/README/CHANGELOG güncellenir, GEMINI'ye kısa durum yazılır.
+- API uyumu korunur; değişen API için tipler/README/CHANGELOG güncellenir, ilgili görev kaydına kısa durum yazılır.
 - Yeni runtime bağımlılığı eklenmez; dosya taşınırsa eski yol bir uyumluluk sürümü re-export sağlar.
 - Anahtar/parola/istem/cevap loglanmaz. HTTP kimlik denetimi adaptörde, doğrudan ask/handle güvenilir host sınırındadır.
 - Yayın, push, etiket veya sürüm artışı ayrıca yetki gerektirir. Tamamlanmış yerel çalışma yayımlanmış paket değildir.

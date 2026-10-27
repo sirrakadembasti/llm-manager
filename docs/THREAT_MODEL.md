@@ -60,4 +60,4 @@ Threat: a malicious dependency, lockfile, CI action or publish identity can expo
 
 ## 3. Operator responsibilities
 
-Use TLS, restricted service-account directories and encrypted/offline backups. On POSIX use suitable directory/file permissions; on Windows use ACLs. Keep profile and master-key backups paired. Protect host sessions and routing; do not expose trusted ask/handle calls directly to anonymous users. [Deployment](DEPLOY.md) · [Private vulnerability reporting](../SECURITY.md).
+Use TLS, restricted service-account directories and encrypted/offline backups. On POSIX use suitable directory/file permissions; on Windows use ACLs. Keep profile and master-key backups paired. Protect host sessions and routing; do not expose trusted ask/handle calls directly to anonymous users. [Deployment](DEPLOY.md) · [Private vulnerability reporting](SECURITY.md).

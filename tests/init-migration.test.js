@@ -8,8 +8,8 @@ import * as root from '@sirrakadembasti/llm-manager';
 const helpers = ['detectProjectType', 'detectEntryFile', 'formatVerificationReport'];
 
 test('2.0 migration names removed root helpers and supplies an executable scoped replacement', async t => {
-  const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-  const changelog = fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  const readme = fs.readFileSync(new URL('../docs/KULLANICI_KILAVUZU.md', import.meta.url), 'utf8');
+  const changelog = fs.readFileSync(new URL('../docs/CHANGELOG.md', import.meta.url), 'utf8');
   const deprecated = changelog
     .match(/## \[Unreleased\]([\s\S]*?)(?=\n## \[|$)/)?.[1]
     .match(/### Deprecated\r?\n([\s\S]*?)(?=\n### |$)/)?.[1];
@@ -22,7 +22,7 @@ test('2.0 migration names removed root helpers and supplies an executable scoped
   const example = [...readme.matchAll(/```js\r?\n([\s\S]*?)```/g)]
     .map(match => match[1])
     .find(code => helpers.every(name => code.includes(name)));
-  assert.ok(example, 'README must provide an import example for the synchronous helpers');
+  assert.ok(example, 'User guide must provide an import example for the synchronous helpers');
   const init = await import(
     `data:text/javascript,${encodeURIComponent(
       example.replace(

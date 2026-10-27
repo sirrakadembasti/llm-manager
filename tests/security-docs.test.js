@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 test('SECURITY.md exists and documents reporting procedures', () => {
-  assert.ok(fs.existsSync('SECURITY.md'));
-  const content = fs.readFileSync('SECURITY.md', 'utf8');
+  assert.ok(fs.existsSync('docs/SECURITY.md'));
+  const content = fs.readFileSync('docs/SECURITY.md', 'utf8');
   assert.match(content, /Reporting a Vulnerability/);
   assert.match(content, /Security Architecture Principles/);
   assert.match(content, /Zero Secret Leakage/);
 });
 
 test('CONTRIBUTING.md exists and documents quality and commit guidelines', () => {
-  assert.ok(fs.existsSync('CONTRIBUTING.md'));
-  const content = fs.readFileSync('CONTRIBUTING.md', 'utf8');
+  assert.ok(fs.existsSync('docs/CONTRIBUTING.md'));
+  const content = fs.readFileSync('docs/CONTRIBUTING.md', 'utf8');
   assert.match(content, /Conventional Commits/);
   assert.match(content, /Quality Verification Commands/);
   assert.match(content, /npm test/);
@@ -36,7 +36,7 @@ test('.github/workflows/ci.yml runs production dependency audit', () => {
 });
 
 test('security policy distinguishes unreleased development from existing release support', () => {
-  const content = fs.readFileSync('SECURITY.md', 'utf8');
+  const content = fs.readFileSync('docs/SECURITY.md', 'utf8');
   assert.match(content, /\| 1\.x\.x\s*\| :white_check_mark: \|/);
   assert.match(content, /2\.0\.0[^\n]*Unreleased/);
   assert.match(content, /not evidence of a published 2\.x release/);

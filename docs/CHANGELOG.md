@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işler ve tarihli kanıtlar [tek yol haritasında](docs/roadmap/YOL_HARITASI.md).
+Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işler ve tarihli kanıtlar [tek yol haritasında](roadmap/YOL_HARITASI.md).
 
 ### Kırıcı değişiklikler ve geçiş
 
@@ -15,7 +15,7 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 
 ### Deprecated
 
-- 2.0 sürümünde senkron `detectProjectType`, `detectEntryFile`, `formatVerificationReport` kökten kaldırıldı; `@sirrakadembasti/llm-manager/init` kullanın. Kökteki beş async init sarmalayıcısı bir uyumluluk sürümü için korunur; ayrıntılar README'dedir.
+- 2.0 sürümünde senkron `detectProjectType`, `detectEntryFile`, `formatVerificationReport` kökten kaldırıldı; `@sirrakadembasti/llm-manager/init` kullanın. Kökteki beş async init sarmalayıcısı bir uyumluluk sürümü için korunur; ayrıntılar [kullanıcı kılavuzundadır](KULLANICI_KILAVUZU.md#20-geçişi-ve-alt-yollar).
 
 ### Eklendi
 
@@ -47,6 +47,7 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 - Revizyon/404/409, test geçmişi korunumu, model formunun korunması, nötr örnekler ve README/İngilizce kılavuz uyumu tamamlandı.
 - .NET doğrulamasının geçici SDK araç dizinlerini kalıcı PATH'e eklemesi engellendi; gerçek `npm start` health/auth regresyonu eklendi (`6efbe32`, 388/388).
 - Kök/kılavuz Markdown dosyaları kısaltıldı; roadmap ve denetim tekrarları tek dosyada birleştirildi. Eski ayrıntılar Git geçmişinde korunur.
+- Kökte yalnız kısa README bırakıldı; API ve özellik açıklamaları kullanıcı kılavuzuna, diğer Markdown belgeleri `docs/` altına taşındı. `GEMINI.md` kaldırıldı; gerekli kurallar katkı belgesinde, klasör incelemesi `KLASORLER.md` içinde.
 
 ### Doğrulama
 

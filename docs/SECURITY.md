@@ -25,4 +25,4 @@ Include impact, reproduction/PoC, affected component, OS and Node version. Ackno
 - Mutating HTTP requests require `X-LLM-CSRF: 1`; admin and chat identities remain separate.
 - Production needs TLS, strong credentials and service-account-only file access. Windows requires ACLs; POSIX 0600 alone is insufficient.
 
-Controls and planned protections: [threat model](docs/THREAT_MODEL.md). A local security test/audit does not prove remote deployment safety.
+Controls and planned protections: [threat model](THREAT_MODEL.md). A local security test/audit does not prove remote deployment safety.

@@ -4,7 +4,7 @@ Provider, profile and encrypted API-key management for **Node.js 22.12+**. Run i
 
 Package: **`@sirrakadembasti/llm-manager`**; CLI: `llm-manager`. The unscoped npm package belongs to another project. Local **2.0.0 / Unreleased** is not proof of a published npm release or Git tag.
 
-[Türkçe](README.md) · [Integration](docs/ENTEGRASYON.md) · [Deployment](docs/DEPLOY.md) · [Roadmap](docs/roadmap/YOL_HARITASI.md)
+[Türkçe](KULLANICI_KILAVUZU.md) · [Quick start](../README.md) · [Integration](ENTEGRASYON.md) · [Deployment](DEPLOY.md) · [Roadmap](roadmap/YOL_HARITASI.md)
 
 ## Start from source
 
@@ -100,7 +100,7 @@ Retry handles only retryable failures, before the first emitted chunk, respectin
 
 Invalid messages: 400 MESSAGES_INVALID; invalid JSON: 400 BODY_INVALID; oversized body: 413 BODY_TOO_LARGE. Express parses after auth; an earlier host parser may impose a smaller limit. Advanced settings must match the selected model's capabilities.
 
-Custom stores implement `list`, `get`, `getActive`, `save`, `remove`, `activate`, `recordTest`. File-store methods return Promises; host methods may return `T | Promise<T>`. Only internal `get`/`getActive` results contain keys. Public results stay secret-free. Updates/deletes/activation require revision; mismatch is PROFILE_CONFLICT/409, missing profile PROFILE_NOT_FOUND/404. Preserve atomic compare-and-write and null-on-stale test recording. [Detailed contract and async memory example](docs/ENTEGRASYON.md#özel-depo).
+Custom stores implement `list`, `get`, `getActive`, `save`, `remove`, `activate`, `recordTest`. File-store methods return Promises; host methods may return `T | Promise<T>`. Only internal `get`/`getActive` results contain keys. Public results stay secret-free. Updates/deletes/activation require revision; mismatch is PROFILE_CONFLICT/409, missing profile PROFILE_NOT_FOUND/404. Preserve atomic compare-and-write and null-on-stale test recording. [Detailed contract and async memory example](ENTEGRASYON.md#özel-depo).
 
 ## Authentication and privacy
 
@@ -128,11 +128,11 @@ Key priority: explicit encryptionKey > LLM_CONFIG_ENCRYPTION_KEY > key file. Def
 
 STORE_CORRUPT and STORE_VERSION_UNSUPPORTED return typed500 errors and UI recovery guidance. Preserve the damaged/newer file and its key; restore a matching good `.bak` for corruption, or use a compatible version for newer data. Do not overwrite with an empty store.
 
-CLI/example processes own SIGINT/SIGTERM shutdown with a limit of 10 seconds. Programmatic factories/probes/init leave host signals alone by default. Use `handleSignals: true` only for an owned standalone process; embedded hosts call `await instance.close()`. [Docker, PM2, systemd, NSSM and recovery](docs/DEPLOY.md).
+CLI/example processes own SIGINT/SIGTERM shutdown with a limit of 10 seconds. Programmatic factories/probes/init leave host signals alone by default. Use `handleSignals: true` only for an owned standalone process; embedded hosts call `await instance.close()`. [Docker, PM2, systemd, NSSM and recovery](DEPLOY.md).
 
 ## Models and diagnostics
 
-The suggestion catalog is dated **2026-10-24**, not a live account guarantee. Use **Modelleri getir** for account/region-specific discovery; [dated sources](docs/roadmap/YOL_HARITASI.md#katalog-kaynakları) retain exact IDs and transport caveats. Some current models cannot disable thinking.
+The suggestion catalog is dated **2026-10-24**, not a live account guarantee. Use **Modelleri getir** for account/region-specific discovery; [dated sources](roadmap/YOL_HARITASI.md#katalog-kaynakları) retain exact IDs and transport caveats. Some current models cannot disable thinking.
 
 For MiMo auto thinking, `purpose: 'diagnostic'` and `purpose: 'quick'` disable thinking; `purpose: 'default'` preserves model defaults. Explicit diagnostic/default choices are retained, but MiMo quick tests disable even explicit thinking. Passing a diagnostic does not guarantee provider latency or production behavior. Quota, permission, network, empty/filter/truncation failures use separate codes. [Xiaomi's contract](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/other/deep-thinking).
 
@@ -157,4 +157,4 @@ import { detectProjectType, detectEntryFile, formatVerificationReport } from '@s
 
 Root async runInteractiveInit/probeAndOpenBrowser/initLLMProject/verifyIntegration/injectIntoEntryFile wrappers are deprecated for one compatibility release; use `/init` in new code. Legacy `manager` maps to `diagnostic`, `production` to `default`, each warning once. Obsolete custom-generate flags are no longer forwarded.
 
-MIT · [License](LICENSE) · [Changes](CHANGELOG.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+MIT · [License](../LICENSE) · [Changes](CHANGELOG.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

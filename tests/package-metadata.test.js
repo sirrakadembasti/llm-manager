@@ -35,10 +35,7 @@ test('npm pack bundle excludes tests, data, and secret env files', () => {
     files.some(f => f.includes('README.md')),
     'Package must include README.md'
   );
-  assert.ok(
-    files.some(f => f.includes('README.en.md')),
-    'Package must include README.en.md'
-  );
+  assert.ok(files.includes('docs/README.en.md'), 'Package must include docs/README.en.md');
 
   // Verify exclusions
   const forbiddenFiles = files.filter(

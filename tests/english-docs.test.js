@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const english = fs.readFileSync(new URL('../README.en.md', import.meta.url), 'utf8');
+const english = fs.readFileSync(new URL('../docs/README.en.md', import.meta.url), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 test('English deployment matrix covers the ten supported scenarios and manual/serverless boundaries', () => {
