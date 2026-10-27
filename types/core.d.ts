@@ -168,7 +168,16 @@ export interface GenerationResponse {
   usage?: TokenUsage | null;
   finishReason?: string | null;
 }
-export type StreamChunk = { type: 'delta'; text: string } | { type: 'done'; usage?: TokenUsage; finishReason?: string };
+export type StreamChunk =
+  | { type: 'delta'; text: string }
+  | {
+      type: 'done';
+      usage?: TokenUsage;
+      finishReason?: string;
+      profileId?: string;
+      fallbackUsed?: boolean;
+      truncated?: boolean;
+    };
 
 export interface RuntimeOptions {
   timeoutMs?: number;

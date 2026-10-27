@@ -181,6 +181,8 @@ A custom store implementation can be provided instead of `createLLMProfileStore`
 
 `ask(promptOrMessages, options)` returns a string; `{ raw: true }` returns `ChatResult` with `usage`, `finishReason` and profile/timing metadata. `stream()` returns an `AsyncIterable` of `delta` and `done` chunks. HTTP `POST /chat` accepts `{ stream: true }` and sends SSE `delta`, `done` or `error` events; disconnecting the Web/Express client cancels upstream work. Supply `signal` for direct cancellation. Reasoning content is never exposed as the final answer.
 
+The `done` chunk from `stream()` and the Web/Express SSE `done` data include the actual responding `profileId` and `fallbackUsed`, alongside `usage` and `finishReason`. The configured retry policy applies only before the first emitted chunk, preserving retryable-error, backoff and `Retry-After` limits. After any chunk is emitted, neither retry nor fallback can replay a partial answer. All attempts and fallback profiles share the initial profile's single total timeout budget; `retry: false` disables automatic retries.
+
 | Option | Default / contract |
 | --- | --- |
 | `limits.maxMessages` | 100 |

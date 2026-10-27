@@ -81,7 +81,7 @@ export default {
 
   parseResponse(payload) {
     const candidate = payload.candidates?.[0];
-    const textParts = candidate?.content?.parts?.filter(p => p.text)?.map(p => p.text) || [];
+    const textParts = candidate?.content?.parts?.filter(p => p.text && p.thought !== true)?.map(p => p.text) || [];
     const content = textParts.join('\n');
     const finishReason = candidate?.finishReason || null;
 
@@ -98,7 +98,7 @@ export default {
     try {
       const payload = JSON.parse(dataStr.trim());
       const candidate = payload.candidates?.[0];
-      const textParts = candidate?.content?.parts?.filter(p => p.text)?.map(p => p.text) || [];
+      const textParts = candidate?.content?.parts?.filter(p => p.text && p.thought !== true)?.map(p => p.text) || [];
       const text = textParts.join('');
       const finishReason = candidate?.finishReason || null;
 

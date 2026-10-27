@@ -298,7 +298,7 @@ export function mountLLMManagement(
               res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`);
             } else if (chunk.type === 'done') {
               res.write(
-                `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason })}\n\n`
+                `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason, profileId: chunk.profileId, fallbackUsed: chunk.fallbackUsed })}\n\n`
               );
             }
           }

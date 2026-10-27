@@ -118,14 +118,20 @@ class Program {
    using (var cancel = new CancellationTokenSource()) {
     if (prompt == "cancel") cancel.Cancel();
     using (var timer = new Timer(delegate { cancel.Cancel(); }, null, prompt == "headers" || prompt == "body" ? 500 : -1, -1)) {
+     var elapsed = System.Diagnostics.Stopwatch.StartNew();
+     Console.WriteLine("phase:ask:start prompt:" + prompt);
      var task = LlmClient.AskAsync(prompt, "sistem şğ", cancel.Token);
+     Console.WriteLine("phase:ask:wait prompt:" + prompt + " elapsedMs:" + elapsed.ElapsedMilliseconds);
+     var cancellationCase = prompt == "cancel" || prompt == "headers" || prompt == "body";
+     var waitMs = cancellationCase ? 5000 : 20000;
      try {
-      if (!task.Wait(5000)) throw new Exception("AskAsync did not complete within cancellation bound");
+      if (!task.Wait(waitMs)) throw new Exception("AskAsync did not complete within test bound; prompt:" + prompt + " phase:wait boundMs:" + waitMs + " elapsedMs:" + elapsed.ElapsedMilliseconds + " taskStatus:" + task.Status + " cancellationRequested:" + cancel.IsCancellationRequested);
       Console.WriteLine(prompt + ":" + task.Result);
      } catch (AggregateException error) {
       var cause = error.InnerException;
       Console.WriteLine(prompt + ":" + cause.GetType().Name + ":" + cause.Message + ":" + task.Status);
      }
+     Console.WriteLine("phase:ask:completed prompt:" + prompt + " elapsedMs:" + elapsed.ElapsedMilliseconds);
     }
    }
   }
@@ -154,10 +160,22 @@ class Program {
       throw new Error(error.stdout || error.message, { cause: error });
     }
     const requests = [];
+    const timings = [];
+    let runStartedAt;
     const server = http.createServer(async (req, res) => {
+      const timing = { arrivedMs: Date.now() - runStartedAt };
+      timings.push(timing);
+      res.on('finish', () => {
+        timing.responseFinishedMs = Date.now() - runStartedAt;
+      });
+      res.on('close', () => {
+        timing.closedMs = Date.now() - runStartedAt;
+      });
       let body = '';
       for await (const chunk of req) body += chunk;
       const data = JSON.parse(body);
+      timing.prompt = data.prompt;
+      timing.bodyReadMs = Date.now() - runStartedAt;
       requests.push({ data, token: req.headers.authorization, csrf: req.headers['x-llm-csrf'] });
       if (data.prompt === 'headers') return;
       if (data.prompt === 'body') {
@@ -179,6 +197,7 @@ class Program {
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
+      runStartedAt = Date.now();
       const result = await execute(path.join(cwd, 'Run.exe'), [], {
         cwd,
         timeout: 30000,
@@ -188,6 +207,7 @@ class Program {
           LLM_CHAT_TOKEN: 'legacy-token'
         }
       });
+      t.diagnostic(`Legacy target ${targetXml || 'implicit netfx'} stdout:\n${result.stdout}`);
       assert.match(result.stdout, /content:yanıt/);
       assert.match(result.stdout, /text:metin/);
       assert.match(result.stdout, /invalid:InvalidOperationException:LLM sunucusu geçersiz JSON döndürdü \(HTTP 200\)/);
@@ -200,7 +220,13 @@ class Program {
       assert.ok(
         requests.every(r => r.token === 'Bearer legacy-token' && r.csrf === '1' && r.data.system === 'sistem şğ')
       );
+    } catch (error) {
+      throw new Error(
+        `Legacy target ${targetXml || 'implicit netfx'} failed: ${error.message}\nstdout:\n${error.stdout || ''}\nstderr:\n${error.stderr || ''}`,
+        { cause: error }
+      );
     } finally {
+      t.diagnostic(`Legacy target ${targetXml || 'implicit netfx'} server timings: ${JSON.stringify(timings)}`);
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
     }

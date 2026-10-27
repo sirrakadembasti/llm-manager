@@ -81,7 +81,8 @@ export function generateProfileResponse(
 ): Promise<string | ParsedProviderResponse>;
 export function parseSseStream(
   stream: ReadableStream<Uint8Array> | null,
-  transport: ProviderTransport
+  transport: ProviderTransport,
+  options?: { acceptTruncated?: boolean }
 ): AsyncIterable<StreamChunk>;
 export function generateProfileStream(
   messages: LLMMessage[],

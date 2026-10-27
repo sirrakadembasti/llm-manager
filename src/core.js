@@ -619,20 +619,51 @@ export function createLLMManager({
               };
 
               try {
-                const streamIterable = generateStream
-                  ? generateStream(messages, options)
-                  : generateProfileStream(messages, currentProfile, options);
+                let streamIterator;
+                const first = await executeWithRetry(
+                  async ({ signal }) => {
+                    streamIterator = (
+                      generateStream
+                        ? generateStream(messages, { ...options, signal })
+                        : generateProfileStream(messages, currentProfile, { ...options, signal })
+                    )[Symbol.asyncIterator]();
+                    try {
+                      return await streamIterator.next();
+                    } catch (error) {
+                      await streamIterator.return?.();
+                      throw error;
+                    }
+                  },
+                  {
+                    attempts: retryPolicy ? (retryPolicy.attempts ?? 2) : 0,
+                    baseMs: retryPolicy?.baseMs ?? 500,
+                    maxMs: retryPolicy?.maxMs ?? 4000,
+                    deadlineMs: Math.max(0, timeoutBudget - (Date.now() - start)),
+                    signal: requestSignal
+                  }
+                );
 
                 finalStreamUsage = null;
-                for await (const chunk of streamIterable) {
-                  yieldedAny = true;
-                  if (chunk.type === 'done') {
-                    finalStreamUsage = safeUsage(chunk.usage);
-                    completionCode = 'OK';
+                try {
+                  for (let next = first; !next.done; next = await streamIterator.next()) {
+                    const chunk = next.value;
+                    yieldedAny = true;
+                    if (chunk.type === 'done') {
+                      finalStreamUsage = safeUsage(chunk.usage);
+                      completionCode = 'OK';
+                    }
+                    yield chunk.type === 'done'
+                      ? {
+                          ...chunk,
+                          usage: safeUsage(chunk.usage),
+                          profileId: currentProfile.id,
+                          fallbackUsed: isFallback
+                        }
+                      : chunk;
                   }
-                  yield chunk.type === 'done' ? { ...chunk, usage: safeUsage(chunk.usage) } : chunk;
+                } finally {
+                  await streamIterator.return?.();
                 }
-
                 if (requestSignal.aborted) {
                   throw new LLMError(
                     requestSignal.reason?.name === 'TimeoutError' ? ErrorCodes.LLM_TIMEOUT : ErrorCodes.LLM_ABORTED,
@@ -654,6 +685,7 @@ export function createLLMManager({
                 return;
               } catch (err) {
                 lastStreamError = err;
+                if (err?.usage) finalStreamUsage = safeUsage(err.usage);
                 const classified = classifyLLMError(err);
                 if (
                   requestSignal.aborted ||
@@ -1180,7 +1212,7 @@ export function createLLMManager({
                 } else if (chunk.type === 'done') {
                   controller.enqueue(
                     encoder.encode(
-                      `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason })}\n\n`
+                      `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason, profileId: chunk.profileId, fallbackUsed: chunk.fallbackUsed })}\n\n`
                     )
                   );
                 }

@@ -105,7 +105,7 @@ export default {
     try {
       const payload = JSON.parse(trimmed);
       const choice = payload.choices?.[0];
-      const text = choice?.delta?.content || choice?.delta?.reasoning_content || '';
+      const text = choice?.delta?.content || '';
       const finishReason = choice?.finish_reason || null;
       let usage = null;
       if (payload.usage) {

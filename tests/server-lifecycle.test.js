@@ -26,6 +26,10 @@ function host(dir, packageRoot = root) {
   fs.symlinkSync(packageRoot, installed, process.platform === 'win32' ? 'junction' : 'dir');
 }
 function child(t, mode, dir, entry = '', args = []) {
+  const startedAt = Date.now();
+  const phases = [{ phase: 'fork requested', elapsedMs: 0 }];
+  const mark = phase => phases.push({ phase, elapsedMs: Date.now() - startedAt });
+  let watchdogFired = false;
   const proc = fork(fixture, [mode, entry, dir, ...args], {
     cwd: dir,
     silent: true,
@@ -34,21 +38,47 @@ function child(t, mode, dir, entry = '', args = []) {
   });
   let stdout = '';
   let stderr = '';
+  proc.once('spawn', () => mark('spawned'));
   proc.stdout.on('data', data => (stdout += data));
   proc.stderr.on('data', data => (stderr += data));
-  const exited = new Promise(resolve => proc.on('close', (code, signal) => resolve({ code, signal, stdout, stderr })));
+  const diagnostic = (code, signal) =>
+    JSON.stringify({
+      mode,
+      elapsedMs: Date.now() - startedAt,
+      pid: proc.pid,
+      code,
+      signal,
+      watchdogFired,
+      phases,
+      stdout: stdout.replaceAll('lifecycle-password', '[REDACTED]'),
+      stderr: stderr.replaceAll('lifecycle-password', '[REDACTED]')
+    });
+  const exited = new Promise(resolve =>
+    proc.on('close', (code, signal) => {
+      mark('closed');
+      t.diagnostic(`Lifecycle child: ${diagnostic(code, signal)}`);
+      resolve({ code, signal, stdout, stderr });
+    })
+  );
   const ready = new Promise((resolve, reject) => {
-    proc.once('message', resolve);
-    proc.once('exit', code => reject(new Error(`Child exited before ready (${code}): ${stderr}`)));
+    proc.once('message', message => {
+      mark('ready');
+      resolve(message);
+    });
+    proc.once('exit', (code, signal) => reject(new Error(`Child exited before ready: ${diagnostic(code, signal)}`)));
   });
   ready.catch(() => {});
-  const timer = setTimeout(() => proc.kill('SIGKILL'), 15000);
+  const timer = setTimeout(() => {
+    watchdogFired = true;
+    mark('watchdog kill');
+    proc.kill('SIGKILL');
+  }, 15000);
   t.after(async () => {
     clearTimeout(timer);
     if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
     await exited;
   });
-  return { proc, ready, exited };
+  return { proc, ready, exited, mark };
 }
 
 test('owned manual/raw close is idempotent and removes only its own signal listeners', async t => {
@@ -118,11 +148,15 @@ for (const mode of ['factory', 'probe-owner', 'cli', 'cli-init', 'example']) {
       const args = mode === 'cli-init' ? ['init', '--type', 'spa', '--yes', '--no-open'] : [];
       const run = child(t, mode, dir, entry, args);
       const { url } = await run.ready;
+      run.mark('HTTP request started');
       const response = await fetch(url, {
         headers: { Authorization: 'Basic ' + Buffer.from('admin:lifecycle-password').toString('base64') }
       });
       assert.equal(response.status, 200);
+      run.mark('HTTP headers received');
       await response.text();
+      run.mark('HTTP body consumed');
+      run.mark(`sending ${signal}`);
       if (process.platform === 'win32') run.proc.send(signal);
       else run.proc.kill(signal);
       const result = await run.exited;

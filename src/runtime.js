@@ -535,7 +535,7 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   return content;
 }
 
-export async function* parseSseStream(stream, transport) {
+export async function* parseSseStream(stream, transport, options = {}) {
   if (!stream) return;
   const reader = stream.getReader();
   const decoder = new TextDecoder('utf-8');
@@ -544,6 +544,27 @@ export async function* parseSseStream(stream, transport) {
   let currentData = [];
   const accumulatedUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let lastFinishReason = null;
+  const terminalChunk = () => {
+    const filtered = ['SAFETY', 'content_filter'].includes(lastFinishReason);
+    const truncated = ['length', 'MAX_TOKENS', 'max_tokens'].includes(lastFinishReason);
+    if (filtered || (truncated && options.acceptTruncated !== true)) {
+      const error = new LLMError(
+        filtered ? ErrorCodes.LLM_CONTENT_FILTERED : ErrorCodes.LLM_TRUNCATED,
+        filtered
+          ? 'Model yanıtı güvenlik veya içerik filtresi nedeniyle engellendi.'
+          : 'Model yanıtı token sınırında kesildi.',
+        { status: 422, retryable: false }
+      );
+      error.usage = { ...accumulatedUsage };
+      throw error;
+    }
+    return {
+      type: 'done',
+      finishReason: lastFinishReason || 'stop',
+      usage: accumulatedUsage,
+      ...(truncated ? { truncated: true } : {})
+    };
+  };
 
   try {
     while (true) {
@@ -574,11 +595,7 @@ export async function* parseSseStream(stream, transport) {
                 yield { type: 'delta', text: parsed.text };
               }
               if (parsed.done) {
-                yield {
-                  type: 'done',
-                  finishReason: lastFinishReason || 'stop',
-                  usage: accumulatedUsage
-                };
+                yield terminalChunk();
                 return;
               }
             }
@@ -618,11 +635,7 @@ export async function* parseSseStream(stream, transport) {
       }
     }
 
-    yield {
-      type: 'done',
-      finishReason: lastFinishReason || 'stop',
-      usage: accumulatedUsage
-    };
+    yield terminalChunk();
   } finally {
     await reader.cancel().catch(() => {});
     reader.releaseLock();
@@ -654,15 +667,42 @@ export async function* generateProfileStream(messages, profile, options = {}) {
       allowedPrivateHosts: options.allowedPrivateHosts,
       stream: true
     });
+
+    if (!response.ok) {
+      const is5xx = response.status >= 500 && response.status <= 599;
+      const error = new LLMError(
+        is5xx
+          ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE
+          : response.status === 429
+            ? ErrorCodes.LLM_RATE_LIMIT
+            : ErrorCodes.LLM_PROVIDER_ERROR,
+        `Sağlayıcı HTTP ${response.status} döndürdü.`,
+        {
+          status: is5xx ? 503 : 502,
+          upstreamStatus: response.status,
+          retryable: is5xx || response.status === 429
+        }
+      );
+      const retryAfter = response.headers.get('retry-after');
+      if (retryAfter !== null) {
+        const seconds = /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
+          ? Number(retryAfter)
+          : (Date.parse(retryAfter) - Date.now()) / 1000;
+        if (Number.isFinite(seconds)) error.retryAfterSec = Math.max(0, seconds);
+      }
+      throw error;
+    }
+
+    yield* parseSseStream(response.body, transport, options);
   } catch (fetchError) {
-    if (userSignal?.aborted) {
+    if (signal.aborted && signal.reason?.name !== 'TimeoutError') {
       throw new LLMError(ErrorCodes.LLM_ABORTED, 'İstek iptal edildi.', {
         status: 499,
         retryable: false,
         cause: fetchError
       });
     }
-    if (deadline.aborted) {
+    if (signal.aborted && signal.reason?.name === 'TimeoutError') {
       throw new LLMError(
         ErrorCodes.LLM_TIMEOUT,
         'Model yanıtı süre sınırını aştı. Süreyi artırın veya daha hızlı düşünme/model ayarı kullanın.',
@@ -671,19 +711,4 @@ export async function* generateProfileStream(messages, profile, options = {}) {
     }
     throw fetchError;
   }
-
-  if (!response.ok) {
-    const is5xx = response.status >= 500 && response.status <= 599;
-    throw new LLMError(
-      is5xx ? ErrorCodes.LLM_UPSTREAM_UNAVAILABLE : ErrorCodes.LLM_PROVIDER_ERROR,
-      `Sağlayıcı HTTP ${response.status} döndürdü.`,
-      {
-        status: is5xx ? 503 : 502,
-        upstreamStatus: response.status,
-        retryable: is5xx || response.status === 429
-      }
-    );
-  }
-
-  yield* parseSseStream(response.body, transport);
 }

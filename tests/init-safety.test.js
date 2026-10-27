@@ -180,7 +180,7 @@ test('manual frameworks preserve host file and Tauri produces only HTTP integrat
   }
 });
 
-test('generated CommonJS mounts before host 404 and serves authenticated HTTP synchronously', async () => {
+test('generated CommonJS mounts before host 404 and serves authenticated HTTP synchronously', async t => {
   const { execFileSync } = await import('node:child_process');
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cjs-host-'));
   try {
@@ -193,31 +193,45 @@ test('generated CommonJS mounts before host 404 and serves authenticated HTTP sy
     fs.writeFileSync(
       path.join(cwd, 'check.cjs'),
       `
+console.log('CJS_PHASE bootstrap', Date.now());
 const assert=require('node:assert/strict');
 const express=require(${JSON.stringify(path.resolve('node_modules/express'))});
+console.log('CJS_PHASE express_loaded', Date.now());
 const { setupLLM }=require('./llm.js');
+console.log('CJS_PHASE helper_loaded', Date.now());
 const app=express();
 const manager=setupLLM(app,{adminPassword:'test-password'});
+console.log('CJS_PHASE setup_completed', Date.now());
 assert.equal(typeof manager.then,'undefined');
 app.use((_req,res)=>res.status(404).end());
 const server=app.listen(0,'127.0.0.1',async()=>{
+ console.log('CJS_PHASE listening', Date.now());
  try {
   const response=await fetch('http://127.0.0.1:'+server.address().port+'/llm',{headers:{Authorization:'Basic '+Buffer.from('admin:test-password').toString('base64')}});
+  console.log('CJS_PHASE response_headers', Date.now());
   assert.equal(response.status,200);console.log('CJS_SYNC_HTTP_OK');
- } catch(error){console.error(error);process.exitCode=1;} finally{server.close();}
+ } catch(error){console.error(error);process.exitCode=1;} finally{console.log('CJS_PHASE close_requested', Date.now());server.close(()=>console.log('CJS_PHASE closed', Date.now()));}
 });
 `
     );
-    assert.match(
-      execFileSync(process.execPath, ['check.cjs'], { cwd, encoding: 'utf8', timeout: 30000 }),
-      /CJS_SYNC_HTTP_OK/
-    );
+    const startedAt = Date.now();
+    let output;
+    try {
+      output = execFileSync(process.execPath, ['check.cjs'], { cwd, encoding: 'utf8', timeout: 30000 });
+    } catch (error) {
+      throw new Error(
+        `CJS HTTP failed: ${JSON.stringify({ elapsedMs: Date.now() - startedAt, code: error.code, status: error.status, signal: error.signal, pid: error.pid, message: error.message })}\nstdout:\n${String(error.stdout ?? '')}\nstderr:\n${String(error.stderr ?? '')}`,
+        { cause: error }
+      );
+    }
+    t.diagnostic(`CJS HTTP completed in ${Date.now() - startedAt}ms:\n${output}`);
+    assert.match(output, /CJS_SYNC_HTTP_OK/);
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
 
-test('generated CommonJS loads its ESM graph and throws setup errors synchronously', async () => {
+test('generated CommonJS loads its ESM graph and throws setup errors synchronously', async t => {
   const { execFileSync } = await import('node:child_process');
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cjs-startup-'));
   try {
@@ -229,14 +243,20 @@ test('generated CommonJS loads its ESM graph and throws setup errors synchronous
     initLLMProject({ cwd, type: 'express' });
     // A fresh CJS process must synchronously load the complete transitive ESM graph.
     // Adding top-level await anywhere in that graph makes require() fail here.
-    const output = execFileSync(
-      process.execPath,
-      [
-        '-e',
-        `
+    const startedAt = Date.now();
+    let output;
+    try {
+      output = execFileSync(
+        process.execPath,
+        [
+          '-e',
+          `
+console.log('CJS_PHASE bootstrap', Date.now());
 const assert = require('node:assert/strict');
 const express = require(${JSON.stringify(path.resolve('node_modules/express'))});
+console.log('CJS_PHASE express_loaded', Date.now());
 const { setupLLM, askLLM } = require('./llm.js');
+console.log('CJS_PHASE helper_loaded', Date.now());
 assert.equal(typeof setupLLM, 'function');
 assert.equal(typeof askLLM, 'function');
 const app = express();
@@ -246,13 +266,21 @@ assert.throws(
 );
 // A failed startup must leave the host able to retry with valid configuration.
 const manager = setupLLM(app, { adminPassword: 'test-password' });
+console.log('CJS_PHASE setup_completed', Date.now());
 assert.equal(typeof manager.then, 'undefined');
 assert.equal(typeof manager.ask, 'function');
 console.log('CJS_STARTUP_OK');
 `
-      ],
-      { cwd, encoding: 'utf8', timeout: 30000 }
-    );
+        ],
+        { cwd, encoding: 'utf8', timeout: 30000 }
+      );
+    } catch (error) {
+      throw new Error(
+        `CJS startup failed: ${JSON.stringify({ elapsedMs: Date.now() - startedAt, code: error.code, status: error.status, signal: error.signal, pid: error.pid, message: error.message })}\nstdout:\n${String(error.stdout ?? '')}\nstderr:\n${String(error.stderr ?? '')}`,
+        { cause: error }
+      );
+    }
+    t.diagnostic(`CJS startup completed in ${Date.now() - startedAt}ms:\n${output}`);
     assert.match(output, /CJS_STARTUP_OK/);
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });

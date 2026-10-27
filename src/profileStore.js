@@ -138,6 +138,7 @@ export function createLLMProfileStore({
   dataDir,
   filePath = process.env.LLM_CONFIG_PATH || path.resolve(dataDir || 'data', 'llm-profiles.json'),
   encryptionKey,
+  allowedPrivateHosts = [],
   allowLocalHttp = process.env.LLM_ALLOW_LOCAL_HTTP === 'true'
 } = {}) {
   let cachedKeyBytes = null;
@@ -268,7 +269,7 @@ export function createLLMProfileStore({
             retryable: false
           });
         }
-        const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp });
+        const baseURL = validateProviderUrl(input.baseURL, { allowLocalHttp, allowedPrivateHosts });
         const data = await read();
         const existing = data.profiles.find(item => item.id === input.id);
         if (input.id && !existing) throw notFoundError();

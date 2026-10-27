@@ -19,7 +19,7 @@ test('conversation runtime rejects nonempty truncated answers for every transpor
       })
     );
   try {
-    for (const purpose of [undefined, 'manager']) {
+    for (const purpose of [undefined, 'diagnostic']) {
       for (const transport of ['openai', 'google', 'anthropic']) {
         await assert.rejects(
           () =>
@@ -87,16 +87,16 @@ test('MiMo Manager speed policy leaves production reasoning and other providers 
     baseURL: 'https://token-plan-sgp.xiaomimimo.com/v1',
     apiKey: 'key'
   };
-  const manager = buildProviderRequest(profile, [{ role: 'user', content: 'Planla' }], { purpose: 'manager' });
+  const manager = buildProviderRequest(profile, [{ role: 'user', content: 'Planla' }], { purpose: 'diagnostic' });
   assert.deepEqual(manager.body.thinking, { type: 'disabled' });
   assert.equal(manager.body.max_completion_tokens, 8192);
   assert.equal(buildProviderRequest(profile, [], {}).body.thinking, undefined);
   assert.deepEqual(
-    buildProviderRequest({ ...profile, thinking: 'enabled' }, [], { purpose: 'manager' }).body.thinking,
+    buildProviderRequest({ ...profile, thinking: 'enabled' }, [], { purpose: 'diagnostic' }).body.thinking,
     { type: 'enabled' }
   );
   assert.equal(
-    buildProviderRequest({ ...profile, provider: 'custom' }, [], { purpose: 'manager' }).body.thinking,
+    buildProviderRequest({ ...profile, provider: 'custom' }, [], { purpose: 'diagnostic' }).body.thinking,
     undefined
   );
 });
@@ -330,7 +330,7 @@ test('POST /chat endpoint supports active and explicit profileId, enforces chatA
     const activeRes = await fetch(`${base}/chat`, {
       method: 'POST',
       headers: userHeaders,
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'Selam' }], purpose: 'manager' })
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Selam' }], purpose: 'diagnostic' })
     });
     assert.equal(activeRes.status, 200);
     const activeBody = await activeRes.json();

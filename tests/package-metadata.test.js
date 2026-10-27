@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 test('package.json contains complete metadata and compatibility settings', () => {
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -14,7 +15,14 @@ test('package.json contains complete metadata and compatibility settings', () =>
 });
 
 test('npm pack bundle excludes tests, data, and secret env files', () => {
-  const rawOutput = execSync('npm pack --dry-run --json', { encoding: 'utf8' });
+  const packArgs = ['pack', '--dry-run', '--json'];
+  const rawOutput = execFileSync(
+    process.platform === 'win32' ? process.execPath : 'npm',
+    process.platform === 'win32'
+      ? [path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'), ...packArgs]
+      : packArgs,
+    { encoding: 'utf8' }
+  );
   const packInfo = JSON.parse(rawOutput);
   assert.ok(Array.isArray(packInfo) && packInfo.length > 0, 'npm pack output should contain package info');
 

@@ -46,7 +46,7 @@ test('Electron TS candidates ignore all build main prefixes', () =>
     );
   }));
 
-test('ESM syntax TS host in CommonJS package imports explicit JS helper and compiles', () =>
+test('ESM syntax TS host in CommonJS package imports explicit JS helper and compiles', t =>
   fixture(cwd => {
     fs.writeFileSync(path.join(cwd, 'package.json'), '{}');
     fs.writeFileSync(path.join(cwd, 'server.ts'), "import express from 'express';\nconst app = express();\n");
@@ -73,14 +73,31 @@ test('ESM syntax TS host in CommonJS package imports explicit JS helper and comp
     );
     // This repository has no @types/node; model the require global provided by a Node host.
     fs.writeFileSync(path.join(cwd, 'node-globals.d.ts'), 'declare function require(id: string): any;\n');
-    const compile = () => {
+    const compile = phase => {
+      const startedAt = Date.now();
       try {
         execFileSync(process.execPath, [compiler, '-p', cwd], { stdio: 'pipe', timeout: 30000 });
       } catch (error) {
-        assert.fail(String(error.stdout || error.stderr || error.message));
+        const details = {
+          phase,
+          elapsedMs: Date.now() - startedAt,
+          executable: process.execPath,
+          args: [compiler, '-p', cwd],
+          code: error.code,
+          status: error.status,
+          signal: error.signal,
+          pid: error.pid,
+          killed: error.killed,
+          message: error.message
+        };
+        throw new Error(
+          `TypeScript compilation failed: ${JSON.stringify(details)}\nstdout:\n${String(error.stdout ?? '')}\nstderr:\n${String(error.stderr ?? '')}`,
+          { cause: error }
+        );
       }
+      t.diagnostic(`TypeScript compilation ${phase} completed in ${Date.now() - startedAt}ms`);
     };
-    compile();
+    compile('explicit CommonJS');
     explicit.rollback();
     injectIntoEntryFile({ cwd, type: 'express' });
     assert.match(
@@ -88,7 +105,7 @@ test('ESM syntax TS host in CommonJS package imports explicit JS helper and comp
       /import \{ setupLLM, askLLM \} from '.\/llm.js'/
     );
     fs.unlinkSync(path.join(cwd, 'node-globals.d.ts'));
-    compile();
+    compile('inferred ESM');
   }));
 
 test('unknown and ambiguous projects give Turkish explicit-type guidance', () =>

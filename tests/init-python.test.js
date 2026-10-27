@@ -35,8 +35,10 @@ test('Python verification parses real files without pycache and warns in Turkish
 test(
   'generated Python preserves HTTP errors and supports env, token, content/text and timeout',
   { skip: !interpreter, timeout: 20000 },
-  async () => {
+  async t => {
     const requests = [];
+    const requestTimings = [];
+    let runStartedAt;
     const replies = [
       'not json',
       '[]',
@@ -53,12 +55,19 @@ test(
       });
       req.on('end', () => {
         requests.push({ url: req.url, headers: req.headers, body: JSON.parse(body) });
+        const timing = { request: requests.length, arrivedMs: Date.now() - runStartedAt };
+        requestTimings.push(timing);
+        res.once('finish', () => {
+          timing.responseFinishedMs = Date.now() - runStartedAt;
+        });
         res.writeHead(requests.length <= 5 ? 401 : 200, { 'Content-Type': 'application/json' });
         res.end(replies[requests.length - 1]);
       });
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const script = `${python()['llm_client.py']}
+import sys, time
+print("PYTHON_PHASE ready " + str(time.monotonic()), file=sys.stderr, flush=True)
 original_urlopen = urllib.request.urlopen
 timeouts = []
 def tracked_urlopen(req, timeout):
@@ -67,14 +76,17 @@ def tracked_urlopen(req, timeout):
 urllib.request.urlopen = tracked_urlopen
 results = []
 for i in range(7):
+    print("PYTHON_PHASE request_start " + str(i) + " " + str(time.monotonic()), file=sys.stderr, flush=True)
     try:
         results.append({"value": ask_llm("Merhaba", "Kısa")})
     except Exception as error:
         results.append({"type": type(error).__name__, "message": str(error), "code": getattr(error, "code", None), "status": getattr(error, "status", None)})
+    print("PYTHON_PHASE request_done " + str(i) + " " + str(time.monotonic()), file=sys.stderr, flush=True)
 print(json.dumps({"results": results, "timeouts": timeouts}))
 `;
     try {
       const output = await new Promise((resolve, reject) => {
+        runStartedAt = Date.now();
         const child = spawn(interpreter, ['-c', script], {
           env: {
             ...process.env,
@@ -85,9 +97,24 @@ print(json.dumps({"results": results, "timeouts": timeouts}))
         });
         let stdout = '',
           stderr = '';
+        let spawnedMs;
+        child.once('spawn', () => {
+          spawnedMs = Date.now() - runStartedAt;
+        });
+        const diagnostic = () =>
+          JSON.stringify({
+            elapsedMs: Date.now() - runStartedAt,
+            spawnedMs,
+            pid: child.pid,
+            exitCode: child.exitCode,
+            signal: child.signalCode,
+            requests: requestTimings,
+            stdout,
+            stderr
+          });
         const timer = setTimeout(() => {
           child.kill();
-          reject(new Error('Python istemcisi zaman aşımına uğradı'));
+          reject(new Error(`Python istemcisi zaman aşımına uğradı: ${diagnostic()}`));
         }, 10000);
         child.stdout.on('data', chunk => {
           stdout += chunk;
@@ -97,11 +124,12 @@ print(json.dumps({"results": results, "timeouts": timeouts}))
         });
         child.once('error', error => {
           clearTimeout(timer);
-          reject(error);
+          reject(new Error(`Python spawn failed: ${error.message}; ${diagnostic()}`, { cause: error }));
         });
-        child.once('close', code => {
+        child.once('close', (code, signal) => {
           clearTimeout(timer);
-          code === 0 ? resolve(stdout) : reject(new Error(stderr));
+          t.diagnostic(`Python close code=${code} signal=${signal}: ${diagnostic()}`);
+          code === 0 ? resolve(stdout) : reject(new Error(`Python failed: ${diagnostic()}`));
         });
       });
       const { results, timeouts } = JSON.parse(output);
