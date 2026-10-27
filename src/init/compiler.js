@@ -40,9 +40,11 @@ export function checkSource(cwd, rel, warnings) {
       warnings.push(`${rel}: Host C# dosyası proje bağlamı ve bağımlılıkları gerektirir; derleme kontrolü atlandı.`);
       return null;
     }
+    // A fresh CLI home must not register its temporary tools directory in the user's PATH.
+    const sdkEnv = { ...process.env, DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: 'false' };
     let version;
     try {
-      version = execFileSync('dotnet', ['--list-sdks'], { encoding: 'utf8', timeout: 10000 })
+      version = execFileSync('dotnet', ['--list-sdks'], { encoding: 'utf8', timeout: 10000, env: sdkEnv })
         .split(/\r?\n/)
         .map(line => line.match(/^(\d+)\.\d+\.\d+/)?.[0])
         .filter(Boolean)
@@ -73,7 +75,7 @@ export function checkSource(cwd, rel, warnings) {
         stdio: 'pipe',
         timeout: 120000,
         env: {
-          ...process.env,
+          ...sdkEnv,
           DOTNET_CLI_HOME: path.join(temp, 'home'),
           NUGET_PACKAGES: path.join(temp, 'packages'),
           DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1',

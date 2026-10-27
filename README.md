@@ -57,6 +57,8 @@ $env:LLM_ADMIN_PASSWORD = 'kendi-guclu-parolaniz'
 npm start
 ```
 
+Windows'ta Node kurulu olduğu halde `npm start` için `'node' is not recognized` görülürse `PATH` uzunluğunu kontrol edin: npm'in varsayılan `cmd.exe` kabuğu [8191 karakterden uzun ortam değişkenlerini yok sayar](https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation). Silinmiş geçici klasörleri PATH'ten temizledikten sonra terminal ortamını yenileyin. .NET kaynak doğrulaması, geçici SDK dizinlerinin kullanıcı PATH'ine eklenmesini önler; normal başlatma komutu `npm start` olarak kalır.
+
 API anahtarlarınızı yalnız arayüzden girin. `data/` altındaki profil ve şifreleme
 anahtarı dosyalarını kaynak depoya eklemeyin. Profil dosyasını **ve şifreleme
 anahtarını** birlikte yedekleyin.

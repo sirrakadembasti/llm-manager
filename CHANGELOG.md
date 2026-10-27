@@ -5,6 +5,9 @@ Bu proje [Semantic Versioning](https://semver.org/lang/tr/) ve
 
 ## [Unreleased]
 
+### Fixed
+- .NET kaynak doğrulaması ve C# entegrasyon testi, SDK'nın geçici `home/.dotnet/tools` dizinlerini kalıcı kullanıcı PATH'ine eklemesini engeller. Windows `cmd.exe` PATH sınırı nedeniyle oluşabilen `npm start` / `node` bulunamadı hatasının nedeni giderildi; gerçek npm başlangıcı, health ve kimlik doğrulamalı yönetim sayfası kabul testi eklendi.
+
 ### Deprecated
 - 2.0 sürümünde kök girişten `detectProjectType`, `detectEntryFile` ve `formatVerificationReport` senkron dışa aktarımları kaldırıldı; bu yardımcıları `@sirrakadembasti/llm-manager/init` alt yolundan içe aktarın. Kök girişteki `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration` ve `injectIntoEntryFile` tembel async sarmalayıcıları bir uyumluluk sürümü boyunca korunur ve kullanımdan kaldırılmıştır; bunlar için de aynı alt yolu kullanın (YH1-A1).
 

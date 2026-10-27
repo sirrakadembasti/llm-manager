@@ -49,7 +49,10 @@ test('G14 generated helper compiler detects real C# errors when SDK is installed
 test('G14 generated C# client builds offline and handles HTTP JSON, Turkish errors and cancellation', async t => {
   let version;
   try {
-    version = execFileSync('dotnet', ['--list-sdks'], { encoding: 'utf8' })
+    version = execFileSync('dotnet', ['--list-sdks'], {
+      encoding: 'utf8',
+      env: { ...process.env, DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: 'false' }
+    })
       .split(/\r?\n/)
       .map(line => line.match(/^\d+\.\d+\.\d+/)?.[0])
       .filter(Boolean)
@@ -92,6 +95,7 @@ class Program {
   );
   const env = {
     ...process.env,
+    DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: 'false',
     DOTNET_CLI_HOME: path.join(cwd, 'home'),
     NUGET_PACKAGES: path.join(cwd, 'packages'),
     DOTNET_CLI_TELEMETRY_OPTOUT: '1',
