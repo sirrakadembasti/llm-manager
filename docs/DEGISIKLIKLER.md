@@ -39,6 +39,7 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 
 ### Düzeltildi
 
+- README ve kullanıcı kılavuzunda Türkçe arayüz, ayar sonrası yeniden başlatma, özel yönetici adıyla API çağrısı ve varsayılan yedekleme yolları netleştirildi.
 - İngilizce arayüz sözlüğü ve etkin dil seçeneği kaldırıldı; arayüz/hata açıklamaları Türkçe oldu. Eski JavaScript `locale` ayarı ve `getErrorMessage` ikinci parametresi dili değiştirmez. Teknik kılavuz ve politika dosyalarının adları/içeriği Türkçeleştirildi, yerel bağlantılar güncellendi.
 
 - Yönetim arayüzünde başlık/içerik hizası eşitlendi; mobil ve açık/koyu tema kontrastı iyileştirildi. Kalıcı, kapatılabilir durum bildirimi ve profil kartında revizyona bağlı test sonucu eklendi; hata açıklaması ile teknik ayrıntılar ayrıldı.

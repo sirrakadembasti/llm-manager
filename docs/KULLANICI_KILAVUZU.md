@@ -28,6 +28,8 @@ LLM_ADMIN_PASSWORD=kendi-guclu-parolaniz
 
 `npm start` ve CLI çalışma dizininin `.env` dosyasını okur. Terminalde önceden verilmiş değerler önceliklidir; PowerShell'de dosyadaki değerlere dönmek için `Remove-Item Env:LLM_ADMIN_PASSWORD, Env:LLM_ADMIN_USER -ErrorAction SilentlyContinue` kullanın. `$env:...` ile verilen değerler dosyaya kaydedilmez. `npx llm-manager init`, parolayı kurulumun yapıldığı hedef projenin `.env` dosyasına yazar. Kütüphaneyi elle entegre ediyorsanız ortam dosyasını hostunuz yüklemelidir.
 
+`.env` veya uygulama dosyaları değişince açık sunucuyu **Ctrl+C** ile durdurup `npm start` ile yeniden başlatın. Arayüz güncellemesi görünmüyorsa tarayıcıda **Ctrl+F5** kullanın.
+
 Express kurulu bir Node hostunda GitHub'dan CLI kullanımı:
 
 ```sh
@@ -146,7 +148,8 @@ Geçersiz mesaj/JSON 400; büyük gövde 413. Express kendi ayrıştırıcısın
 Node.js sunucu kodunda; yönetici parolasını tarayıcıya koymayın. Önce bir profil kaydedip etkinleştirin:
 
 ```js
-const authorization = 'Basic ' + Buffer.from(`admin:${process.env.LLM_ADMIN_PASSWORD}`).toString('base64');
+const adminUser = process.env.LLM_ADMIN_USER || 'admin';
+const authorization = 'Basic ' + Buffer.from(`${adminUser}:${process.env.LLM_ADMIN_PASSWORD}`).toString('base64');
 const response = await fetch('http://127.0.0.1:8010/api/llm/chat', {
   method: 'POST',
   headers: { Authorization: authorization, 'Content-Type': 'application/json', 'X-LLM-CSRF': '1' },
@@ -171,7 +174,7 @@ HTTPS ve soket/DNS filtresi özel IP'leri engeller. LAN/Ollama için açık `all
 
 ## Veri, yedek ve işletim
 
-`data/llm-profiles.json` ve `llm-encryption.key` otomatik oluşur; **ikisini birlikte yedekleyin**. Anahtar kaybolursa profiller çözülemez. AES-256-GCM kullanılır. Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun.
+Varsayılan `data/llm-profiles.json` ve `data/llm-encryption.key` dosyaları otomatik oluşur; **ikisini birlikte yedekleyin**. Anahtar kaybolursa profiller çözülemez. AES-256-GCM kullanılır. Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun.
 
 ```sh
 npx llm-manager key rotate

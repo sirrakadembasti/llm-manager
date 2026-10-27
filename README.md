@@ -2,7 +2,7 @@
 
 LLM sağlayıcılarını, modellerini ve API anahtarlarını tek arayüzden yönetin. Profil oluşturun, bağlantıyı test edin ve etkin profille sohbet edin. Bağımsız çalışır veya mevcut uygulamanıza eklenir.
 
-**Gereksinim:** Node.js 22.12+. Docker ve veritabanı zorunlu değildir.
+**Gereksinim:** Node.js 22.12+. Docker ve veritabanı zorunlu değildir. Arayüz yalnız Türkçedir.
 
 ## Başlatma
 
