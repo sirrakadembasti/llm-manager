@@ -10,13 +10,12 @@ LLM sağlayıcılarını, modellerini ve API anahtarlarını tek arayüzden yön
 
 ```powershell
 npm ci
-$env:LLM_ADMIN_PASSWORD = 'kendi-guclu-parolaniz'
-npm start
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-**[http://127.0.0.1:8010/llm](http://127.0.0.1:8010/llm)** adresini açın. Kullanıcı adı `admin`, parola yukarıda belirlediğiniz değerdir. Durdurmak için **Ctrl+C** kullanın.
+`.env` dosyasında `LLM_ADMIN_USER=admin` ve `LLM_ADMIN_PASSWORD=kendi-guclu-parolaniz` ayarlayın. Ardından `npm start` çalıştırıp **[http://127.0.0.1:8010/llm](http://127.0.0.1:8010/llm)** adresini açın. Belirlediğiniz kullanıcı adı ve parolayla giriş yapın. Durdurma: **Ctrl+C**.
 
-Linux/macOS: `npm ci` ardından `LLM_ADMIN_PASSWORD='kendi-guclu-parolaniz' npm start`.
+Linux/macOS'ta da `.env.example` dosyasını mevcut `.env` üzerine yazmadan kopyalayıp düzenleyin; `npm ci` ve `npm start` kullanın. Terminalde önceden tanımlanmış ortam değişkenleri `.env` değerlerinden önceliklidir.
 
 ## Uygulamanıza ekleme
 

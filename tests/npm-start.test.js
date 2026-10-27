@@ -6,10 +6,21 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-test('npm start serves health and the authenticated management page', async t => {
-  const cwd = fileURLToPath(new URL('../', import.meta.url));
+async function checkStart(t, { fileEnv, shellEnv = {}, user = 'admin', password = 'npm-start-fixture-password' } = {}) {
+  const root = fileURLToPath(new URL('../', import.meta.url));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-npm-start-'));
-  const password = 'npm-start-fixture-password';
+  fs.symlinkSync(path.join(root, 'examples'), path.join(dir, 'examples'), 'junction');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ private: true, scripts: { start: pkg.scripts.start } })
+  );
+  if (fileEnv) fs.writeFileSync(path.join(dir, '.env'), fileEnv);
+  const env = { ...process.env };
+  // Keep the fixture independent of developer credentials and Node startup flags.
+  for (const key of Object.keys(env)) {
+    if (/^(LLM_|PORT$|NODE_OPTIONS$)/i.test(key)) delete env[key];
+  }
   const args = ['start'];
   const proc = spawn(
     process.platform === 'win32' ? process.execPath : 'npm',
@@ -17,15 +28,15 @@ test('npm start serves health and the authenticated management page', async t =>
       ? [path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'), ...args]
       : args,
     {
-      cwd,
+      cwd: dir,
       detached: process.platform !== 'win32',
       env: {
-        ...process.env,
+        ...env,
         PORT: '0',
-        LLM_ADMIN_PASSWORD: password,
         LLM_CONFIG_PATH: path.join(dir, 'profiles.json'),
         LLM_CONFIG_KEY_PATH: path.join(dir, 'key'),
-        LLM_CONFIG_ENCRYPTION_KEY: 'a'.repeat(64)
+        LLM_CONFIG_ENCRYPTION_KEY: 'a'.repeat(64),
+        ...shellEnv
       },
       stdio: ['ignore', 'pipe', 'pipe']
     }
@@ -72,8 +83,34 @@ test('npm start serves health and the authenticated management page', async t =>
   assert.equal(denied.status, 401);
   await denied.text();
   const page = await fetch(url, {
-    headers: { Authorization: `Basic ${Buffer.from(`admin:${password}`).toString('base64')}` }
+    headers: { Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}` }
   });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<html/);
+  const wrongPassword = await fetch(url, {
+    headers: { Authorization: `Basic ${Buffer.from(`${user}:incorrect-password`).toString('base64')}` }
+  });
+  assert.equal(wrongPassword.status, 401);
+  await wrongPassword.text();
+}
+
+test('npm start serves health and the authenticated management page without an env file', async t => {
+  await checkStart(t, { shellEnv: { LLM_ADMIN_PASSWORD: 'npm-start-fixture-password' } });
+});
+
+test('npm start reads the admin user and password from the working directory env file', async t => {
+  await checkStart(t, {
+    fileEnv: 'LLM_ADMIN_USER=file-admin\nLLM_ADMIN_PASSWORD="file-password # quoted"\n',
+    user: 'file-admin',
+    password: 'file-password # quoted'
+  });
+});
+
+test('npm start keeps shell credentials ahead of env file credentials', async t => {
+  await checkStart(t, {
+    fileEnv: 'LLM_ADMIN_USER=file-admin\nLLM_ADMIN_PASSWORD=file-password\n',
+    shellEnv: { LLM_ADMIN_USER: 'shell-admin', LLM_ADMIN_PASSWORD: 'shell-password' },
+    user: 'shell-admin',
+    password: 'shell-password'
+  });
 });

@@ -14,11 +14,19 @@ Depo klasöründe, PowerShell:
 
 ```powershell
 npm ci
-$env:LLM_ADMIN_PASSWORD = 'kendi-guclu-parolaniz'
-npm start
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-**http://127.0.0.1:8010/llm** adresini açın. Kullanıcı `admin`; parola yukarıdaki değer. Sağlayıcı/model/API anahtarını kaydedin, test edin ve profili etkinleştirin. Durdurma: **Ctrl+C**. Linux/macOS: `LLM_ADMIN_PASSWORD='kendi-parolaniz' npm start`.
+`.env` dosyasını düzenleyin; mevcut diğer ayarları koruyun:
+
+```dotenv
+LLM_ADMIN_USER=admin
+LLM_ADMIN_PASSWORD=kendi-guclu-parolaniz
+```
+
+`npm start` çalıştırıp **http://127.0.0.1:8010/llm** adresini açın. Belirlediğiniz kullanıcı/parolayla giriş yapın. Sağlayıcı/model/API anahtarını kaydedin, test edin ve profili etkinleştirin. Durdurma: **Ctrl+C**. Linux/macOS'ta da aynı `.env` ayarlarından sonra `npm ci` ve `npm start` kullanın.
+
+`npm start` ve CLI çalışma dizininin `.env` dosyasını okur. Terminalde önceden verilmiş değerler önceliklidir; PowerShell'de dosyadaki değerlere dönmek için `Remove-Item Env:LLM_ADMIN_PASSWORD, Env:LLM_ADMIN_USER -ErrorAction SilentlyContinue` kullanın. `$env:...` ile verilen değerler dosyaya kaydedilmez. `npx llm-manager init`, parolayı kurulumun yapıldığı hedef projenin `.env` dosyasına yazar. Kütüphaneyi elle entegre ediyorsanız ortam dosyasını hostunuz yüklemelidir.
 
 Express kurulu bir Node hostunda GitHub'dan CLI kullanımı:
 

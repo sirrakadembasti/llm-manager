@@ -38,6 +38,7 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 
 ### Düzeltildi
 
+- `npm start` çalışma dizinindeki `.env` dosyasını okur ve `LLM_ADMIN_USER` ayarını uygular. Terminal ortamı önceliklidir; eksik `.env` engel değildir, diğer okuma hataları gizlenmez.
 - `chatAccess: false` 404 döndürür; Bearer yönetim sayfası/betiğine giremez. Özel API yolu ve wildcard CORS yalnız sohbet kapsamındadır.
 - Init CJS sırası, client/server sınırları, güvenli proje algılama, gerçek paket kurulumu ve işlem tabanlı byte/izin geri alma düzeltildi. Next belirsiz config'i çalıştırmaz; Edge uyarısı verir.
 - .NET 4.0 için C#4/TPL/HttpWebRequest, modern hedefler için HttpClient; 330 sn sınır, iptal, JSON ve assembly referansları düzeltildi. Python hataları tipli Türkçe mesaja dönüştürülür.

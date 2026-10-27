@@ -12,11 +12,10 @@ In the repository, using PowerShell:
 
 ```powershell
 npm ci
-$env:LLM_ADMIN_PASSWORD = 'your-strong-password'
-npm start
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Open **http://127.0.0.1:8010/llm**, sign in as `admin`, save/test a provider profile and activate it. Stop with **Ctrl+C**. Linux/macOS: `LLM_ADMIN_PASSWORD='your-password' npm start`.
+Set `LLM_ADMIN_USER=admin` and `LLM_ADMIN_PASSWORD=your-strong-password` in `.env`, preserving existing settings. Run `npm start`, open **http://127.0.0.1:8010/llm** and sign in with those credentials. Save/test a provider profile and activate it. Stop with **Ctrl+C**. Linux/macOS uses the same `.env` settings and `npm ci` / `npm start` commands.
 
 Direct GitHub CLI in a Node host with Express installed:
 
@@ -24,7 +23,7 @@ Direct GitHub CLI in a Node host with Express installed:
 npx github:sirrakadembasti/llm-manager --password your-strong-password --port 8010
 ```
 
-The Express adapter and CLI server require Express **4.19.2+ or 5.x**, an optional peer. Source `npm ci` includes it; core-only usage does not require Express. Use `--help` for CLI flags, including host, data directory and chat tokens. CLI reads the working directory's `.env`; the source example requires the environment above.
+The Express adapter and CLI server require Express **4.19.2+ or 5.x**, an optional peer. Source `npm ci` includes it; core-only usage does not require Express. Use `--help` for CLI flags, including host, data directory and chat tokens. Both CLI and `npm start` read the working directory's `.env`; existing process environment values take precedence. Environment assignments do not write back to the file. Manual library integrations load environment files through their host.
 
 On Windows, a PATH exceeding [cmd.exe's 8191-character limit](https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation) can make installed Node invisible to npm scripts. Remove obsolete entries and refresh the terminal. .NET verification no longer registers temporary SDK tools paths.
 
