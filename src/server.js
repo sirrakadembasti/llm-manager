@@ -78,7 +78,7 @@ export async function createStandaloneServer({
 
   app.get('/', (_req, res) => res.redirect('/llm'));
 
-  mountLLMManagement(app, {
+  const management = mountLLMManagement(app, {
     ...managerOptions,
     logger,
     adminUser,
@@ -104,12 +104,15 @@ export async function createStandaloneServer({
   let shutdownTimer;
   let shuttingDown = false;
   const close = () => {
-    closePromise ??= new Promise(resolve => {
-      if (closed) return resolve();
-      server.once('close', resolve);
-      // A raw server.close() may already be draining active requests.
-      if (server.listening) server.close();
-    });
+    if (!closePromise) {
+      const drained = new Promise(resolve => {
+        if (closed) return resolve();
+        server.once('close', resolve);
+        // Stop listening synchronously, then cancel project work while HTTP drains.
+        if (server.listening) server.close();
+      });
+      closePromise = Promise.all([management.close(), drained]).then(() => undefined);
+    }
     return closePromise;
   };
   const shutdown = () => {
@@ -119,6 +122,7 @@ export async function createStandaloneServer({
     close().then(() => process.exit(0));
   };
   server.once('close', () => {
+    void management.close();
     closed = true;
     clearTimeout(shutdownTimer);
     if (handleSignals === true) {

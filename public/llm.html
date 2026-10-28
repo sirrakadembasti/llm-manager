@@ -169,8 +169,26 @@
       details summary { color: var(--accent) !important; }
     }
     [hidden] { display: none !important; }
+    .workspace-tabs { display: flex; gap: 8px; margin-bottom: 20px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .workspace-tabs button { flex: 1; background: transparent; color: var(--muted); }
+    .workspace-tabs button[aria-selected="true"] { background: var(--info-bg); color: var(--info-fg); box-shadow: inset 0 0 0 1px var(--info-border); }
+    .project-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .project-summary strong { display: block; font-size: 20px; margin: 8px 0; overflow-wrap: anywhere; }
+    .project-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.5fr); gap: 20px; align-items: start; }
+    .project-layout > section { min-width: 0; }
+    .project-list { padding-left: 20px; line-height: 1.7; font-size: 13px; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+    .project-conversation { max-height: 60vh; overflow: auto; }
+    .project-answer, .project-user { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.7; padding: 14px; background: var(--soft); border: 1px solid var(--border); border-radius: 10px; }
+    .project-user { background: var(--info-bg); color: var(--info-fg); }
+    .project-consent { justify-content: flex-start; align-items: flex-start; font-size: 13px; line-height: 1.6; }
+    .project-consent input { width: 18px; min-height: 18px; flex: 0 0 18px; margin-top: 3px; }
+    .project-review { margin-top: 20px; }
+    .project-diff-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+    .project-diff-columns > div { min-width: 0; }
+    .project-review details { border-top: 1px solid var(--border); padding: 12px 0; }
+    .project-review pre { max-height: 360px; overflow: auto; }
     @media (max-width: 760px) {
-      .grid, .summary-grid, .field-grid { grid-template-columns: 1fr; }
+      .grid, .summary-grid, .field-grid, .project-summary, .project-layout, .project-diff-columns { grid-template-columns: 1fr; }
       main { margin: 20px auto; }
       .header-inner, main { padding-left: 16px; padding-right: 16px; }
       header { padding: 22px 0; }
@@ -193,6 +211,10 @@
     </div>
   </header>
   <main>
+    <nav class="workspace-tabs" role="tablist" aria-label="LLM çalışma alanları">
+      <button id="management-tab" role="tab" type="button" aria-selected="true" aria-controls="management-panel" data-i18n="project.management_tab">LLM Yönetimi</button>
+      <button id="project-tab" role="tab" type="button" aria-selected="false" aria-controls="project-panel" tabindex="-1" data-i18n="project.tab">Proje Asistanı</button>
+    </nav>
     <div id="notification" class="notification info" role="status" aria-live="polite" hidden>
       <span id="notification-icon" aria-hidden="true">i</span>
       <div class="notification-copy">
@@ -202,6 +224,7 @@
       </div>
       <button id="notification-close" type="button" data-i18n-aria-label="notice.close" aria-label="Bildirimi kapat">×</button>
     </div>
+    <div id="management-panel" role="tabpanel" aria-labelledby="management-tab">
     <div class="summary-grid">
       <section class="summary-card">
         <span class="muted" data-i18n="app.summary_total">Kayıtlı profil sayısı</span>
@@ -329,6 +352,80 @@
         <pre id="playground-output"></pre>
       </div>
     </section>
+    </div>
+    <div id="project-panel" role="tabpanel" aria-labelledby="project-tab" hidden>
+      <div class="project-summary">
+        <section>
+          <span class="muted" data-i18n="project.connected">Bağlı proje</span>
+          <strong id="project-name">—</strong>
+          <p id="project-status" class="muted" aria-live="polite"></p>
+          <div class="actions">
+            <button id="project-scan" type="button" disabled data-i18n="project.scan">Projeyi tara</button>
+            <button id="project-cancel" type="button" class="secondary" disabled data-i18n="project.cancel">İşlemi iptal et</button>
+          </div>
+        </section>
+        <section>
+          <span class="muted" data-i18n="project.active">Etkin profil ve model</span>
+          <strong id="project-active-model">—</strong>
+          <p class="muted" data-i18n="project.active_hint">Birinci sekmede etkinleştirdiğiniz profil kullanılır. Burada ayrıca API anahtarı girilmez.</p>
+          <p id="project-graph-status" class="muted"></p>
+        </section>
+      </div>
+      <div class="project-layout">
+        <section>
+          <h2 data-i18n="project.overview">Projeye genel bakış</h2>
+          <p class="muted" data-i18n="project.overview_hint">Statik kaynak işaretleri gösterilir. Dinamik ilişkiler eksik olabilir; doğrulamak için kaynak referanslarını kullanın.</p>
+          <details open><summary data-i18n="project.stack">Teknoloji ve bağımlılıklar</summary><ul id="project-stack" class="project-list"></ul></details>
+          <details><summary data-i18n="project.api">API ve istemci çağrıları</summary><ul id="project-api-list" class="project-list"></ul></details>
+          <details><summary data-i18n="project.database">Veritabanı ve şema</summary><ul id="project-database" class="project-list"></ul></details>
+          <details><summary data-i18n="project.relationships">Katman ilişkileri</summary><ul id="project-relationships" class="project-list"></ul></details>
+          <details><summary data-i18n="project.inventory">Taranan kaynaklar</summary><ul id="project-inventory" class="project-list"></ul></details>
+        </section>
+        <section>
+          <h2 data-i18n="project.chat_title">Uygulaman hakkında çalış</h2>
+          <p class="muted" data-i18n="project.chat_hint">Mimariyi sorabilir veya geliştirmek istediğiniz davranışı anlatabilirsiniz. Yanıtlar ilgili kaynak parçalarına dayanır.</p>
+          <div id="project-conversation" class="project-conversation" role="log" aria-label="Proje sohbeti" aria-live="polite"></div>
+          <form id="project-chat-form">
+            <label for="project-mode" data-i18n="project.mode">Çalışma türü</label>
+            <select id="project-mode">
+              <option value="chat" data-i18n="project.mode_chat">Kaynaklı sohbet</option>
+              <option value="plan" data-i18n="project.mode_plan">OpenCode ile geliştirme planı</option>
+              <option value="change" data-i18n="project.mode_change">OpenCode ile değişiklik hazırla</option>
+            </select>
+            <p class="muted" data-i18n="project.mode_hint">OpenCode görevleri temiz bir geçici kopyada çalışır. Hedef projeye yazmak için ayrıca dosya farklarını onaylamanız gerekir.</p>
+            <label for="project-prompt" data-i18n="project.prompt">Sorunuz veya geliştirme isteğiniz</label>
+            <textarea id="project-prompt" rows="5" maxlength="10000" required placeholder="Örn. Sipariş akışı hangi ekran, API ve tabloları kullanıyor?" data-i18n-placeholder="project.placeholder"></textarea>
+            <label class="project-consent"><input id="project-share" type="checkbox"><span data-i18n="project.consent">Soruyla ilgili seçili kaynak parçalarının etkin profilin sağlayıcısına gönderilmesini onaylıyorum. Sır ve veri dosyaları tarama dışında tutulur.</span></label>
+            <div class="actions">
+              <button id="project-send" type="submit" disabled data-i18n="project.send">Gönder</button>
+              <button id="project-clear" type="button" class="secondary" data-i18n="project.clear">Sohbeti temizle</button>
+            </div>
+          </form>
+          <p id="project-context-status" class="muted" aria-live="polite"></p>
+          <details open><summary data-i18n="project.sources">Yanıtta kullanılan kaynaklar</summary><ul id="project-sources" class="project-list"></ul></details>
+        </section>
+      </div>
+      <section id="project-review" class="project-review" hidden>
+        <h2 data-i18n="project.review">Değişiklik incelemesi</h2>
+        <label for="project-task-select" data-i18n="project.tasks">Bu oturumdaki görevler</label>
+        <select id="project-task-select"></select>
+        <p id="project-task-state" class="muted" aria-live="polite"></p>
+        <pre id="project-task-output" class="project-answer"></pre>
+        <div id="project-diffs"></div>
+        <p class="muted" data-i18n="project.reversal_hint">Uygulama ve geri alma dosya sürümlerini denetler; sonradan değişen dosyada işlem durur. Görev kayıtları sunucu belleğinde tutulur. Sunucu kapanırsa veya kaydı kapatırsanız uygulanan değişiklikler kalır, bu oturumun geri alma kaydı silinir.</p>
+        <label class="project-consent"><input id="project-approve" type="checkbox"><span data-i18n="project.approval">Dosya farklarını ve seçili işlemi inceledim; uygulama, geri alma, komut çalıştırma veya görev kaydını kapatma işlemini onaylıyorum.</span></label>
+        <div class="actions">
+          <button id="project-apply" type="button" disabled data-i18n="project.apply">Onaylanan farkı uygula</button>
+          <button id="project-revert" type="button" class="secondary" disabled data-i18n="project.revert">Değişikliği geri al</button>
+          <button id="project-discard" type="button" class="secondary" disabled data-i18n="project.discard">Görev kaydını kapat</button>
+        </div>
+        <label for="project-command" data-i18n="project.command">Host tarafından tanımlanan doğrulama komutu</label>
+        <select id="project-command"></select>
+        <p class="muted" data-i18n="project.command_hint">Komutlar yalnız geçici çalışma kopyasında ve açık onayla çalışır. Bağımlılık veya servis eksikse sonuç başarısız olabilir; çalıştırılmayan kontrol başarılı sayılmaz.</p>
+        <div class="actions"><button id="project-run-command" type="button" class="secondary" disabled data-i18n="project.run_command">Seçili doğrulamayı çalıştır</button></div>
+        <pre id="project-command-output" class="project-answer" aria-live="polite"></pre>
+      </section>
+    </div>
     <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-msg">
       <form method="dialog">
         <p id="confirm-dialog-msg" style="margin: 0 0 16px; font-weight: 500;"></p>

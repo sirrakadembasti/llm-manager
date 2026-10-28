@@ -38,7 +38,7 @@ volumes:
 
 ## CLI ortamı
 
-CLI çalışma dizininin `.env` dosyasını okur. Kaynaktaki `npm start` örneği için parola süreç ortamında tanımlanır; her seçenek her giriş noktasında otomatik okunmaz.
+CLI ve kaynaktaki `npm start`, çalışma dizininin `.env` dosyasını okur; mevcut süreç ortamı önceliklidir. Her seçenek her giriş noktasında otomatik okunmaz.
 
 | Değişken | Amaç / varsayılan |
 | --- | --- |
@@ -51,8 +51,13 @@ CLI çalışma dizininin `.env` dosyasını okur. Kaynaktaki `npm start` örneğ
 | `LLM_ALLOWED_ORIGINS` | Açık kaynak adresi listesi; joker yalnız sohbet içindir ve kimlik bilgisi taşımaz |
 | `LLM_ALLOWED_PRIVATE_HOSTS` | Açık LAN sunucu veya sunucu:port listesi |
 | `LLM_HTTPS_PROXY`, `LLM_USAGE_LOG` | Vekil; true ile içeriksiz kullanım kaydı |
+| `LLM_PROJECT_ROOT` | Proje Asistanı için açık kaynak kökü; ayarlanmazsa özellik kapalıdır |
+| `LLM_OPENCODE_PATH` | İsteğe bağlı OpenCode yürütülebilir dosya yolu |
+| `LLM_GRAPHIFY_PYTHON` | İsteğe bağlı, Graphify kurulu Python yürütülebilir dosyası |
 
-CLI bayrakları: `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`. Parolayı argüman yerine servis ortamından verin; kabuk geçmişine yazmayın.
+CLI bayrakları: `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`, `--project-root`. Parolayı argüman yerine servis ortamından verin; kabuk geçmişine yazmayın.
+
+Proje Asistanı için servis hesabının bağlı kaynak dizinine gerekli okuma/yazma yetkilerini ve sahipli geçici dizine erişimini tanımlayın. OpenCode/Graphify imaja otomatik eklenmez; Docker kullanılıyorsa ayrıca kurulmalı ve kaynak kökü açıkça bağlanmalıdır. `data` birimini kaynak kökü yapmayın. Motor izinleri OS sandbox değildir; hostun tanımladığı doğrulama komutları servis hesabı yetkileriyle çalışır. Görev/geri alma kayıtları bellektedir ve yeniden başlatmada silinir. Kapanışta paket entegrasyonunun `close()` metodunu çağırın.
 
 ## PM2
 

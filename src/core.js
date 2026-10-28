@@ -25,6 +25,8 @@ import { createLLMProfileStore } from './profileStore.js';
 import { getTransport } from './transports/index.js';
 import { createUsageTracker } from './usageLogger.js';
 import { MESSAGES, getErrorMessage } from './messages.js';
+import { createProjectAssistant } from './project/index.js';
+import { projectOptionsFromEnv } from './project/options.js';
 
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
@@ -91,7 +93,10 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', homeUr
   const i18nScript = `<script id="llm-i18n" type="application/json">${dictJson}</script>`;
   html = html.replace('</body>', `${i18nScript}\n</body>`);
 
-  const script = fs.readFileSync(path.join(publicDir, 'llm-ui.js'), 'utf8');
+  const script =
+    fs.readFileSync(path.join(publicDir, 'llm-ui.js'), 'utf8') +
+    '\n' +
+    fs.readFileSync(path.join(publicDir, 'project-ui.js'), 'utf8');
   return { html, script, locale: normalizedLocale };
 }
 
@@ -165,9 +170,18 @@ export function createLLMManager({
   health = true,
   usageLog = false,
   homeUrl = '/',
-  getClientId
+  getClientId,
+  project = projectOptionsFromEnv()
 } = {}) {
   const pendingTests = new Set();
+  const projectAssistant = project
+    ? createProjectAssistant({
+        options: project,
+        ask: (messages, settings) => askWithAdmission(messages, settings, true),
+        getActiveProfile: () => store.getActive(),
+        networkOptions: { allowLocalHttp, proxyUrl, allowedHosts, allowedPrivateHosts }
+      })
+    : null;
   let warnedMissingAuth = false;
   let cachedUiKey = '';
   let cachedUi = null;
@@ -462,7 +476,7 @@ export function createLLMManager({
     }
   }
 
-  async function chatCompletion(body, { principal, requestId, clientKey } = {}) {
+  async function chatCompletion(body, { principal, requestId, clientKey, quotaAdmitted = false } = {}) {
     if (chatAccess === false) {
       return ok({ error: 'Sohbet uç noktası kapalı.', code: 'CHAT_DISABLED', requestId }, 404);
     }
@@ -470,7 +484,7 @@ export function createLLMManager({
       return ok({ error: 'Yönetici yetkisi gerekli.', code: 'FORBIDDEN', requestId }, 403);
     }
 
-    if (rateLimiters) {
+    if (rateLimiters && !quotaAdmitted) {
       const key = rateIdentity(clientKey, principal);
       const res = rateLimiters.chat.take(key);
       if (!res.ok) {
@@ -868,6 +882,10 @@ export function createLLMManager({
 
   // Tek satırlık kullanım: await llm.ask('Merhaba!') veya await llm.ask([{ role: 'user', content: '...' }])
   async function ask(promptOrMessages, options = {}) {
+    return await askWithAdmission(promptOrMessages, options);
+  }
+
+  async function askWithAdmission(promptOrMessages, options = {}, quotaAdmitted = false) {
     const messages = normalizeMessagesInput(promptOrMessages, options.system);
     if (!Array.isArray(messages) || !messages.length) {
       throw new LLMError(ErrorCodes.MESSAGES_INVALID, 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', {
@@ -875,7 +893,7 @@ export function createLLMManager({
         retryable: false
       });
     }
-    const result = await chatCompletion({ ...options, messages }, { principal: { isAdmin: true } });
+    const result = await chatCompletion({ ...options, messages }, { principal: { isAdmin: true }, quotaAdmitted });
     if (result.status !== 200) {
       throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status
@@ -929,6 +947,32 @@ export function createLLMManager({
   async function handleRoute({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const cleanPath = (routePath || '').split('?')[0];
+    if (/^\/project(?:\/|$)/.test(cleanPath)) {
+      if (principal && principal.isAdmin !== true)
+        return ok({ code: 'FORBIDDEN', error: 'Yönetici yetkisi gerekli.', requestId }, 403);
+      const projectPath = cleanPath.replace(/\/$/, '');
+      if (!projectAssistant)
+        return ok(
+          projectPath === '/project' && verb === 'GET'
+            ? { enabled: false }
+            : { code: 'PROJECT_DISABLED', error: 'Proje asistanı yapılandırılmadı.' },
+          projectPath === '/project' && verb === 'GET' ? 200 : 404
+        );
+      if (verb === 'POST' && ['/project/tasks', '/project/chat'].includes(projectPath) && rateLimiters) {
+        const admission = rateLimiters.chat.take(rateIdentity(clientKey, principal));
+        if (!admission.ok)
+          return ok(
+            {
+              code: 'RATE_LIMITED',
+              error: 'Çok fazla proje isteği yapıldı. Lütfen biraz bekleyin.',
+              retryAfterSec: admission.retryAfterSec,
+              requestId
+            },
+            429
+          );
+      }
+      return await projectAssistant.handle({ method: verb, path: projectPath, body, principal, signal });
+    }
     const match = /^\/(catalog|chat|profiles|models|health|usage)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
       cleanPath
     );
@@ -1253,5 +1297,14 @@ export function createLLMManager({
     return new Response(null, { status: 404, headers: commonHeaders });
   }
 
-  return { handle, ask, stream, fetch: fetchHandler, store };
+  return {
+    handle,
+    ask,
+    stream,
+    fetch: fetchHandler,
+    store,
+    close: async () => {
+      await projectAssistant?.close();
+    }
+  };
 }

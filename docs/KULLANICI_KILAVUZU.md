@@ -1,5 +1,22 @@
 # Kullanıcı kılavuzu
 
+## Proje Asistanı: ikinci sekme
+
+`LLM Yönetimi` ilk ve varsayılan sekmedir. `Proje Asistanı` aynı tema, kartlar, bildirim ve mobil düzeni kullanır. Kaynak kökü sunucu tarafından `LLM_PROJECT_ROOT` veya `project.root` ile bağlanır; tarayıcıdan keyfi dizin açılamaz.
+
+1. İlk sekmede kullanacağınız profili etkinleştirin.
+2. İkinci sekmede **Projeyi tara** düğmesine basın. Bu işlem yereldir; manifestleri çalıştırmaz. Teknoloji, API, SQL kolonları ve kaynak ilişkileri dosya/satır kanıtlarıyla gösterilir. Statik analizin bulamadığı dinamik ilişkiler olabilir.
+3. Kaynak aktarımı kutusunu okuyup onaylayın. Sohbette seçilmiş parçalar; OpenCode görevlerinde temiz kaynak kopyasından okunan dosyalar etkin sağlayıcıya gönderilir. Sır taraması bir algılayıcıdır; paylaşmadan önce kaynaklarınızın uygunluğunu değerlendirin.
+4. **Kaynaklı sohbet** ile mimariyi sorun. **OpenCode ile geliştirme planı** kaynaklarda yazma izni vermez. **OpenCode ile değişiklik hazırla** ayrı geçici kopyada çalışır; hedefi doğrudan düzenlemez.
+5. Önce/sonra dosyalarını inceleyin, işlem onay kutusunu işaretleyin ve farkı uygulayın. Onay her işlemden sonra sıfırlanır. Dosya sürümü değişmişse uygulama/geri alma `PROJECT_CONFLICT` ile durur; yeniden görev hazırlayın.
+6. Hostun tanımladığı doğrulama komutunu ayrıca onaylayın. Gerçek çıkış kodu gösterilir; bağımlılık veya servis bulunamaması başarısız sonuçtur. Komut geçici kopyada çalışır; `node_modules`, veriler ve sırlar kopyalanmaz. Otomatik paket kurulumu yapılmaz.
+
+**Geri alma kaydı yalnız sunucu belleğindedir.** Sayfa yenilendiğinde sunucu açık kaldıysa görev seçicisinden yeniden açılabilir. Sunucu kapanırsa veya **Görev kaydını kapat** seçilirse uygulanmış dosyalar kalır, oturumun geri alma kaydı silinir. En fazla 10 görev saklanır. Sohbet geçmişi sayfa belleğindedir.
+
+`.env*`, anahtarlar, `data`, bağlantılı dizinler, ikili dosyalar ve üretilmiş içerikler dışlanır; Git ignore kuralları uygulanır. Varsayılan sınırlar: 2500 dosya, dosya başına 256 KiB, toplam 4 MiB. Sınırlı taramayla sohbet yapılabilir; dosya değiştirme görevi hazırlanamaz. Canlı veritabanı bağlantısı ve migration çalıştırma bu özelliğin parçası değildir; yeni migration dosyası hazırlanabilir.
+
+OpenCode eksikse kaynak tarama/sohbet çalışır, plan ve değişiklik görevi hata verir. Graphify isteğe bağlıdır; eksik veya başarısızsa temel kaynak analizi kullanılabilir. **İşlemi iptal et** devam eden tarama/sohbet/motor/komut işlemini durdurur.
+
 Node.js **22.12+** için sağlayıcı, profil ve API anahtarı yönetimi. Bağımsız sunucu veya uygulama eklentisi olarak çalışır; Docker ve veritabanı zorunlu değildir.
 
 Paket adı **`@sirrakadembasti/llm-manager`**, CLI adı `llm-manager`. npm'deki çıplak `llm-manager` başka bir projedir. Yerel sürüm **2.0.0 / yayımlanmamış**; bu, npm yayını veya yayımlanmış Git etiketi anlamına gelmez.

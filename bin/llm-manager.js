@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
+import { projectOptionsFromEnv } from '../src/project/options.js';
 import { runInteractiveInit } from '../src/init.js';
 
 const HELP = `llm-manager - bağımsız LLM profil yönetimi sunucusu ve kurulum sihirbazı
@@ -22,6 +24,7 @@ Seçenekler:
   -p, --port <sayı>         Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
   -c, --cors <adres>        İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
   --data-dir <dizin>        Profil ve anahtar verilerinin saklanacağı klasör
+  --project-root <dizin>    Proje Asistanı için kaynak kökü (sunucu modu; isteğe bağlı)
   --out <dosya>             Dışa aktarılacak dosya yolu (export için)
   --replace                 İçe aktarırken aynı kimlikli mevcut profillerin üzerine yaz
   --chat-token <belirteç>   Sohbet istemcileri için izinli yetki belirteci
@@ -124,6 +127,7 @@ let openBrowser = true;
 let host = process.env.HOST || '127.0.0.1';
 let dataDir = process.env.LLM_DATA_DIR;
 let chatTokens = process.env.LLM_CHAT_TOKENS;
+let projectRoot = process.env.LLM_PROJECT_ROOT;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -164,10 +168,15 @@ for (let i = 0; i < args.length; i++) {
     dataDir = String(args[++i] || '');
   } else if (arg === '--chat-token') {
     chatTokens = String(args[++i] || '');
+  } else if (arg === '--project-root') {
+    projectRoot = String(args[++i] || '');
+    if (!projectRoot || projectRoot.startsWith('-')) fail('Proje kaynak dizini gerekli.');
   } else fail(`Bilinmeyen seçenek: ${arg}`);
 }
 
 if (isInit) {
+  if (projectRoot)
+    fail('--project-root sunucu seçeneğidir. Entegre hostta LLM_PROJECT_ROOT veya project.root yapılandırın.');
   const result = await runInteractiveInit({
     type: initType,
     password: process.env.LLM_ADMIN_PASSWORD,
@@ -204,6 +213,7 @@ if (isInit) {
     allowedOrigins: process.env.LLM_ALLOWED_ORIGINS || '',
     dataDir,
     chatTokens,
+    ...(projectRoot ? { project: { ...projectOptionsFromEnv(), root: path.resolve(projectRoot) } } : {}),
     handleSignals: true
   });
 

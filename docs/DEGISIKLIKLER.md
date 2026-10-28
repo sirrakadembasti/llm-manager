@@ -20,6 +20,12 @@ Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işl
 
 ### Eklendi
 
+- `docs/graphify-out/` altında paylaşılabilir kaynaklardan üretilen statik Graphify kod haritası; katkı, dağıtım, güvenlik ve klasör belgelerinde Proje Asistanı işletim sınırları.
+
+- Birinci sekmeyle aynı Türkçe tema ve mobil düzene sahip **Proje Asistanı**: güvenli kaynak envanteri, teknoloji/API/SQL analizi, kaynaklı sohbet ve isteğe bağlı Graphify haritası.
+- OpenCode ile temiz kopyada plan/değişiklik, gerçek API anahtarını motora vermeyen yerel köprü, önce/sonra inceleme, ayrı işlem onayı, çakışmalı uygulama/geri alma ve host tanımlı doğrulama komutları.
+- `project` seçeneği, proje yönetici API'si, `--project-root`, `LLM_PROJECT_ROOT`/`LLM_OPENCODE_PATH`/`LLM_GRAPHIFY_PYTHON`, kapanış temizliği ve ilgili TypeScript sözleşmeleri. Ayrıntılar entegrasyon ve kullanıcı kılavuzundadır.
+
 - Framework bağımsız core, bağımsız sunucu, tüm alt yollar için TypeScript tipleri ve modüler init.
 - Express 4 ESM/CJS ve Express 5; Next/Nuxt/SvelteKit sunucu yardımcıları; SPA/Python/.NET/Tauri HTTP ve Electron IPC entegrasyonları.
 - OpenAI/Anthropic/Google stratejileri; SSE, iptal, retry/Retry-After, sıralı fallback, gerçek yanıt profili ve kullanım bilgisi.

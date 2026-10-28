@@ -1,0 +1,225 @@
+{
+  "date": "2026-10-28",
+  "scope": "Isolated evaluation only; product integration not implemented",
+  "versions": {
+    "opencode": "1.18.33",
+    "sdk": "1.18.33",
+    "node": "v22.23.2",
+    "graphify": "0.9.97",
+    "python": "3.11.16",
+    "os": "Windows"
+  },
+  "fixture": "Synthetic React/Express declarations, frontend fetch, backend route/service, SQL DDL; no live database or installed frontend framework",
+  "opencode": {
+    "controlledProvider": [
+      {
+        "name": "server-auth",
+        "status": "passed",
+        "detail": "unauthenticated 401"
+      },
+      {
+        "name": "windows-node-sdk",
+        "status": "passed",
+        "detail": "OpenCode 1.18.33; Node v22.23.2"
+      },
+      {
+        "name": "custom-provider-config",
+        "status": "passed",
+        "detail": "provider supplied through process-only config"
+      },
+      {
+        "name": "custom-endpoint-tools",
+        "status": "passed",
+        "detail": "local OpenAI-compatible endpoint + real OpenCode read tool"
+      },
+      {
+        "name": "edit-reject",
+        "status": "passed",
+        "detail": "file unchanged before approval and after rejection"
+      },
+      {
+        "name": "edit-approve",
+        "status": "passed",
+        "detail": "change applied only after one-time approval"
+      },
+      {
+        "name": "revert-dirty-worktree",
+        "status": "passed",
+        "detail": "agent edit reverted; unrelated pre-existing user change preserved"
+      },
+      {
+        "name": "command-reject",
+        "status": "passed",
+        "detail": "command did not execute before or after rejection"
+      },
+      {
+        "name": "abort",
+        "status": "passed",
+        "detail": "upstream closed after abort in 1368 ms"
+      },
+      {
+        "name": "revert-same-file",
+        "status": "failed",
+        "detail": {
+          "preexistingPreserved": true,
+          "concurrentPreserved": false,
+          "agentEditRemoved": true
+        }
+      },
+      {
+        "name": "command-approve",
+        "status": "passed",
+        "detail": "command executed only after one-time approval"
+      }
+    ],
+    "liveProvider": {
+      "results": [
+        {
+          "name": "active-profile",
+          "status": "passed",
+          "detail": {
+            "provider": "google",
+            "model": "gemini-3.8-flash"
+          }
+        },
+        {
+          "name": "live-architecture",
+          "status": "passed",
+          "detail": {
+            "checks": {
+              "frontend": true,
+              "api": true,
+              "backend": true,
+              "sql": true,
+              "citations": true,
+              "migration": true,
+              "actualReads": 9,
+              "forbiddenExecuted": 0
+            },
+            "assistantError": null,
+            "upstreamStatuses": [200, 200, 200, 200],
+            "relayError": null
+          }
+        },
+        {
+          "name": "live-context-coverage",
+          "status": "observed",
+          "detail": {
+            "referencedFiles": [
+              "frontend/Orders.jsx",
+              "frontend/api.js",
+              "backend/routes.js",
+              "backend/service.js",
+              "db/schema.js",
+              "db/migrations/001.sql"
+            ]
+          }
+        },
+        {
+          "name": "original-files-unchanged",
+          "status": "passed",
+          "detail": {
+            "checked": 4
+          }
+        },
+        {
+          "name": "real-key-not-persisted",
+          "status": "passed",
+          "detail": {
+            "scannedFiles": 3193,
+            "matchingFiles": 0
+          }
+        }
+      ],
+      "calls": 4
+    },
+    "caveats": [
+      "SDK/API gates exercised; no LLM Manager approval UI implemented",
+      "Node 22.12.0 minimum and OpenCode 1.19.5 not executed",
+      "Concurrent user edit in same file was removed by native session.revert",
+      "No OS sandbox, multi-project isolation, live database, large repo or native signal test"
+    ],
+    "harnessCorrections": [
+      "Pure/project configuration disabled API-written provider configuration; provider supplied using process-only OPENCODE_CONFIG_CONTENT",
+      "Prompt response returns final assistant turn; tool evidence checked through full session messages",
+      "Abort synchronized to upstream connection instead of fixed startup delay"
+    ]
+  },
+  "graphify": {
+    "results": [
+      {
+        "name": "structural-graph",
+        "status": "passed",
+        "detail": {
+          "version": "0.9.97",
+          "nodes": 25,
+          "edges": 29,
+          "frontendCall": true,
+          "backendCall": true,
+          "sqlTable": true,
+          "sourceCitations": true
+        }
+      },
+      {
+        "name": "graph-coverage",
+        "status": "observed",
+        "detail": {
+          "httpCrossLayerPath": false,
+          "sqlColumnNodes": false,
+          "note": "Call/import graphs extracted; HTTP route matching and column-level schema need extra analysis"
+        }
+      },
+      {
+        "name": "graph-ambiguity",
+        "status": "passed",
+        "detail": "Duplicate symbol names produce explicit ambiguity (exit 3)"
+      },
+      {
+        "name": "graph-query",
+        "status": "passed",
+        "detail": "Query returned relevant source file references"
+      },
+      {
+        "name": "graph-incremental",
+        "status": "passed",
+        "detail": {
+          "newSymbolPresent": true,
+          "cacheEvidence": "AST cache: 0/1 files served from cache (0%); 1 to extract\r"
+        }
+      }
+    ],
+    "cleanGraph": {
+      "nodes": 25,
+      "edges": 29
+    },
+    "afterIncremental": {
+      "nodes": 26,
+      "edges": 30,
+      "unchangedFiles": 7,
+      "reextractedFiles": 1,
+      "previousFrontendNodePreserved": true
+    },
+    "caveats": [
+      "Initial scan also indexed generated OpenCode config: 51 nodes/54 edges; clean source-only copy used for evaluation",
+      "HTTP client-to-route edge absent in fixture",
+      "SQL table present; column nodes absent",
+      "OpenCode MCP/plugin integration, semantic document pass and graph deletion handling not executed"
+    ]
+  },
+  "audit": {
+    "secretAudit": {
+      "scannedFiles": 3241,
+      "matchingFiles": 0,
+      "checked": "active API key and encryption key"
+    },
+    "testServerStopped": true
+  },
+  "references": [
+    "https://opencode.ai/docs/sdk/",
+    "https://opencode.ai/docs/permissions/",
+    "https://github.com/Graphify-Labs/graphify/tree/v8",
+    "https://github.com/Graphify-Labs/graphify/blob/v8/LICENSE",
+    "https://aider.chat/docs/repomap.html"
+  ],
+  "recommendation": "OpenCode as optional development engine; Graphify as optional structural project memory; mandatory conflict guard before apply/revert; Aider remains alternative engine/reference and was not executed"
+}

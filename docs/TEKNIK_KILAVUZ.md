@@ -1,5 +1,21 @@
 # Teknik kılavuz
 
+## Proje Asistanı mimarisi
+
+Depoya ait statik kaynak haritası ve tarama sınırları [Graphify çıktılarında](graphify-out/README.md) bulunur. Bu çıktılar uygulamadaki çalışma anı haritasından ayrıdır; envanterin yerine kullanılmaz ve yeni kaynak değişikliklerinden sonra yeniden üretilmelidir.
+
+`src/project` isteğe bağlı, Express bağımsız alt sistemdir. `files/policy/ignore` gerçek kaynak sınırını, `analyze/context` kanıtlı statik analizi ve bütçeli bağlamı, `graphify` harita adaptörünü, `workspace/process` geçici kopya ve çocuk süreç ömrünü sağlar. `relay/opencode/tasks` etkin profile bağlı araç oturumunu; `changes/commands` onay, sürüm kontrolü, kurtarma ve doğrulamayı yönetir. `index` tek aktif işlem kuyruğunu, yönetici API'sini ve iptali birleştirir. Yeni zorunlu npm bağımlılığı yoktur.
+
+Tarama manifestleri çalıştırmaz. JS/TS importları, bazı JS/Python route işaretleri, fetch çağrıları ve SQL CREATE TABLE kolonları kaynak örüntülerinden çıkarılır. Bu tam derleyici/LSP veya canlı DB introspection değildir. Graphify temiz kopyada `extract --code-only` ile çalışır; referansları envanterde doğrulanır. Kaynak bütçesi veya dil desteği eksikse sonuç kısmi olabilir. Her sohbet/görev kaynakları yeniden okur; eski revizyonla istek 409 döner.
+
+OpenCode ayrı loopback portunda, rastgele sunucu parolası ve temiz HOME/env ile başlatılır. Proje/global plugin ve skill yüklemesi, LSP, otomatik güncelleme, paylaşım ve yerleşik snapshot kapalıdır. Okuma yalnız kopyaya, edit yalnız değişiklik moduna açıktır; bash ve harici dizin erişimi kapalıdır. Bunlar motor izinleridir, işletim sistemi sandbox'ı değildir. Güvenilir motor kurulumu gereklidir.
+
+Gerçek API anahtarı yalnız ana süreçte kalır. OpenCode, tek oturumluk loopback köprüsünün geçici belirtecini kullanır; köprü `providerFetch` üzerinden mevcut DNS/SSRF/proxy politikasını uygular. Google, Anthropic ve OpenAI uyumlu araç protokolleri korunur; model ve yollar sınırlandırılır. Görev başına 40 sağlayıcı isteği, 1 MiB istek, 8 MiB yanıt ve profil süre bütçesi vardır. Sağlayıcının araç desteği ayrıca gereklidir. Araç maliyeti/usage değerleri mevcut sohbet kullanım sayacına eklenmez; sağlayıcı raporlaması esas alınmalıdır.
+
+Değişiklikler bellekteki önce/sonra UTF-8 içerik ve revizyonlarla tutulur; UTF-8 BOM korunur. Tüm dosyalar ön kontrolden, yazılan her dosya yeniden digest kontrolünden geçer. Geçici kardeş dosya ve rename kullanılır. Hata halinde yalnız hâlâ beklenen içeriğe sahip yazılar geri alınır. Eşzamanlı değişiklikte 409, kurtarma çakışmasında `PROJECT_PARTIAL_APPLY` döner. Bu çok dosyalı ACID işlem veya başka süreçlerle atomik compare-and-swap garantisi değildir; aktif eşzamanlı yazarlardan kaçının. Sunucu kapanışı/çöküşü sonrası kalıcı geri alma günlüğü bulunmaz.
+
+`close()` aktif işlemi iptal eder; motor/köprü ve sahipli geçici kopyaları temizler. POSIX araç grubuna SIGTERM sonrası SIGKILL; Windows'ta `taskkill /T /F` uygulanır. POSIX'e özgü süreç testi Windows'ta atlanır. Yeni testler `tests/project-*.test.js`, kontrollü gerçek motor/harita kabul betiği `scripts/check-project-assistant.mjs` altındadır. Tamamlanmış görev ve tarihli doğrulama sonuçları yalnız yol haritasında tutulur.
+
 Node.js **22.12+** için sağlayıcı, profil ve şifreli API anahtarı yönetimi. Bağımsız sunucu veya uygulama eklentisi olarak çalışır; Docker ve veritabanı isteğe bağlıdır.
 
 Paket **`@sirrakadembasti/llm-manager`**, komut `llm-manager`. npm'deki kapsam adı olmayan paket başka projeye aittir. Yerel **2.0.0 / yayımlanmamış** durumu npm yayını veya Git etiketi kanıtı değildir.

@@ -12,6 +12,7 @@ export interface HttpServer {
 import type { LoggerInput } from './core.js';
 
 export interface StandaloneServerOptions {
+  project?: import('./project.js').ProjectOptions | false;
   host?: string;
   port?: number;
   adminUser?: string;

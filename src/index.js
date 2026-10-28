@@ -324,6 +324,7 @@ export function mountLLMManagement(
     store,
     ask: manager.ask,
     stream: manager.stream,
-    fetch: manager.fetch
+    fetch: manager.fetch,
+    close: manager.close
   });
 }

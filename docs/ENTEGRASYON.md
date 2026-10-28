@@ -1,5 +1,46 @@
 # Entegrasyon kılavuzu
 
+## Proje Asistanını bağlama
+
+Bu özellik açık kaynak kökü verilene kadar kapalıdır. Hedef uygulama kendi kod dizinini belirtir; `process.cwd()` otomatik güven sınırı sayılmaz. Aynı seçenek `createLLMManager`, `mountLLMManagement` ve `createStandaloneServer` tarafından desteklenir:
+
+```js
+const mounted = mountLLMManagement(app, {
+  adminPassword: process.env.LLM_ADMIN_PASSWORD,
+  project: {
+    root: 'F:/uygulamalar/hedef',
+    opencodePath: 'C:/tools/opencode.exe',
+    // İsteğe bağlı; Graphify ve SQL desteği bu Python ortamında kurulu olmalıdır.
+    graphifyPython: 'C:/tools/graphify-env/Scripts/python.exe',
+    commands: {
+      test: { command: process.execPath, args: ['--test'], timeoutMs: 60000 }
+    }
+  }
+});
+// Host kapanışında motoru, köprüyü ve geçici kaynakları kapatın:
+await mounted.close();
+```
+
+`commands` güvenilir host yapılandırmasıdır; tarayıcı yalnız isim seçer. `shell: false` kullanılır; Windows `.cmd` dosyası yerine gerçek yürütülebilir dosya ve ayrı `args` verin. Komutlar host kullanıcısının işletim sistemi yetkileriyle, temiz geçici çalışma dizininde çalışır. Bu bir OS sandbox değildir. Bağımlılıklar otomatik kurulmaz, hostun `.env`/anahtarları çocuğa aktarılmaz. Hedef kaynaklara yazmak için her görev revizyonunda açık onay gerekir.
+
+CLI: `llm-manager --project-root F:\uygulamalar\hedef`. Ortam karşılıkları: `LLM_PROJECT_ROOT`, `LLM_OPENCODE_PATH`, `LLM_GRAPHIFY_PYTHON`. `npm start` bunları çalışma dizinindeki `.env` yüklemesinden sonra kullanır. `project: false` ortamla etkinleştirmeyi de kapatır. Tarayıcıdan kök/motor/komut değiştirilemez. Motorlar optional harici araçtır; npm paketi içine gömülmez. Doğrulanan sürüm ve kabul sonuçları yol haritasındadır.
+
+Varsayılan API kökü altında aşağıdaki yollar yalnız yönetici içindir; Basic/host auth ve değişiklik isteklerinde mevcut CSRF şartı sürer. Chat Bearer token'ı erişemez. `/chat` ve `/tasks` proje istekleri mevcut `chatPerMinute` kotasını paylaşır.
+
+| Yöntem / yol | Gövde / sonuç |
+| --- | --- |
+| `GET /project` | Açık/kapalı durum, etkin profilin sırsız özeti, envanter, analiz, harita, görevler ve komut isimleri |
+| `POST /project/scan` | Yerel tarama, güncel `revision` ve analiz |
+| `POST /project/chat` | `{ prompt, shareSources: true, revision?, history? }`; yanıt, satır aralıklı `sources`, kısmi bağlam bilgisi |
+| `POST /project/tasks` | `{ mode: 'plan' veya 'change', prompt, shareSources: true, revision? }`; görev, `revision`, önce/sonra farkları |
+| `GET /project/tasks` / `GET /project/tasks/:id` | Bellekteki görev listesi / ayrıntı |
+| `POST /project/tasks/:id/apply` / `revert` | `{ approved: true, revision }`; yalnız sürümü eşleşen dosyalara işlem |
+| `POST /project/tasks/:id/commands/:name` | `{ approved: true, revision }`; gerçek `exitCode`, `passed`, `durationMs`, filtrelenmiş `output` |
+| `POST /project/tasks/:id/discard` | `{ approved: true }`; geçici kopya ve geri alma kaydını siler, uygulanmış dosyaları değiştirmez |
+| `POST /project/cancel` | Devam eden tek proje işlemini iptal eder |
+
+Sohbet isteği en fazla 10000 karakter, geçmiş en fazla 12 user/assistant mesajı; bağlam varsayılan 40000 karakterdir. Görev başına en fazla 100 değişen dosya ve toplam 2 MiB önce/sonra farkı tutulur. `PROJECT_BUSY`/`PROJECT_CONFLICT` 409, onaysız işlem 400, eksik görev 404 döndürür. Kısmi yazmada kurtarma da çakışırsa `PROJECT_PARTIAL_APPLY` sonucunda dosyalar elle karşılaştırılmalıdır. Genel hata kodları `@sirrakadembasti/llm-manager/errors` tiplerinde ve sabitlerinde bulunur.
+
 Node.js **22.12+** gerekir. Paket `@sirrakadembasti/llm-manager`, yerel komut `llm-manager`.
 
 ```sh

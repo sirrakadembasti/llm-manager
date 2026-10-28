@@ -56,6 +56,14 @@ Tehdit: Kötücül bağımlılık, kilit dosyası, CI eylemi veya yayıncı kiml
 - Eylemleri incelenmiş değişmez commit SHA'larına sabitleme ve sabitleme güncellemelerini inceleme.
 - Yayıncı kimlik bilgisi/kaynak/etiket politikası belirleme; yayın otomasyonundan önce köken kanıtı ve çıktı imzalamayı değerlendirme.
 
+### 2.8 Proje kaynakları, model talimatları ve dosya değişikliği
+
+Bağlanan uygulamanın kaynakları ve model çıktısı güvenilmeyen veridir. Kaynak kökü yalnız host tarafından seçilir; yönetici API'si, CSRF ve sohbet kotası proje işlemlerine de uygulanır. Yol/realpath ve symlink kontrolleri, Git ignore, dosya/bağlam bütçeleri ve sır işaretleri erişimi sınırlar. Kaynak içindeki talimatlar yetki sayılmaz; model metni arayüzde HTML olarak işlenmez. Kaynak paylaşımı için ayrı kullanıcı onayı gerekir; filtreleme tüm sır veya kişisel verileri bulma garantisi vermez.
+
+OpenCode yalnız temiz kopyada çalışır; bash, harici dizin, plugin/skill ve LSP kapalıdır. Gerçek sağlayıcı anahtarı ana süreçte kalır; rastgele belirteçli loopback köprüsü native protokolü mevcut ağ politikasından geçirir. Bunlar OS sandbox değildir; güvenilir yürütülebilir dosya ve servis hesabı sınırı gerekir. Host tanımlı komutlar da aynı işletim sistemi yetkileriyle çalışır.
+
+Hedefe yazma/geri alma açık onay ve içerik sürümü eşleşmesi ister. Sonradan değişen dosyada işlem durur; kısmi yazmada yalnız beklenen içeriğe sahip dosyalar kurtarılır. Çok dosyalı ACID, başka süreçlerle atomik compare-and-swap ve çöküş sonrası kalıcı geri alma günlüğü yoktur. Görev kayıtları bellektedir; hard kill sonrası geçici kaynak kalıntıları işletmeci tarafından güvenli biçimde ele alınmalıdır. Graphify çıktıları kod yapısını açığa çıkarabilir; yalnız paylaşılması uygun kaynaklardan üretilmeli, sırlardan arındırılmalı ve yayın öncesi incelenmelidir.
+
 ## 3. İşletmeci sorumlulukları
 
 TLS, servis hesabına özel dizinler ve şifreli/çevrimdışı yedekler kullanın. POSIX'te uygun dizin/dosya izinleri, Windows'ta ACL uygulayın. Profil ve ana anahtar yedeklerini eşleştirin. Ana uygulama oturumlarını ve yönlendirmesini koruyun; güvenilir ask/handle çağrılarını doğrudan anonim kullanıcıya açmayın. [Dağıtım](DAGITIM.md) · [Özel güvenlik açığı bildirimi](GUVENLIK.md).

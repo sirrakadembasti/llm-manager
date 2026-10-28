@@ -176,6 +176,14 @@ async function publicContract() {
 }
 void publicContract;
 
+import type { ProjectOptions } from '@sirrakadembasti/llm-manager/core';
+const projectOptions: ProjectOptions = {
+  root: 'C:/example/application',
+  commands: { test: { command: 'node', args: ['--test'], timeoutMs: 60000 } }
+};
+const projectManager = createLLMManager({ project: projectOptions });
+void projectManager.close();
+
 // Public Basic-auth config and normalized diagnostic data contracts.
 import { createBasicAuth } from '@sirrakadembasti/llm-manager';
 createBasicAuth({

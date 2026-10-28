@@ -1,4 +1,5 @@
 import { LLMErrorCode, LLMError, ErrorCodes } from './errors.js';
+export type { ProjectOptions, ProjectSource, ProjectInventory, ProjectTask, ProjectCommandResult } from './project.js';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -123,6 +124,7 @@ export type HandleResponse =
   | { status: number; body?: never; isStream: true; stream: AsyncIterable<StreamChunk>; requestId?: string };
 
 export interface LLMManagerOptions {
+  project?: import('./project.js').ProjectOptions | false;
   adminPassword?: string;
   adminUser?: string;
   chatTokens?: string | string[];
@@ -207,6 +209,7 @@ export interface AskOptions extends GenerationOptions {
 }
 export type PromptInput = string | LLMMessage[] | { prompt?: string; messages?: LLMMessage[]; system?: string };
 export interface LLMManager {
+  close(): Promise<void>;
   handle(options?: HandleOptions): Promise<HandleResponse | null>;
   ask(promptOrMessages: PromptInput, options: AskOptions & { raw: true }): Promise<ChatResult>;
   ask(promptOrMessages: PromptInput, options?: AskOptions & { raw?: false }): Promise<string>;

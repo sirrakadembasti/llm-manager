@@ -26,6 +26,7 @@ export interface MountOptions extends LLMManagerOptions {
 }
 
 export interface MountedLLMManager {
+  close: LLMManager['close'];
   (...args: any[]): any;
   store: LLMManager['store'];
   ask: LLMManager['ask'];

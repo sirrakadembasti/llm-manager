@@ -34,6 +34,10 @@ Değişiklik isteğinde sorun, çözüm, test sonucu ve sınırları yazın. Tes
 
 ## Geliştirme sınırları
 
+Proje Asistanı değişikliklerinde `tests/project-*.test.js` seçkisini ve çekirdeğin optional araçlar yüklenmeden import edilebildiğini doğrulayın. API değişirse `types/project.d.ts`, ilgili giriş tipleri ve Türkçe entegrasyon/kullanım belgelerini birlikte güncelleyin. Gerçek araç kabulü için `scripts/check-project-assistant.mjs` yalnız sentetik kaynak/anahtar ve yerel sağlayıcı kullanır; OpenCode ayrıca kurulu olmalıdır. `LLM_GRAPHIFY_PYTHON` verilirse Graphify kabulü de yapılır.
+
+Kod haritası `docs/graphify-out/` altındadır. Haritayı gerçek `.env`, `data`, anahtarlar ve araç çıktıları dışlanmış temiz kaynak kopyasında, Graphify `extract --code-only` ile üretin. Önbellek, kaynak içerikleri veya makineye özgü mutlak yolları commit etmeyin. Harita bağımlılık ilişkilerine yardımcı olur; güncel kaynak ve davranış testlerinin yerini almaz. Tarihli kapsam ve doğrulama kaydı yalnız [yol haritasında](roadmap/YOL_HARITASI.md) tutulur.
+
 - Kullanıcının mevcut değişikliklerini koruyun. Yayın, uzak depoya gönderme ve sürüm artırma ayrıca yetki ister.
 - Dosya deposu asenkrondur; revizyon ve atomik yazma korunur. Profil ile anahtarı birlikte yedekleyin.
 - `ask()`/`handle()` güvenilir ana uygulama API'leridir; HTTP kimlik ve yetkisini adaptör uygular.
