@@ -214,3 +214,28 @@ Diğer temel kodlar: `PROFILE_INVALID`, `RUNTIME_OPTIONS_INVALID`, `AI_CREDENTIA
 Boş/eksik güncelleme anahtarı eskiyi korur; sağlayıcı/baseURL değişirse yeni anahtar gerekir. Kimlik/adres/model/anahtar değişikliği test geçmişini sıfırlar; ad/süre/token ayarı korur. `recordTest` revision değiştirmez; status passed/failed, details mode/durationMs/opsiyonel code içerir.
 
 list/save/remove/activate/recordTest sırsız kalır; iç get sonucunu istemciye/loga vermeyin. [Async Map örneği](../examples/memory-store.js) tek süreçli/geçicidir ve anahtarı açık bellekte tutar; kalıcılık/şifreleme hostun sorumluluğudur. `testMessages`/`validateTestReply` özel tanı callback'leri iç profil alır; bu nesneyi loglamayın. Varsayılan sohbet testi nötr bir web güvenliği sorusudur.
+
+## Kalıcı sohbet geçmişini hosta entegre etme
+
+Varsayılan dosya deposunda ek ayar gerekmez: sohbet kaydı profil dosyasının yanında `.assistant.enc` ekiyle, aynı anahtarla saklanır. Mevcut `dataDir/filePath` ve anahtarı koruyun; arşivi profil ve eşleşen anahtarla birlikte yedekleyin. Proje kökü ve yönetici kimliği kapsamı belirler. `authorize`/`requireAuth` kullanan çok kullanıcılı hostlarda her yönetici için kararlı `principal.id` sağlayın; tek ortak yönetici hesabı ortak arşiv anlamına gelir.
+
+Özel `store` sağlayan uygulamalar isteğe bağlı `store.assistantHistory` ekleyebilir. `read(scope)` oturum listesini, `update(scope, mutate)` ise aynı scope için atomik kilit altında değiştirilen listenin sonucunu döndürür. Güncel liste mutate'a verilmeli, mutate hata fırlatırsa hiçbir şey yazılmamalıdır. Süreçler/instance'lar arasında kilit veya veritabanı transaction'ı host sorumluluğudur. Şifreleme, erişim yetkisi, boyut sınırları ve yedeklemeyi host kendi deposunda sağlamalıdır. Sözleşme `AssistantHistoryStorage` tipindedir. Bu destek yoksa arayüz kalıcılığın kapalı olduğunu açıkça gösterir; sessizce yerel tarayıcı deposuna geçilmez.
+
+Yalnız yöneticiye açık `/assistant/sessions` CRUD API'si ve revizyon sözleşmesi [teknik kılavuzda](TEKNIK_KILAVUZ.md#kalıcı-sohbet-deposu-ve-oturum-apisi) açıklanır. `/project/tasks` hazırlama isteği ayrıca en fazla 10 user/assistant mesajından oluşan `history` kabul eder; önceki sohbet tarihsel bağlamdır, yeni dosya/komut onayı yerine geçmez. Eski API istemcilerinin history göndermesi zorunlu değildir.
+
+Bir görevin uygulanması kaynak dosyalarını etkiler; çalışan uygulamayı yeniden başlatma, paket kurma, migration çalıştırma veya deployment otomatik yapılmaz. Sohbet arşivini açmak/silmek canlı görevi uygulamaz/geri almaz. Sunucu yeniden başlatıldıktan sonra eski çıktı yalnız okunabilir; güncel kaynaklardan yeni görev gerekir.
+
+
+### Graphify ve belge destekli proje bağlamı (2026-10-28)
+
+Proje bilgileri → Bağlı proje → **Graphify ile daha güçlü proje analizi** alanında resmî depo, kurulum ve kullanım rehberi bulunur. Graphify hedef uygulamaya JavaScript bağımlılığı olarak değil, LLM Manager sürecinin çalıştığı sunucuya kurulur. Python 3.10+ gerekir; resmî paket `graphifyy`, CLI `graphify` adındadır: `uv tool install graphifyy` veya ayrı ortamda `python -m pip install graphifyy`. Kaynak: https://github.com/Graphify-Labs/graphify . Bu backend entegrasyonunda `graphify install` ve sohbette `/graphify` gerekmez.
+
+Kurulumdan sonra **Projeyi tara** seçilir. Mutlak host PATH dizinlerindeki CLI yeniden aranır; açık `graphify.command` veya `LLM_GRAPHIFY_PYTHON` / `project.graphifyPython` ayarı önceliklidir. PATH değişikliği çalışan servise yansımıyorsa servis yeniden başlatılır. `project.graphifyAutoDetect: false` otomatik keşfi kapatır. Projeden araç veya kurulum betiği otomatik çalıştırılmaz. Kurulu araç doğrulanmış tarama çıktısı üretirse algılandı, bulunamazsa eksik, çalışmazsa hata durumu gösterilir. Kurulum/çalıştırma birbirinden farklıdır; keşif tek başına başarılı analiz sayılmaz.
+
+Graphify yalnız filtrelenmiş geçici kaynak kopyasında `--code-only` çalışır. Güncel kaynak revizyonuyla eşleşen ilişkiler kaynaklı sohbetin dosya seçimini destekler; kaynak değişince eski harita kullanılmaz ve yeniden tarama istenir. README, kılavuz, `.md` ve `.txt` belgeleri ayrıca yerel okuyucuyla okunur; ilk üç uygun belge için bağlam payı ayrılır. Belgeler ve geçmiş mesajlar talimat/yetki sayılmaz. Seçili kaynaklar yalnız paylaşım onayı verilen kaynaklı sohbette etkin sağlayıcıya gönderilir. Model denemesi proje kaynaklarını kullanmaz.
+
+Tarama kaynak/belge/dışlanan dosya sayılarını ve kısmi taramayı gösterir. Varsayılan sınırlar 2500 dosya, dosya başına 256 KiB, toplam 4 MiB; sohbet bağlamı 40000 karakterdir. Bu nedenle her belge veya bütün proje her istekte modele gönderilmez. Canlı DB, dış servis ve çalışma zamanı davranışları bu analizle doğrulanmış sayılmaz. Geliştirme motoru güncel filtrelenmiş çalışma kopyasını okuyabilir; dosya uygulama ve komut onayları korunur.
+
+Repomix yeniden incelendi (https://repomix.com/guide/); mevcut güvenli okuyucu ve sınırlı kaynak seçimi korunarak zorunlu bağımlılık eklenmedi. Cline/Aider alternatif motor adayları; DBHub veritabanı bağlantısı ertelendiği için eklenmedi. Bunlar kurulmuş veya aktifmiş gibi gösterilmez.
+
+Yönetim arayüzünde sohbet kayıt işlemleri sol listenin altındaki **Seçili sohbet** alanındadır; mobilde **Sohbetler** düğmesiyle açılır. Ayrı merkez sohbet menüsü ve bağlam/kaynaklar paneli bulunmaz. Bu görünüm değişikliği entegrasyon API yollarını değiştirmez; kaynak referansları ve metrikler mesaj kaydında korunur.

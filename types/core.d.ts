@@ -47,6 +47,8 @@ export interface LLMStoreListResult {
 }
 
 export interface LLMStore {
+  /** Yönetici/proje kapsamlı kalıcı sohbet deposu. Sağlanmazsa geçmiş kaydı kapalıdır. */
+  assistantHistory?: AssistantHistoryStorage;
   list(): LLMStoreListResult | Promise<LLMStoreListResult>;
   getActive(): LLMProfileInternal | null | Promise<LLMProfileInternal | null>;
   get(id: string): LLMProfileInternal | null | Promise<LLMProfileInternal | null>;
@@ -249,8 +251,48 @@ export function createLLMProfileStore(options?: {
 export type AsyncLLMStore = {
   [K in keyof LLMStore]: LLMStore[K] extends (...args: infer A) => infer R
     ? (...args: A) => Promise<Awaited<R>>
-    : never;
+    : LLMStore[K];
 };
+
+export interface AssistantMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  contextId?: string;
+  at?: string;
+  label?: string;
+  meta?: string;
+  sources?: string;
+}
+export interface AssistantOutput {
+  taskId: string;
+  mode: string;
+  state: string;
+  at?: string;
+  content?: string;
+  files?: string;
+  result?: string;
+  events?: string;
+}
+export interface AssistantSession {
+  id: string;
+  revision: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  mode: 'model' | 'chat' | 'plan' | 'change';
+  profileId: string;
+  system: string;
+  contextId: string;
+  modelContext: string;
+  messages: AssistantMessage[];
+  outputs: AssistantOutput[];
+}
+export interface AssistantHistoryStorage {
+  read(scope: string): AssistantSession[] | Promise<AssistantSession[]>;
+  /** mutate aynı scope için atomik ve süreçler arası kilitli çalışmalıdır; hata yazıyı iptal eder. */
+  update<T>(scope: string, mutate: (sessions: AssistantSession[]) => T): T | Promise<T>;
+}
 
 export function createRateLimiter(options?: { capacity?: number; refillPerSec?: number; maxKeys?: number }): {
   take(key: string, count?: number): { ok: boolean; remaining: number; retryAfterSec: number };

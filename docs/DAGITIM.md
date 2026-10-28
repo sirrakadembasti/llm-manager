@@ -113,8 +113,14 @@ Boşluklu betik yolunu AppParameters içinde de tırnaklayın. Parola çalışma
 
 `curl -f http://127.0.0.1:8010/api/llm/health`: ok/version/hasActiveProfile/requestId döner; profil/sır döndürmez. Sağlık ucunun 200 döndürmesi canlı sağlayıcının çalıştığını kanıtlamaz.
 
-`llm-profiles.json` ve `llm-encryption.key` birlikte yedeklenir. `.bak`, `.old-<tarih>-<kimlik>` ve gerekiyorsa kullanım kayıtlarını yedek politikasına ekleyin; anahtar arşivini herkese açmayın. Bozuk depoda mevcut dosyayı koruyun ve eşleşen profil+anahtar çiftini geri yükleyin. Anahtar kaybında şifreli profiller kurtarılamaz. Yazma ortasında zorla sonlandırma sonrası tek dosyayı rastgele geri almayın.
+`llm-profiles.json`, varsa `llm-profiles.json.assistant.enc` ve `llm-encryption.key` birlikte yedeklenir. Özel profil yolunda geçmiş `<profil-dosyası>.assistant.enc` konumundadır. Sohbet geçmişi aynı anahtarla şifrelenir; mevcut şifreli geçmiş varken kayıp anahtar yerine yenisini üretmeyin. `.bak`, `.old-<tarih>-<kimlik>` ve gerekiyorsa kullanım kayıtlarını yedek politikasına ekleyin; anahtar arşivini herkese açmayın. Bozuk depoda mevcut dosyayı koruyun ve eşleşen profil+anahtar çiftini geri yükleyin. Anahtar kaybında şifreli profiller kurtarılamaz. Yazma ortasında zorla sonlandırma sonrası tek dosyayı rastgele geri almayın.
 
 CLI SIGINT/SIGTERM'de yeni bağlantıları kapatıp işleri bekler; 10 sn sonra çıkış sınırı vardır. Servis yöneticisine en az bu süreyi tanıyın. Windows zorla sonlandırma, sinyal geri çağrılarını çalıştırmayabilir. Programatik gömülü sunucuda kendi kapanış akışınızdan `await instance.close()` çağırın.
 
 Bu örneklerin dosya sözleşmesi testlidir; gerçek Docker/servis kurulumu yerel kabulde çalıştırılmış değildir. [Kanıt ve sınırlar](roadmap/YOL_HARITASI.md#kabul-ve-doğrulama).
+
+## Kalıcı sohbet ve Graphify işletimi
+
+Sohbetler aynı kalıcı veri dizini korunursa servis yeniden başlatıldıktan sonra açılabilir. Docker birimi/PVC profil, geçmiş ve eşleşen anahtarı birlikte içermelidir. Canlı görev farkları/geri alma bellektedir; arşivdeki iş özeti bunların yeniden çalıştırma yetkisi değildir. Host özel deposu `assistantHistory` desteği sağlamıyorsa arayüz kalıcı kaydın kullanılamadığını bildirir. Varsayılan depolama SQLite değildir, hedef uygulamanın DB'sine otomatik bağlanılmaz.
+
+Graphify için resmî `graphifyy` paketi ayrı Python 3.10+ ortamına kurulur; CLI adı `graphify` olur. **Projeyi tara** host PATH dizinlerinde CLI'yi yeniden arar. Servis hesabının PATH'i etkileşimli kabuktan farklı olabilir; açık `LLM_GRAPHIFY_PYTHON` yolunu kullanın veya servis ortamını güncelleyin. Paket seçeneği `project.graphifyAutoDetect: false` otomatik keşfi kapatır. Grafik hazır/eksik/hatalı/eski durumu tarama alanında gösterilir; kaynak revizyonu değişmiş harita sohbet dosya seçiminde kullanılmaz. Depodaki `docs/graphify-out` tarihsel çıktıları servis analizinden ayrıdır.

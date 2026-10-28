@@ -1,7 +1,7 @@
 import { createProjectFiles } from './files.js';
 import { analyzeProject } from './analyze.js';
 import { selectProjectContext } from './context.js';
-import { runGraphify } from './graphify.js';
+import { runGraphify, findGraphifyCommand } from './graphify.js';
 import { projectError } from './policy.js';
 import { createProjectTasks } from './tasks.js';
 
@@ -14,7 +14,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
   let inventory = null;
   let analysis = null;
   let graph = {
-    status: options.graphifyPython || options.graphify?.command ? 'not-scanned' : 'unavailable',
+    status: 'not-scanned',
     nodes: [],
     links: []
   };
@@ -28,6 +28,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       revision: snapshot.revision,
       scannedAt: snapshot.scannedAt,
       fileCount: snapshot.files.length,
+      documentCount: snapshot.files.filter(f => /\.(?:md|txt)$/i.test(f.path)).length,
       bytes: snapshot.bytes,
       partial: snapshot.partial,
       excluded: snapshot.excluded,
@@ -72,15 +73,20 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
   async function scan(signal) {
     inventory = await reader.scan({ signal });
     analysis = analyzeProject(inventory.files);
+    const command =
+      options.graphify?.command ||
+      options.graphifyPython ||
+      (options.graphifyAutoDetect !== false ? await findGraphifyCommand() : null);
     graph = await runGraphify({
       files: inventory.files,
-      command: options.graphify?.command || options.graphifyPython,
-      args: options.graphify?.args,
+      command,
+      args: options.graphify?.command ? options.graphify.args : options.graphifyPython ? ['-m', 'graphify'] : [],
       signal
     }).catch(error => {
       signal.throwIfAborted();
       return { status: 'error', code: error.code || 'PROJECT_GRAPH_FAILED', nodes: [], links: [] };
     });
+    graph.revision = inventory.revision;
     return await status();
   }
 
@@ -107,7 +113,9 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       throw projectError('PROJECT_CONFLICT', 'Proje kaynakları değişti. Yeniden tarayıp isteği tekrar gönderin.', 409);
     inventory = snapshot;
     analysis = analyzeProject(snapshot.files);
-    const context = selectProjectContext(snapshot.files, body.prompt);
+    if (graph.status === 'ready' && graph.revision !== snapshot.revision)
+      graph = { status: 'stale', nodes: [], links: [] };
+    const context = selectProjectContext(snapshot.files, body.prompt, 40000, graph);
     const response = await ask(
       [
         { role: 'system', content: system },
@@ -121,7 +129,8 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       ...response,
       sources: context.sources,
       partial: context.partial || snapshot.partial,
-      revision: snapshot.revision
+      revision: snapshot.revision,
+      graphUsed: context.graphUsed
     };
   }
 

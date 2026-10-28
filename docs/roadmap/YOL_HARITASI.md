@@ -1,5 +1,26 @@
 # LLM Manager — tek yol haritası
 
+## Birleşik sohbet ve sade yerleşim — uygulama planı
+
+Kullanıcı üst alanın inceltilmesini, ana sayfa bağlantısının ve birinci sekmedeki profil sayısı/etkin profil özetlerinin kaldırılmasını istedi. Playground ayrı ekran olmaktan çıkarılıp Proje Asistanı'ndaki tek sohbetle birleştirilir. Masaüstünde sohbet solda geniş sütun; bağlı proje, etkin profil/model ve mimari özeti sağda tek bilgi bloğudur. Mobilde sohbet önce, bilgi bloğu sonra gelir.
+
+Mimari: mevcut yönetim API'leri korunur. Ortak sohbet formunda model denemesi `/chat` (profil seçimi, sistem talimatı, SSE/JSON, süre/token, yerel iptal), kaynaklı sohbet `/project/chat`, plan/değişiklik `/project/tasks` kullanır. Kaynak modu ve model denemesi geçmişleri ayrılır; proje modları etkin profile sabitlenir. Kaynak bağlantısı kapalıyken model denemesi çalışır. Türkçe metin, güvenli textContent, kaynak paylaşım onayı ve dosya işlem onayları korunur. `.env.example` kullanıcı değişikliği olarak kalır; bu görev commit/push talimatı içermez.
+
+- [x] `tests/playground.test.js`, `tests/project-ui.test.js`, yeni sohbet taşıma testleri: kaldırılan alanlar, tek form/sol-sağ sıra, projesiz model denemesi, profil/sistem/akış, geçmiş ayrımı, iptal ve kesilmiş/hatalı SSE için önce başarısız testleri doğrula.
+- [x] `public/llm.html`, `public/llm-ui.js`: ince üst başlık/sekme düzeni, özet/ayrı Playground kaldırma, sağda tek bilgi bloğu ve solda tek sohbet; mevcut profil işlemlerini koru.
+- [x] `public/chat-client.js`, `public/project-ui.js`, `src/core.js`: ortak sohbet taşıması ve görünüm durumları, güvenli SSE, süre/token, iptal, profil güncelleme köprüsü; mevcut kimlik korumalı betik içinde sun.
+- [x] `public/i18n/tr.json`, kullanıcı/teknik/değişiklik belgeleri: birleşik akışı ve modlara göre kullanılabilen seçenekleri açıkla; API sözleşmesi değişmez.
+- [x] İlgili testler, tam seri, lint/tip/biçim ve gerçek tarayıcıda masaüstü/mobil/açık-koyu/klavye akışını doğrula; tarihli sonuçları burada kaydet.
+
+### Uygulama sonucu — 2026-10-28
+
+İnce başlık ve aynı satırdaki sekmeler uygulandı; ana sayfa bağlantısı, birinci sekmedeki profil özetleri ve ayrı Playground kaldırıldı. Tek sohbet formunda model denemesi, kaynaklı sohbet, geliştirme planı ve değişiklik hazırlama birleştirildi. Sohbet solda, üç bilgi grubu sağda tek kartta; mobilde sohbet önce gelir. Mevcut API, profil kaydetme, kaynak paylaşımı ve dosya değişikliği onayları korundu. Belgeler güncellendi; başlangıçtaki `.env.example` değişikliği korunur. Commit/push yapılmadı.
+
+- Test önce yaklaşımıyla projesiz model kullanımı, profil/sistem/akış, geçmiş ayrımı, yerel iptal, UTF-8/SSE tamamlanması ve Türkçe ağ/JSON/zaman sınırı hataları doğrulandı. Tam seri: **453 test; 452 geçti, 0 başarısız, 1 POSIX testi Windows'ta atlandı**. Bu turdan sonraki küçük Türkçe hata/bitiriş metni düzeltmeleri ve ek regresyon dahil son arayüz seçkisi **51/51** geçti; bu son düzeltmelerden sonra tam seri yeniden çalıştırılmadı.
+- Son kaynaklarda ESLint ve TypeScript geçti; Prettier kontrolü geçti. `git diff --check` görev dosyalarında temiz; kullanıcıya ait `.env.example` içindeki mevcut satır sonu boşluğuna dokunulmadı. Bağımsız kod incelemesinde doğrulanmış ek bulgu yok.
+- İzole yerel önizlemede gerçek tarayıcıyla model SSE ve ikinci profille JSON yanıtı, sistem talimatı, süre/token, sohbet temizleme, kaynaklı sohbette onaysız ret/onaylı yanıt, tarama, profil düzenleme ve klavye sekme geçişi doğrulandı. 1440px masaüstü ve 390px mobilde yatay taşma yok; mobilde bilgi kartı sohbetin altında. Koyu tema sistemden, açık palet yalnız geçici önizleme dönüşümüyle incelendi. Kontrollü sahte sağlayıcı kullanıldı; gerçek anahtar, aktif veri veya ücretli sağlayıcı çağrısı kullanılmadı.
+- Bu görev statik Graphify çıktısını yenilemez; önceki harita tarihsel kaynak anlık görüntüsü olarak kalır.
+
 ## Belge, kod haritası ve Git teslimi — 2026-10-28
 
 Kullanıcı ilgili Markdown ve Graphify çıktılarının güncellenmesini, tamamlanan çalışmanın commit edilip push yapılmasını açıkça istedi. Bu yetki aşağıdaki önceki oturumların commit/push yapılmadığını belirten tarihsel kayıtlarını değiştirmez. Sürüm artırma veya paket yayını yapılmaz. Başlangıçtaki kullanıcı değişikliği `.env.example` dosyasında korunur ve commit kapsamı dışında kalır.
@@ -272,3 +293,104 @@ Doğrulanamayan öneriler kaldırıldı; sağlayıcı/uç önayarları korundu. 
 Thinking yeteneği her modelde aç/kapat garantisi değildir: Claude 5.5/5.1 adaptive kullanır; Fable/Opus full-off reddeder, Sonnet between_tools ve Haiku disabled destekleri effort'a bağlıdır. Gemini 3/4 enabled için thinkingLevel medium, auto için ayar yok, full-off ret; Gemini 2.5 Flash sayısal budget destekler, Pro off reddeder. GPT-6 aktif reasoning'de desteklenmeyen sampling alanlarını kullanmaz, disabled için effort none uygular.
 
 Hesap bazlı kontrol: sağlayıcıya özel `OPENAI_API_KEY` veya `PROVIDER_KEY_OPENAI` tanımlayıp `node scripts/check-catalog.js --provider openai` çalıştırın. Genel `LLM_API_KEY`/komut satırı anahtarı yalnız tek açık provider seçimiyle kullanılır; hiçbir anahtar tüm sağlayıcılara yayılmaz veya yazdırılmaz. Checker yalnız model-listesi GET yapar; eşleşme hesap bazlıdır, tüm parametre/region desteğinin kanıtı değildir. Bazı servislerde liste ucu yoktur. Yerel Ollama için `--allow-local-http`, kurulu model ve dummy anahtar gerekir. Atlanmış/anonim koşu canlı doğrulama sayılmaz.
+
+## Kalıcı sohbet ve iş çıktısı takibi — 2026-10-28 uygulama planı
+
+Amaç: Proje Asistanı sohbetlerini yenileme/yeniden başlatma sonrasında açabilmek; tamamlanmamış yanıtları, kaynak bağlamını ve üretilen işlerin uygulama etkisini açıkça ayırmak. Mevcut kod ve önceki görev değişiklikleri korunur; `.env.example` kullanıcıya aittir. Commit/push yok.
+
+Mimari: `src/assistant/history.js` yönetici ve proje kökü kapsamlı, revizyon denetimli oturum API'si sağlar (`/assistant/sessions`, `/:id`). Varsayılan profil deposu aynı anahtarla ayrı şifreli dosyaya, atomik yazım ve dosya kilidiyle kaydeder; özel depolarda destek yoksa kalıcılık kullanılamadığı açıkça bildirilir, gizli bir tarayıcı deposuna geçilmez. Sohbet içeriği loglanmaz. Kayıtlar yetki vermez; geçmiş görevler yalnız hâlâ sunucudaki canlı görevle eşleşirse mevcut onay ekranında açılır. Sunucu yeniden başlarsa eski çıktılar okunabilir, otomatik uygulanamaz/geri alınamaz.
+
+- [x] Depolama/API: `tests/assistant-history.test.js` ile önce yenileme, şifreli dosya, anahtar kaybı/bozuk dosya, yönetici/proje ayrımı, eşzamanlı revizyon, sınırlar ve özel depo davranışını başarısız doğrula; `src/assistant/history.js`, `src/store/assistantHistory.js`, `src/profileStore.js`, `src/core.js` uygula.
+- [x] Arayüz: `public/assistant-history-ui.js` kayıtlı sohbet seçme/yeni/adlandırma/silme/dışa aktarma ve kayıt durumunu yönetir. `public/project-ui.js` tamamlanan/yarım/başarısız mesajları, sınırlı model bağlamını ve görev çıktılarını bu kayda bağlar; başarısız kayıtta tekrar ücretli istek öncesi durur. Önce `tests/assistant-history-ui.test.js` ve proje arayüz regresyonları, sonra kod.
+- [x] İş yaşam döngüsü: plan/öneri dosyaya yazmaz; uygula/geri al/doğrulama/kayıt kapatma sonrası etkiler ve göreve ait çıktılar izlenir. Eksik canlı görev eski diff'i uygulanabilir göstermez. SQL migration ve çalışan servisler otomatik yürütülmez. Kayıt silme dosya değişikliklerini geri almaz. Kaynak revizyonu değişirse kullanıcı yeniden tarar; geçmiş cevap tarihsel kalır.
+- [x] Tipleri ve Türkçe README/kullanıcı/teknik/entegrasyon/değişiklik belgelerini güncelle; hedefli testler, tam seri, lint/typecheck/format ve tarayıcıda kayıt-yenileme-devam/yerleşim akışını doğrula. Gerçek sağlayıcı veya aktif veri kullanma; sonuçları bu bölümde kaydet.
+
+### Uygulama ve doğrulama sonucu — 2026-10-28
+
+Şifreli oturum API'si, kayıtlı sohbet seçimi/devam, başlık, JSON dışa aktarma, revizyon kontrollü silme, kayıt durumu/yeniden deneme ve açık onaylı kaydedilmeyen taslak bırakma akışı eklendi. Mesajlar mod değişiminde görünür kalır; modele gönderilen sınırlı bağlam ayrı tutulur. Tamamlanmış eşleşen soru/yanıt çiftleri kullanılır; yarım/başarısız çiftler dışlanır. Kaynak sohbeti → plan/değişiklik devam bağlamı OpenCode'a tarihsel veri olarak aktarılır.
+
+İş çıktıları son bilinen etki, dosya listesi, doğrulama sonucu ve işlem iziyle kaydedilir. Mutasyondan önce sonuç belirsiz niyet yazılır; yanıtla durum güncellenir. Kayıt hatası uygulanmış dosyaları öneri durumuna geri göstermez. Canlı görevi açma API'den denetlenir; sunucu kapanmışsa arşivden otomatik uygulama/geri alma yapılamaz. Çıktı özeti kalıcıdır; tam diff, geçici çalışma kopyası ve geri alma kaydı halen canlı sunucu oturumuna bağlıdır. Gerçek migration, servis yeniden başlatma veya dağıtım otomatik yürütülmez.
+
+- Tam seri: `node --test --test-concurrency=1 tests/*.test.js tests/**/*.test.js` — **467 test: 466 geçti, 0 başarısız, 1 POSIX testi Windows'ta atlandı**. Sonradan genişletilen anahtar kaybı koruması (profil kaydetme üzerinden de yeni anahtar üretmeme), arşivlenmiş görev salt okunur regresyonu ve son Türkçe metinler dahil kabul seçkisi **77/77** geçti. Bu son küçük düzeltmelerden sonra tam seri tekrar çalıştırılmadı; kapsam ölçümü bu görevde çalıştırılmadı.
+- Şifreli disk/yeniden manager açma, yönetici/proje ayrımı, iki manager eşzamanlı yazımı, eski revizyonla yazma/silme ret, bozuk depo ve anahtar kaybında kaydı/anahtarı koruma, CSRF/yönetici kontrolleri doğrulandı. Geçici kopyada çalışan kontrollü sahte OpenCode API motoruyla önceki plan/sohbet metninin yeni göreve aktarılması doğrulandı.
+- Bağımsız incelemede bulunan gezinme/üretim yarışı, başarısız yanıt bağlam sızıntısı ve boyut sınırında çıkış kilidi regresyonlarla düzeltildi; tekrar incelemede ek P1/P2 bildirilmedi. Son kaynaklarda ESLint, TypeScript ve Prettier kontrolleri geçti; görev dosyalarında `git diff --check` temiz.
+- İzole yerel tarayıcı: kontrollü SSE model cevabı kaydı, başlık kaydetme, sayfa yenileme, kayıt listesinden açma ve önceki mesajlarla devam; aynı arşivde kaynaklı cevabın kaynak/süre/token metninin saklanması doğrulandı. 390px mobilde yatay taşma yok ve sağ bilgi bloğu sohbetin altında. Görsel kanıt dış çalışma alanındaki `kalici-sohbet.png` / `kalici-sohbet-mobil.png`. Gerçek ücretli sağlayıcı, aktif `.env`/data veya gerçek DB kullanılmadı. Sahipli önizleme sunucuları ve sentetik geçici verileri kapanış uç noktasıyla temizlendi.
+- README, kullanıcı/teknik/entegrasyon/değişiklik belgeleri ve `types/core.d.ts` güncellendi. Yeni zorunlu bağımlılık yok. Kullanıcı `.env.example` değişikliği ve önceki UI görevi dosyaları korunur; commit/push/yayın yapılmadı. Önceki Graphify çıktısı bu görevde yenilenmedi.
+
+Sınırlar: başlangıç/pending ve sonuç ayrı kayıt yazılarıdır; tarayıcı çöküşünde son akış parçaları kaybolabilir. Arşiv, değiştirilemez audit günlüğü veya kaynak yazılarıyla ACID işlem değildir. Host özel deposunda history desteği yoksa sayfa belleği kullanımı açıkça bildirilir. Kayıt/model bağlamı boyutları kullanıcı ve teknik kılavuzda belirtilmiştir; JSON dışa aktarma şifresizdir.
+## Sohbet çalışma alanı düzeni — 2026-10-28 uygulama planı
+
+Kullanıcı sohbet sonrası başarı panelinin kaldırılmasını ve tanıdık yan sohbet listesi + merkez mesaj alanı düzenini istedi. Önceki görev değişiklikleri ve kullanıcı `.env.example` dosyası korunur. API/veri formatı değişmez; commit/push yok. Plan `writing-plans` yaklaşımıyla tek yol haritasında tutulur.
+
+- [x] Önce arayüz testleri: sohbet cevabı için başarı bildirimi üretmeme, hata bildirimini koruma; listeden açma/silme, seçili satır, yeni sohbetin eskisini silmemesi ve gezinme kilidi. `tests/assistant-history-ui.test.js`, `tests/project-ui.test.js`, `tests/playground.test.js`.
+- [x] `public/assistant-history-ui.js`: açılır seçici yerine satır düğmeleri ve her satırda açık onaylı silme; kararlı kayıt kimliği/revizyon, mevcut kaydı açma/yenileme/başlık/dışa aktarma/kurtarma korunur.
+- [x] `public/llm.html`, `public/project-ui.js`: solda sohbet çerçevesi, merkezde başlık ve çalışma türü/profil araç çubuğu, bağımsız kayan mesajlar ve altta yazma alanı. Mesaj gövdesi/kimlik/durum ayrılır; ayrıntılar katlanır. Proje bilgileri yan panelden erişilir. Mobilde sohbet listesi düğmeyle açılır; kayıt ve görev onayları korunur. Sohbet ilerlemesi satır içi gösterilir, yanıt bitişinde yeşil panel üretilmez; hata ve önemli dosya işlemi bildirimleri kalır.
+- [x] Türkçe belgeleri güncelle; hedefli arayüz ve koruma testleri, lint/typecheck/format, izole tarayıcıda masaüstü/mobil sohbet açma/silme/devam, kaydırma ve görünür sonuç kanıtını doğrula. Sonuçları buraya ekle.
+
+### Sonuç ve doğrulama — 2026-10-28
+
+Açılır sohbet seçicisi kaldırıldı. Solda isimli sohbet satırları ve her satırda onaylı silme, merkezde mesaj alanı, üstte çalışma türü/profil ve altta composer uygulanmıştır. Başlık, dışa aktarma, etkin kaydı silme ve kayıt kurtarma Sohbet menüsündedir. Proje bilgileri düğmeyle yan panel açar; geniş ekranda üçüncü sütun, dar ekranda kapanabilir paneldir. Mobil liste düğmeyle açılır ve dokunarak kapatılır. Mesaj ayrıntıları/bağlam katlanır; mevcut kalıcı kayıt, paylaşım izni, iş çıktıları, diff inceleme ve dosya/komut onayları korunur. API ve veri formatı değişmez.
+
+Model/kaynak/plan/değişiklik composer sonuçları artık genel yeşil başarı paneli üretmez. Bekleme/iptal satır içinde, hatalar mevcut bildirimde gösterilir. Dosya/komut/tarama bildirimleri korunur. Enter gönderir, Shift+Enter yeni satır ekler; IME kompozisyonu gönderilmez. Akış alt sınırı takip eder, kullanıcı eski mesajları okurken kaydırma ve tamamlanma konumunu korur. Sohbet açma/silme/iptal/hata ve Escape sonrasında odak görünür denetime döner.
+
+- Son kaynaklarla hedefli seçki **64/64** geçti: `tests/assistant-history-ui.test.js`, `tests/project-ui.test.js`, `tests/playground.test.js`, `tests/i18n.test.js`, `tests/ui-completion.test.js`, `tests/ui-enhancements.test.js`, `tests/assistant-history.test.js`, `tests/chat-client.test.js`, `tests/project-api.test.js`. Başarı bildirimi, hata, satır silme/revizyon, seçili sohbet, kayıt/devam, kilitler, klavye/IME, iptal, odak ve akış kaydırma regresyonları dahil. Bu UI görevinde tam seri/kapsam yeniden çalıştırılmadı; önceki kayıtlar tarihseldir.
+- ESLint, TypeScript ve Prettier geçti; görev dosyalarında `git diff --check` temiz. Kullanıcı `.env.example` dosyasına dokunulmadı. README dışı kök Markdown dosyası eklenmedi; bağımlılık/API/tip değişikliği yok.
+- İzole tarayıcı: Enter ile kontrollü SSE yanıtı, iki sohbet arasında geçiş, seçim işareti, yazma alanına odak, uzun akışın alt sınırda kalması ve yazma alanının görünür olması doğrulandı. Yanıt sonrasında notification hidden=true. Proje bilgileri açma/kapama; mobil liste açma/kapama ve sohbet seçimi; silme onayından vazgeçince iki kaydın korunması ve assistant-new odağı doğrulandı. 390px mobilde sayfa genişliği 390px, yazma alanı alt sınırı viewport içinde. Açık palet yalnız sahipli önizleme dönüşümüyle incelendi; sistem tercihi değiştirilmedi.
+- Bağımsız incelemenin odak ve akış kaydırma bulguları test önce yaklaşımıyla düzeltildi. Son iptal/hata odağı için ayrıca RED/GREEN regresyon ve gerçek tarayıcı doğrulaması yapıldı.
+- Görsel kanıt dış çalışma alanında `sohbet-cercevesi.png` ve `sohbet-cercevesi-mobil.png`. Kontrollü sahte sağlayıcı/sentetik kayıtlar kullanıldı; gerçek sağlayıcı, aktif veri veya sır kullanılmadı. Sahipli önizleme sunucuları kapatılıp geçici verileri temizlendi. Kullanıcı/teknik/değişiklik belgeleri güncellendi. Commit/push/yayın yapılmadı; Graphify çıktısı yenilenmedi.
+## Graphify, belge bağlamı ve dikey sohbet — 2026-10-28
+
+Amaç: Kurulum rehberi ve güvenilir host PATH keşfi; güncel Graphify ilişkilerini sohbet kaynak seçimine katma; README/kılavuz/metin belgelerine sınırlı bağlam payı; daha dikey sohbet. Mevcut değişiklikler korunur, commit/push yok.
+
+- [x] `src/project/graphify.js`, `index.js`: açık yapılandırma öncelikli, mutlak host PATH dizinlerinden CLI keşfi; her taramada yeniden deneme, eski grafiği kullanmama. Gerçek Graphify yoksa açık durum, sessiz kurulum yok.
+- [x] `files.js`, `context.js`: belgeler ve manifestler taramada öncelikli, soru ve ilişkili dosyalar bağlamda; bütçe/sır/ignore kontrolleri korunur. API kapsam bilgileri ve tipleri güncellenir.
+- [x] `public/llm.html`, `project-ui.js`: repo/kurulum/kullanım rehberi, tarama kapsamı ve Graphify durumu; daha uzun sohbet ve daraltılmış okuma sütunu.
+- [x] RED/GREEN testleri, API regresyonları, lint/typecheck/format, izole görsel kontrol ve Türkçe belgeler. Repomix/Cline/Aider alternatif, DBHub ertelenmiş; gereksiz zorunlu bağımlılık eklenmez.
+
+### Graphify/belge bağlamı doğrulama — 2026-10-28
+
+Yeni testlerde önce eksikler görüldü: belge önceliği, grafikle komşu kaynak seçimi ve host PATH keşfi için 3 RED; uygulama sonrası ilgili 20/20 test geçti. Proje seçkisi 67 test: 66 geçti, platforma özgü 1 atlandı. Son uyumluluk düzeltmesinden sonra API/OpenCode/analiz/Graphify/UI seçkisi 39/39 geçti. Bağımsız incelemenin açık komut ile legacy Python bağımsız değişkenleri uyumluluk bulgusu düzeltildi; eski Python varsayılanı korundu. Açık CLI için `graphify: { command: '/absolute/graphify', args: [] }` kullanılır.
+
+Gerçek kurulu Graphify yalnız sentetik örnek proje üzerinde denendi: 7 öğe ve 7 ilişki; arayüzde algılandı durumu görüldü. Kontrollü sağlayıcıyla kaynaklı sohbet kaydı/yanıtı ve Graphify kullanım açıklaması doğrulandı. Masaüstü/dar görünüm ve 390px mobilde taşma denetlendi; mobil girdi görünür. Görseller dış çalışma alanında `graphify-dikey-sohbet.png`, `dikey-sohbet.png`, `dikey-sohbet-mobil.png`. Gerçek sırlar/aktif data kullanılmadı. Yeni paket kurulmadı ve bağımlılık eklenmedi. Graphify kurulu ve çalışır bulundu; diğer adaylar unutulmuş zorunlu bileşen sayılmaz.
+
+ESLint, TypeScript ve Prettier tüm proje kontrolleri geçti. Son kaynaklarla tam test serisi: **470 test; 469 geçti, 0 başarısız, 1 platform testi atlandı** (`node --test tests/*.test.js`). Görev dosyalarında `git diff --check` temiz; kullanıcı `.env.example` korunur. Canlı sağlayıcı/deployment/DB davranışı bu doğrulamanın kapsamında değildir. Commit/push yapılmadı.
+
+
+## Daha uzun sohbet ve solda kayıt işlemleri — 2026-10-28
+
+Kullanıcı mesajlara daha fazla dikey alan, sohbet menüsü işlemlerinin solda toplanması ve Sohbet bağlamı ve kaynaklar panelinin kaldırılmasını istedi. Mevcut kullanıcı/önceki görev değişiklikleri korunur; commit/push yok. Planlama ve test odaklı geliştirme yaklaşımı uygulanır.
+
+- [x] `public/llm.html`: merkez menü yerine sol listenin altında Seçili sohbet alanı; başlık/kayıt/dışa aktar/silme korunur, yinelenen yeni sohbet düğmesi kaldırılır. Masaüstünde en az 940px, mobilde en az 800px sohbet; mesaj alanına daha fazla pay, boş durumlar kompakt.
+- [x] `public/project-ui.js`: kaldırılan bağlam panelinin DOM bağımlılıkları temizlenir; yanıt metrikleri ve kaynak referansları mesaj verisinde korunur. Model/kaynak sohbeti, iptal, yeni sohbet ve kayıt tekrar deneme testlerle denetlenir. Panelden bağımsız test önce RED/GREEN.
+- [x] İlgili Türkçe belgeler, odaklı test seçkisi, lint/tip/biçim ve izole masaüstü/mobil tarayıcı doğrulaması. Gerçek sır veya aktif data kullanılmaz.
+
+
+### Uzun sohbet görünümü sonucu ve doğrulama — 2026-10-28
+
+Sohbet çerçevesi masaüstünde en az 940px, mobilde 800px yüksekliğe çıkarıldı; başlık ve boş karşılama alanları sıkılaştırıldı. Mesajlar kendi alanında kayar, kısa ekranda sayfa da aşağı kaydırılır. Ayrı merkez sohbet menüsü kaldırıldı. Başlık, JSON dışa aktarma, etkin kaydı silme ve kaydı yeniden deneme sol listenin altındaki Seçili sohbet alanına taşındı. Mobilde aynı alan Sohbetler düğmesiyle açılır. Yinelenen yeni sohbet düğmesi kaldırıldı; + Yeni sohbet korunur.
+
+Sohbet bağlamı ve kaynaklar paneli DOM'dan kaldırıldı. Bağlam sayacı/kaynak listesi DOM bağımlılıkları temizlendi; süre/token metrikleri yerel durumdan mesaja kaydedilir. Kaynak referansları mesaj ayrıntılarında, gerçek kaynak seçimi/Graphify ve paylaşım izni mevcut akışta korunur. API/veri formatı değişmedi. Kullanıcı/teknik/değişiklik belgeleri güncellendi.
+
+- Önce paneli kaldırılmış sayan sıkı DOM testinde 17/17 RED gözlendi; kaldırılan denetimlere erişimler temizlendikten sonra ilk seçki 24/24 GREEN. Son kaynaklarda arayüz/kayıt/taşıma/i18n seçkisi 57/57 geçti: project-ui, assistant-history-ui, playground, i18n, ui-completion, ui-enhancements, assistant-history, chat-client. Metriklerin önceki yanıttan iptal yanıtına sızmaması da gerçek iki turla doğrulandı.
+- İzole sunucu, sentetik şifreleme anahtarı ve kontrollü sağlayıcıyla uzun SSE yanıtı, kaynaklı sohbet, soldan başlık kaydetme; yeni sohbet sonrası eskisinin korunması ve dört mesajın geri yüklenmesi doğrulandı. Kaldırılan panel/menü yok; kaynaklı yanıt kaydediliyor. Masaüstü çerçeve 940px, mesaj alanı yaklaşık 577–612px; 390px mobilde çerçeve 800px ve yatay taşma yok. Mobil kayıt işlemleri aynı çekmecede, seçimden sonra kapanma korunur.
+- Görseller dış çalışma alanında uzun-sohbet-sol-islemler.png ve uzun-sohbet-mobil-islemler.png. Bu UI görevinde tam test serisi yeniden çalıştırılmadı; önceki 470-test sonucu tarihseldir. Kullanıcı değişiklikleri ve .env.example korunur; commit/push/yayın yok.
+
+Son kaynaklarda ESLint, TypeScript ve tüm proje Prettier kontrolü geçti; görev diff kontrolü temiz. İzole önizleme kapatıldı ve kendisine ait sentetik geçici veriler temizlendi.
+
+
+## Belge eşitleme ve commit — 2026-10-28
+
+Kullanıcı mevcut Markdown belgelerinin güncellenmesini, docs/graphify-out üretim kaynağının açıklanmasını ve commit atılmasını istedi. Push/yayın/sürüm artırma yetkisi verilmedi. Önceki geliştirmeler ve bu belgeler aynı commit kapsamına alınır; başlangıçtaki kullanıcı .env.example değişikliği dışarıda korunur.
+
+README, kullanıcı/teknik/entegrasyon, dağıtım, katkı, klasör, güvenlik ve tehdit modeli belgeleri güncel sohbet düzeni, şifreli geçmişin yedeklenmesi, kayıt API'si ve Graphify keşfiyle eşitlendi. Değişiklik günlüğünün son ekleri Yayımlanmamış bölümünde toplandı; kaldırılmış menü/düğme adları güncellendi.
+
+Graphify üretim kökeni denetlendi: kaynak manifestindeki 173/173 SHA-256 özeti mevcut 29066dc HEAD kaynaklarıyla eşleşiyor; graphify-out çıktıları bu HEAD'de değişmemiş. Graphify 0.9.97, extract --code-only --max-workers 1 ve cluster-only --no-label kayıtları mevcut. Grafik JSON'unda 898 düğüm ve 2499 ilişki var. Grafik/HTML/analiz/rapor araç çıktısı, Türkçe README ve source-manifest yardımcı belgelerdir. Bu turda harita yeniden üretilmedi; README'ye tarihsel kapsam ve güncel kaynaklardan farkı açıkça eklendi. Araç raporu elle değiştirilmedi.
+
+Commit öncesi tam test serisi, lint/tip/biçim ve belge bağlantıları doğrulanır; sonuç bu kayda eklenir. Commit mesajı caveman-commit biçiminde kısa Conventional Commits olur. Tamamlanma doğrulaması verification-before-completion yaklaşımıyla yapılır.
+
+
+### Commit öncesi doğrulama — 2026-10-28
+
+Son kaynaklarda `node --test tests/*.test.js tests/**/*.test.js` (npm test ile aynı seçki): **479 test; 478 geçti, 0 başarısız, 1 platform testi atlandı**. ESLint, TypeScript ve Prettier geçti. Elle düzenlenen README/docs belgelerindeki 63 yerel dosya bağlantısı denetlendi; eksik hedef yok. Markdown/HTML Prettier ignore listesinde olduğundan belge kontrolü ayrıca yerel bağlantı ve diff boşluk denetimiyle yapıldı; otomatik Graphify raporu yeniden biçimlendirilmedi. Graphify kaynak manifestindeki 173 hash eski HEAD ile eşleşir; grafik yeniden üretilmedi.
+
+Commit kapsamı güncel sohbet, şifreli geçmiş, grafik/belge bağlamı ve bunları açıklayan belgelerden oluşur. Kullanıcı .env.example değişikliği stage dışında kaldı. Commit ayrıcalığı bu görevden alınmıştır; push, yayın ve sürüm artırma yapılmaz.

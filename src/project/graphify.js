@@ -4,6 +4,22 @@ import { createProjectWorkspace } from './workspace.js';
 import { runProjectProcess } from './process.js';
 import { projectError, isWithin } from './policy.js';
 
+export async function findGraphifyCommand(env = process.env) {
+  for (const directory of (env.PATH || env.Path || '').split(path.delimiter)) {
+    if (!path.isAbsolute(directory)) continue;
+    const candidate = path.join(directory, process.platform === 'win32' ? 'graphify.exe' : 'graphify');
+    try {
+      if ((await fs.stat(candidate)).isFile()) {
+        await fs.access(candidate, process.platform === 'win32' ? 0 : 1);
+        return candidate;
+      }
+    } catch {
+      /* Not installed in this host directory. */
+    }
+  }
+  return null;
+}
+
 export async function runGraphify({ files, command, args = ['-m', 'graphify'], signal, timeoutMs = 120000 }) {
   if (!command) return { status: 'unavailable', nodes: [], links: [] };
   const workspace = await createProjectWorkspace(files);

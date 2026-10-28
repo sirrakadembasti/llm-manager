@@ -67,3 +67,7 @@ Hedefe yazma/geri alma açık onay ve içerik sürümü eşleşmesi ister. Sonra
 ## 3. İşletmeci sorumlulukları
 
 TLS, servis hesabına özel dizinler ve şifreli/çevrimdışı yedekler kullanın. POSIX'te uygun dizin/dosya izinleri, Windows'ta ACL uygulayın. Profil ve ana anahtar yedeklerini eşleştirin. Ana uygulama oturumlarını ve yönlendirmesini koruyun; güvenilir ask/handle çağrılarını doğrudan anonim kullanıcıya açmayın. [Dağıtım](DAGITIM.md) · [Özel güvenlik açığı bildirimi](GUVENLIK.md).
+
+## Kalıcı asistan geçmişi
+
+Varsayılan geçmiş dosyası profil anahtarıyla AES-256-GCM şifrelenir; kapsam yönetici/proje ve oturum kimliğini içerir. Yazma revizyon denetimi ve dosya kilidiyle yapılır; bozuk/çözülemeyen geçmiş boş kabul edilmez. Sınırlar ve veri sözleşmesi [teknik kılavuzdadır](TEKNIK_KILAVUZ.md). JSON dışa aktarımı şifresizdir. İstemci kaynaklı iş özetleri ve eski konuşmalar güncel kaynak doğrulaması, komut yetkisi veya geri alma kaydı sayılmaz. Kayıt ve kaynak yazıları tek ACID işlem değildir; cevap kaybında durum belirsiz kalabilir.

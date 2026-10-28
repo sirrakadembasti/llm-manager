@@ -20,7 +20,7 @@ Etkiyi, yeniden üretim adımlarını/kavram kanıtını, etkilenen bileşeni, i
 ## Güvenlik mimarisi ilkeleri
 
 - **Sır sızıntısını önleme:** Anahtar/parolalar sunucuda kalır; günlükler sırları ve mesaj içeriğini maskeler.
-- AES-256-GCM: 12 bayt IV, 16 bayt doğrulama etiketi; profil ve şifreleme anahtarı birlikte yedeklenir.
+- AES-256-GCM: 12 bayt IV, 16 bayt doğrulama etiketi; profil, şifreli sohbet geçmişi ve eşleşen anahtar birlikte yedeklenir. Şifreli geçmiş varken eksik anahtar yeniden üretilmez.
 - HTTPS ve soket/DNS SSRF filtresi uygulanır; özel adresler açık izin gerektirir. Vekil DNS'i yerel IP filtresi yerine hedef izin listesi kullanır.
 - Değişiklik yapan HTTP istekleri `X-LLM-CSRF: 1` gerektirir; yönetici ve sohbet kimlikleri ayrıdır.
 - Üretim TLS, güçlü kimlik bilgileri ve yalnız servis hesabına açık dosyalar gerektirir. Windows ACL ister; POSIX 0600 tek başına yeterli değildir.
@@ -28,3 +28,7 @@ Etkiyi, yeniden üretim adımlarını/kavram kanıtını, etkilenen bileşeni, i
 - OpenCode gerçek API anahtarını almaz; süreli yerel köprü belirteci kullanır. Dosyalar geçici kopyada hazırlanır, hedefe uygulama ve geri alma ayrı onay ve sürüm eşleşmesi gerektirir. Motor/komut süreçleri işletim sistemi sandbox'ı değildir; güvenilir araç ve host komutları kullanın.
 
 Mevcut ve planlanan kontroller: [tehdit modeli](TEHDIT_MODELI.md). Yerel güvenlik testi/denetimi uzak dağıtımın güvenliğini kanıtlamaz.
+
+## Sohbet kayıtları ve belge bağlamı
+
+Sohbet geçmişi yönetici ve proje kapsamıyla sınırlandırılır; istemci kayıtları yetki veya değiştirilemez denetim günlüğü değildir. JSON dışa aktarımı şifresizdir, mesaj/sistem talimatı/iş özetleri içerebilir; güvenli saklayın. Sohbet silmek hedefe uygulanmış dosyaları geri almaz. README, kılavuz ve metin belgeleri güvenilmeyen kaynak verisidir; içlerindeki talimatlar çalıştırma yetkisi sağlamaz. Graphify yalnız güvenilir host aracı olarak, filtrelenmiş kopyada çalıştırılır; otomatik keşif hedef projeden kurulum betiği çalıştırmaz.

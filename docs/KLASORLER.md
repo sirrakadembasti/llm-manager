@@ -4,15 +4,15 @@ Depodaki doğrudan dosya yolları, importlar, npm komutları ve CI yapılandırm
 
 ## Araç çıktıları
 
-Önceki belgede anılan `.superpowers/` klasörü mevcut çalışma ağacında yoktur. `docs/graphify-out/` güncellenen statik kod haritasıdır; uygulamanın çalışması için zorunlu değildir. Araç önbellekleri veya geçici kaynak kopyaları bu klasöre konmaz. Yalnız bir klasör adına import olmaması, onu gereksiz yapmaz; bazı dosyalar çalışma anında diskten okunur.
+Önceki belgede anılan `.superpowers/` klasörü mevcut çalışma ağacında yoktur. `docs/graphify-out/` Graphify ile üretilen tarihsel statik kod haritasıdır; uygulamanın çalışması için zorunlu değildir. Araç önbellekleri veya geçici kaynak kopyaları bu klasöre konmaz. Yalnız bir klasör adına import olmaması, onu gereksiz yapmaz; bazı dosyalar çalışma anında diskten okunur.
 
 ## Kullanılan klasörler
 
 | Klasör | Görevi |
 | --- | --- |
 | `bin/` | `llm-manager` komutu. |
-| `src/` | Çekirdek, sunucu, profil deposu ve entegrasyon kodu. `project/` Proje Asistanı; `catalog/` sağlayıcı verisi; `transports/` sağlayıcı protokolleri; `store/` dosya deposu; `init/templates/` entegrasyon şablonları. |
-| `public/` | Yönetim arayüzü; `i18n/tr.json` Türkçe metinleri içerir. Arayüz yalnız Türkçedir. |
+| `src/` | Çekirdek, sunucu, profil deposu ve entegrasyon kodu. `assistant/` kalıcı sohbet API’si, `project/` Proje Asistanı; `catalog/` sağlayıcı verisi; `transports/` sağlayıcı protokolleri; `store/` dosya deposu; `init/templates/` entegrasyon şablonları. |
+| `public/` | Yönetim arayüzü; `project-ui.js` sohbet/görevler, `assistant-history-ui.js` sohbet listesi/kayıt işlemleri, `chat-client.js` model/SSE taşıması; `i18n/tr.json` Türkçe metinleri içerir. Arayüz yalnız Türkçedir. |
 | `examples/` | Çalışır örnekler; `npm start` doğrudan `examples/server.js` kullanır. |
 | `types/` | TypeScript tipleri ve tip kontrolü. |
 | `tests/` | Davranış ve güvenlik testleri; `fixtures/`, `helpers/`, `integration/` bu testlerce kullanılır. |
@@ -21,8 +21,10 @@ Depodaki doğrudan dosya yolları, importlar, npm komutları ve CI yapılandırm
 | `.github/` | CI iş akışları. |
 | `.git/` | Sürüm geçmişi ve Git verisi. |
 | `node_modules/` | Kurulu bağımlılıklar; çalıştırmak ve geliştirmek için gerekir. Silinirse `npm ci` ile yeniden kurulmalıdır. |
-| `data/` | Aktif profiller ve şifreleme anahtarı. Ayrıca önceki kontrollerin logları/raporları bulunuyor; klasörün tamamı geçici değildir. |
+| `data/` | Aktif profiller, şifreli sohbet geçmişi (`llm-profiles.json.assistant.enc`) ve eşleşen şifreleme anahtarı. Ayrıca önceki kontrollerin logları/raporları bulunuyor; klasörün tamamı geçici değildir. |
 
 `data/` altındaki `docs-*.log`, `docs-*.json`, `compact-docs-review.md`, `check_docs.py`, `compact_docs.py` gibi belge çalışma çıktıları uygulama tarafından yüklenmez. Bunlar klasör değil, isteğe bağlı temizlenebilecek dosyalardır. Anahtar, profil, `.bak`, `.old-*` ve PATH yedeğini bu listeyle karıştırmayın.
 
 `GEMINI.md` çalışma zamanı özelliği sağlamıyordu. Tekrarlanan durum notları kaldırıldı; yararlı geliştirme kuralları [katkı belgesine](KATKI_REHBERI.md), görev kanıtları [yol haritasına](roadmap/YOL_HARITASI.md) bırakıldı.
+
+Varsayılan şifreli geçmiş `src/store/assistantHistory.js` tarafından yönetilir; profil yolu özelleştirilirse geçmiş de `<profil-dosyası>.assistant.enc` yoluna taşınır. Geçmişin silinmesi uygulanmış kaynak değişikliklerini geri almaz. `docs/graphify-out` için üretim/kapsam ayrımı [harita açıklamasındadır](graphify-out/README.md).

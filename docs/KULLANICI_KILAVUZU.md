@@ -2,20 +2,31 @@
 
 ## Proje Asistanı: ikinci sekme
 
-`LLM Yönetimi` ilk ve varsayılan sekmedir. `Proje Asistanı` aynı tema, kartlar, bildirim ve mobil düzeni kullanır. Kaynak kökü sunucu tarafından `LLM_PROJECT_ROOT` veya `project.root` ile bağlanır; tarayıcıdan keyfi dizin açılamaz.
+`LLM Yönetimi` ilk ve varsayılan sekmedir; profil ekleme, düzenleme ve etkinleştirme burada yapılır. Üst başlık ve sekmeler tek ince satırdadır; ana sayfa bağlantısı ve büyük profil özetleri kaldırılmıştır. Etkin profil kendi kartındaki işaretle görülebilir.
+
+`Proje Asistanı` içinde tek sohbet çalışma alanı vardır. Ayrı Playground bu alana taşınmıştır. Soldaki sohbet çerçevesinden yeni konuşma açılır, kayıtlı konuşmaya dönülür veya satırdaki × ile açık onayla silinir. Ortadaki mesaj alanı bağımsız kayar; yazma alanı altta kalır. **Çalışma türü** ve **Kullanılacak profil** sohbetin üst araç çubuğundadır. **Proje bilgileri** düğmesi bağlı proje/etkin model/mimari panelini açar. Mobilde sol liste **Sohbetler** düğmesiyle açılır.
+
+| Çalışma türü | Davranış |
+| --- | --- |
+| Model denemesi | Proje bağlanmadan da çalışır. İstediğiniz kayıtlı profili seçin; **Yanıt ayarları** altında sistem talimatı ve akış seçeneğini düzenleyin. Proje kaynakları gönderilmez. |
+| Kaynaklı sohbet | Etkin profil ve seçilmiş proje kaynaklarıyla çalışır; kaynak paylaşım onayı gerekir. Profil seçimi kilitlenir; kaynak referansları gösterilir. |
+| Geliştirme planı | Etkin profille OpenCode kullanır; temiz kaynak kopyasında okuma yapar, hedef dosyalara yazmaz. |
+| Değişiklik hazırla | Etkin profille OpenCode kullanır; geçici kopyada hazırlanan farklar ayrı işlem onayıyla hedefe uygulanır. |
+
+Yanıt tarihi, tamamlanma durumu, süre ve sağlayıcı bildiriyorsa token sayısı mesajın **Yanıt ayrıntıları** altında gösterilir. **Enter** mesajı gönderir; **Shift+Enter** yeni satır ekler. Sohbet yanıtı sonrası başarı paneli gösterilmez; bekleme durumu sohbetin üstündeki küçük durum satırında, hatalar mevcut bildirimde görünür. Akış seçeneği model denemesine aittir; kaynaklı sohbetin yanıtı tamamlandığında gösterilir. **Durdur**, model denemesinin bağlantısını veya devam eden proje işlemini iptal eder; kısmi yanıt tamamlanmış sayılmaz. Mod veya profil değiştiğinde kayıtlı mesajlar ekranda kalır; model denemesi ve proje bağlamları birbirine taşınmaz. **+ Yeni sohbet** mevcut kaydı silmeden boş bir çalışma açar. Kaynak kökü sunucu tarafından `LLM_PROJECT_ROOT` veya `project.root` ile bağlanır; tarayıcıdan keyfi dizin açılamaz.
 
 1. İlk sekmede kullanacağınız profili etkinleştirin.
 2. İkinci sekmede **Projeyi tara** düğmesine basın. Bu işlem yereldir; manifestleri çalıştırmaz. Teknoloji, API, SQL kolonları ve kaynak ilişkileri dosya/satır kanıtlarıyla gösterilir. Statik analizin bulamadığı dinamik ilişkiler olabilir.
 3. Kaynak aktarımı kutusunu okuyup onaylayın. Sohbette seçilmiş parçalar; OpenCode görevlerinde temiz kaynak kopyasından okunan dosyalar etkin sağlayıcıya gönderilir. Sır taraması bir algılayıcıdır; paylaşmadan önce kaynaklarınızın uygunluğunu değerlendirin.
-4. **Kaynaklı sohbet** ile mimariyi sorun. **OpenCode ile geliştirme planı** kaynaklarda yazma izni vermez. **OpenCode ile değişiklik hazırla** ayrı geçici kopyada çalışır; hedefi doğrudan düzenlemez.
+4. **Kaynaklı sohbet** ile mimariyi sorun. **Geliştirme planı** kaynaklarda yazma izni vermez. **Değişiklik hazırla** ayrı geçici kopyada çalışır; hedefi doğrudan düzenlemez.
 5. Önce/sonra dosyalarını inceleyin, işlem onay kutusunu işaretleyin ve farkı uygulayın. Onay her işlemden sonra sıfırlanır. Dosya sürümü değişmişse uygulama/geri alma `PROJECT_CONFLICT` ile durur; yeniden görev hazırlayın.
 6. Hostun tanımladığı doğrulama komutunu ayrıca onaylayın. Gerçek çıkış kodu gösterilir; bağımlılık veya servis bulunamaması başarısız sonuçtur. Komut geçici kopyada çalışır; `node_modules`, veriler ve sırlar kopyalanmaz. Otomatik paket kurulumu yapılmaz.
 
-**Geri alma kaydı yalnız sunucu belleğindedir.** Sayfa yenilendiğinde sunucu açık kaldıysa görev seçicisinden yeniden açılabilir. Sunucu kapanırsa veya **Görev kaydını kapat** seçilirse uygulanmış dosyalar kalır, oturumun geri alma kaydı silinir. En fazla 10 görev saklanır. Sohbet geçmişi sayfa belleğindedir.
+**Geri alma kaydı yalnız sunucu belleğindedir.** Sayfa yenilendiğinde sunucu açık kaldıysa görev seçicisinden yeniden açılabilir. Sunucu kapanırsa veya **Görev kaydını kapat** seçilirse uygulanmış dosyalar kalır, oturumun geri alma kaydı silinir. En fazla 10 görev saklanır. Sohbet geçmişi ve iş çıktısı özeti aşağıdaki kalıcı kayıt sisteminde saklanır; bu kayıt canlı geri alma yetkisi sağlamaz.
 
 `.env*`, anahtarlar, `data`, bağlantılı dizinler, ikili dosyalar ve üretilmiş içerikler dışlanır; Git ignore kuralları uygulanır. Varsayılan sınırlar: 2500 dosya, dosya başına 256 KiB, toplam 4 MiB. Sınırlı taramayla sohbet yapılabilir; dosya değiştirme görevi hazırlanamaz. Canlı veritabanı bağlantısı ve migration çalıştırma bu özelliğin parçası değildir; yeni migration dosyası hazırlanabilir.
 
-OpenCode eksikse kaynak tarama/sohbet çalışır, plan ve değişiklik görevi hata verir. Graphify isteğe bağlıdır; eksik veya başarısızsa temel kaynak analizi kullanılabilir. **İşlemi iptal et** devam eden tarama/sohbet/motor/komut işlemini durdurur.
+OpenCode eksikse model denemesi ve kaynak tarama/sohbet çalışır, plan ve değişiklik görevi hata verir. Graphify isteğe bağlıdır; eksik veya başarısızsa temel kaynak analizi kullanılabilir. **Durdur** devam eden tarama/sohbet/motor/komut işlemini durdurur.
 
 Node.js **22.12+** için sağlayıcı, profil ve API anahtarı yönetimi. Bağımsız sunucu veya uygulama eklentisi olarak çalışır; Docker ve veritabanı zorunlu değildir.
 
@@ -24,6 +35,30 @@ Paket adı **`@sirrakadembasti/llm-manager`**, CLI adı `llm-manager`. npm'deki 
 [Teknik kılavuz](TEKNIK_KILAVUZ.md) · [Başlangıç](../README.md) · [Entegrasyon](ENTEGRASYON.md) · [Dağıtım](DAGITIM.md) · [Yol haritası](roadmap/YOL_HARITASI.md)
 
 İçindekiler: [Başlatma](#hızlı-başlangıç) · [Entegrasyon](#uygulamaya-ekleme) · [Arayüz](#arayüzü-kullanma) · [API](#api-kullanımı) · [Güvenlik](#kimlik-ve-güvenlik) · [Yedekleme](#veri-yedek-ve-işletim) · [2.0 geçişi](#20-geçişi-ve-alt-yollar)
+
+
+### Kayıtlı sohbetler ve iş çıktıları
+
+Soldaki **Sohbetler** listesinden eski konuşmayı açıp devam edebilirsiniz. **+ Yeni sohbet** eski kaydı silmeden boş konuşma açar. Her satırdaki × yalnız o kaydı onayla siler. Soldaki sohbet listesinin altındaki **Seçili sohbet** alanında başlık kaydetme, JSON dışa aktarma, etkin kaydı silme ve kaydı yeniden deneme vardır. Gönderilen soru önce kaydedilir; yanıt tamamlandıktan veya durdurulduktan sonra durumuyla birlikte tekrar kaydedilir. **Kaydedildi** yazısını kontrol edin. Sayfa/bağlantı yanıt sürerken kapanırsa kayıt tamamlanmamış görünür; otomatik yeniden istek gönderilmez. Akışın son kayıttan sonra gelen parçaları tarayıcı kapanınca kaybolabilir. Durdurulmuş veya başarısız yanıtlar sonraki model bağlamına alınmaz.
+
+Varsayılan dosya deposu mesajları ve sistem talimatını mevcut profil anahtarıyla şifreler. Anahtar, profil ve `.assistant.enc` dosyasını birlikte yedekleyin. Anahtar eksik veya dosya bozuksa geçmiş sıfırlanmaz; erişim durur. JSON dışa aktarımı **şifresizdir**, güvenli saklayın. Ortak yönetici hesabını kullananlar aynı proje sohbetlerini görür. Özel profil deposu kayıt desteği sağlamıyorsa ekranda yalnız sayfa belleğinde çalışıldığı belirtilir.
+
+Kayıtta en fazla 100 mesaj/20 iş çıktısı, yaklaşık 220 KB ve yönetici/proje başına 50 sohbet tutulur. Eski kayıtlar otomatik silinmez. Yanıtın kayıt metni en fazla 32000 karakterdir; çok uzun çıktıları sağlayıcıdan daha küçük parçalar halinde isteyin. Modelin sonraki isteğine yalnız aynı çalışma bağlamının son 10 tamamlanmış mesajı (mesaj başına en fazla 10000 karakter) gönderilir; tüm arşiv model belleği değildir. Profil/model/sistem talimatı değişince model bağlamı yenilenir. Kaynak sohbetinden plan/değişiklik moduna geçerken tamamlanmış proje bağlamı kullanılabilir.
+
+Disk, boyut, bağlantı veya başka sekmeyle revizyon çakışmasında mevcut ekrandaki metin korunur; **Kaydı tekrar dene** yalnız kaydı dener, modeli tekrar çağırmaz. Gerekirse dışa aktarın. Kayıt yapılamıyorsa yeni/eski sohbet açarken kaydedilmeyen kısmı bırakmak için ayrıca onay istenir. Başka sekmenin daha yeni kaydı sessizce ezilmez.
+
+**İş çıktıları ve uygulama etkisi** her görevin önerisini, dosya listesini, son bilinen durumunu, doğrulama çıktısını ve işlem izini gösterir. **Canlı görevi aç** gerçek sunucu kaydını denetler; ayrı inceleme/onay ekranını kullanır. Eski bir sohbeti açmak dosya yazmaz veya komut çalıştırmaz.
+
+| Durum / senaryo | Hedef uygulamadaki etkisi |
+| --- | --- |
+| Model denemesi, kaynaklı sohbet veya plan | Dosya yazmaz; yanıt bir öneri/bilgidir. |
+| Değişiklik önerisi hazır | Fark geçici kopyadadır; hedefe uygulanmamıştır. |
+| Fark açık onayla uygulandı | Kaynak dosyaları değişir. Çalışan servis, paket kurulumu ve gerçek veritabanı kendiliğinden güncellenmez. Migration/deploy ayrı süreçtir. |
+| Doğrulama başarısız | Başarı olarak gösterilmez; uygulanmış dosyaları otomatik geri almaz. Komut geçici kaynak kopyasında çalışır. |
+| Dosya sonradan değişti | Mevcut sürüm kontrolü uygulama/geri almayı durdurur; güncel kaynaklardan yeniden hazırlayın. |
+| İşlem sonucu alınamadı | Etki doğrulanmamış görünür. Canlı görevi açıp dosyaları inceleyin; otomatik tekrar uygulanmaz. |
+| Sunucu yeniden başladı / görev kapatıldı | Sohbet ve iş özeti okunabilir; canlı diff/geri alma kaydı yoktur. Yeniden uygulama için güncel kaynaklardan yeni görev hazırlayın. |
+| Sohbet kaydı silindi | Yalnız sohbet arşivi silinir. Uygulanmış dosyalar ve ayrıca yönetilen canlı görevler değişmez. |
 
 ## Hızlı başlangıç
 
@@ -120,7 +155,7 @@ Next.js App Router ve Node runtime desteklenir; Edge desteklenmez. Sunucusuz ort
 1. **Yeni profil** bölümünde bir ad, sağlayıcı, model ve API anahtarı girip kaydedin.
 2. Kayıtlı profilin bağlantı testini çalıştırın. **Modelleri getir** ile hesabınızın erişebildiği modelleri sorgulayabilirsiniz.
 3. Uygulamanın kullanacağı profili etkinleştirin. Aynı anda tek profil etkindir.
-4. **Deneme sohbeti** bölümünde profil ve mesaj seçip yanıtı sınayın. Akış seçeneği yanıtı geldikçe gösterir.
+4. **Proje Asistanı → Uygulaman hakkında çalış → Model denemesi** yolunda profil ve mesaj seçip yanıtı sınayın. **Yanıt ayarları** altındaki akış seçeneği yanıtı geldikçe gösterir.
 
 Düzenlerken API anahtarını boş bırakmak kayıtlı anahtarı korur. Zaman sınırı, çıktı tokenı, düşünme modu ve gelişmiş üretim ayarları profil bazındadır; destek modele bağlıdır. Yedek profiller, hata durumunda sırayla denenecek profillerdir.
 
@@ -237,3 +272,18 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 Amaçlar `quick | diagnostic | default`; eski `manager` → `diagnostic`, `production` → `default` eşlemesi birer uyarı verir. MiMo auto'da `purpose: 'diagnostic'` ve `purpose: 'quick'` düşünmeyi kapatır; `purpose: 'default'` model varsayılanını korur. MiMo quick testi açık düşünme seçimini de kapatır. Başarılı test sağlayıcı hızını/üretim uygunluğunu garanti etmez; kota, izin, ağ, filtre ve kesilme ayrı kodlarla bildirilir. [Xiaomi açıklaması](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/other/deep-thinking).
 
 MIT · [Lisans](../LICENSE) · [Değişiklikler](DEGISIKLIKLER.md) · [Güvenlik](GUVENLIK.md) · [Katkı](KATKI_REHBERI.md)
+
+
+### Graphify ve belge destekli proje bağlamı (2026-10-28)
+
+Proje bilgileri → Bağlı proje → **Graphify ile daha güçlü proje analizi** alanında resmî depo, kurulum ve kullanım rehberi bulunur. Graphify hedef uygulamaya JavaScript bağımlılığı olarak değil, LLM Manager sürecinin çalıştığı sunucuya kurulur. Python 3.10+ gerekir; resmî paket `graphifyy`, CLI `graphify` adındadır: `uv tool install graphifyy` veya ayrı ortamda `python -m pip install graphifyy`. Kaynak: https://github.com/Graphify-Labs/graphify . Bu backend entegrasyonunda `graphify install` ve sohbette `/graphify` gerekmez.
+
+Kurulumdan sonra **Projeyi tara** seçilir. Mutlak host PATH dizinlerindeki CLI yeniden aranır; açık `graphify.command` veya `LLM_GRAPHIFY_PYTHON` / `project.graphifyPython` ayarı önceliklidir. PATH değişikliği çalışan servise yansımıyorsa servis yeniden başlatılır. `project.graphifyAutoDetect: false` otomatik keşfi kapatır. Projeden araç veya kurulum betiği otomatik çalıştırılmaz. Kurulu araç doğrulanmış tarama çıktısı üretirse algılandı, bulunamazsa eksik, çalışmazsa hata durumu gösterilir. Kurulum/çalıştırma birbirinden farklıdır; keşif tek başına başarılı analiz sayılmaz.
+
+Graphify yalnız filtrelenmiş geçici kaynak kopyasında `--code-only` çalışır. Güncel kaynak revizyonuyla eşleşen ilişkiler kaynaklı sohbetin dosya seçimini destekler; kaynak değişince eski harita kullanılmaz ve yeniden tarama istenir. README, kılavuz, `.md` ve `.txt` belgeleri ayrıca yerel okuyucuyla okunur; ilk üç uygun belge için bağlam payı ayrılır. Belgeler ve geçmiş mesajlar talimat/yetki sayılmaz. Seçili kaynaklar yalnız paylaşım onayı verilen kaynaklı sohbette etkin sağlayıcıya gönderilir. Model denemesi proje kaynaklarını kullanmaz.
+
+Tarama kaynak/belge/dışlanan dosya sayılarını ve kısmi taramayı gösterir. Varsayılan sınırlar 2500 dosya, dosya başına 256 KiB, toplam 4 MiB; sohbet bağlamı 40000 karakterdir. Bu nedenle her belge veya bütün proje her istekte modele gönderilmez. Canlı DB, dış servis ve çalışma zamanı davranışları bu analizle doğrulanmış sayılmaz. Geliştirme motoru güncel filtrelenmiş çalışma kopyasını okuyabilir; dosya uygulama ve komut onayları korunur.
+
+Repomix yeniden incelendi (https://repomix.com/guide/); mevcut güvenli okuyucu ve sınırlı kaynak seçimi korunarak zorunlu bağımlılık eklenmedi. Cline/Aider alternatif motor adayları; DBHub veritabanı bağlantısı ertelendiği için eklenmedi. Bunlar kurulmuş veya aktifmiş gibi gösterilmez.
+
+Sohbet görünümü mesajlara daha fazla dikey alan ayırır: masaüstünde en az 940 px, mobilde en az 800 px uzunluğundadır. Daha kısa ekranda yazma alanına sayfayı aşağı kaydırarak ulaşılır; mesajlar kendi alanında kaydırılır. Merkezde ayrı sohbet menüsü ve **Sohbet bağlamı ve kaynaklar** paneli bulunmaz. Başlık düzenleme, JSON dışa aktarma, silme ve kaydı tekrar deneme soldaki **Seçili sohbet** bölümündedir; mobilde **Sohbetler** düğmesiyle açılır. Yanıta ait metrik ve kaynak referansları, varsa mesajın **Yanıt ayrıntıları** içinde korunur.

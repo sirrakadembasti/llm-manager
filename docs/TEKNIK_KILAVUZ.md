@@ -2,6 +2,8 @@
 
 ## Proje Asistanı mimarisi
 
+Arayüzde `public/llm-ui.js` profil yönetimini, `public/project-ui.js` tek sohbet formu ve mod durumunu, `public/chat-client.js` normal JSON/akışlı model denemesi taşımasını yönetir. Bu betikler mevcut kimlik korumalı UI betiğinde birleştirilir; yeni açık asset yolu eklenmez. Model denemesi `/chat` uç noktasını, kaynaklı sohbet `/project/chat`, plan/değişiklik `/project/tasks` yollarını kullanır. Kaynak özelliği kapalıyken model denemesi açık kalır. Model geçmişi profil/sistem talimatı bağlamından, proje geçmişinden ayrı tutulur; mod/profil değişimi kayıtlı mesajları silmez; gönderilecek bağlamı ayırır. SSE okuyucu parçalanmış UTF-8 ve son satırı işler; tamamlanma olayı gelmeden biten bağlantıyı başarılı saymaz. Yerel AbortController model denemesini, mevcut iptal API'si proje işlemlerini durdurur.
+
 Depoya ait statik kaynak haritası ve tarama sınırları [Graphify çıktılarında](graphify-out/README.md) bulunur. Bu çıktılar uygulamadaki çalışma anı haritasından ayrıdır; envanterin yerine kullanılmaz ve yeni kaynak değişikliklerinden sonra yeniden üretilmelidir.
 
 `src/project` isteğe bağlı, Express bağımsız alt sistemdir. `files/policy/ignore` gerçek kaynak sınırını, `analyze/context` kanıtlı statik analizi ve bütçeli bağlamı, `graphify` harita adaptörünü, `workspace/process` geçici kopya ve çocuk süreç ömrünü sağlar. `relay/opencode/tasks` etkin profile bağlı araç oturumunu; `changes/commands` onay, sürüm kontrolü, kurtarma ve doğrulamayı yönetir. `index` tek aktif işlem kuyruğunu, yönetici API'sini ve iptali birleştirir. Yeni zorunlu npm bağımlılığı yoktur.
@@ -21,6 +23,27 @@ Node.js **22.12+** için sağlayıcı, profil ve şifreli API anahtarı yönetim
 Paket **`@sirrakadembasti/llm-manager`**, komut `llm-manager`. npm'deki kapsam adı olmayan paket başka projeye aittir. Yerel **2.0.0 / yayımlanmamış** durumu npm yayını veya Git etiketi kanıtı değildir.
 
 [Kullanıcı kılavuzu](KULLANICI_KILAVUZU.md) · [Başlangıç](../README.md) · [Entegrasyon](ENTEGRASYON.md) · [Dağıtım](DAGITIM.md) · [Yol haritası](roadmap/YOL_HARITASI.md)
+
+
+### Kalıcı sohbet deposu ve oturum API'si
+
+`src/assistant/history.js`, `/assistant/sessions` yönetici API'sini sağlar. `public/assistant-history-ui.js` sol çerçevedeki sohbet satırlarını, revizyon kontrollü satır silmeyi, kayıt durumu/hata kurtarmayı ve dışa aktarmayı; `project-ui.js` mesaj/iş çıktılarını ve canlı görev bağlantısını yönetir. Geçmiş açma işlemi boyunca sohbet/görev kontrolleri de kilitlidir. Merkez sohbet panelinde araç çubuğu üstte, ayrı kaydırılan mesajlar ortada ve composer alttadır. Çalışma türü/profil aynı form ile ilişkilidir. Mobil sohbet listesi ve proje bilgileri paneli ayrı düğmelerle açılır; Escape odağı açan düğmeye döndürür. Liste açma/silme sonrasında klavye odağı güvenli hedefe taşınır. Akışta yalnız alt sınırı takip eden kullanıcı otomatik kaydırılır; manuel yukarı kaydırma tamamlanmada da korunur. Composer işlemleri `perform(..., quiet=true)` ile küçük durum satırını kullanır; cevap sonu başarı paneli üretmez. Hata ve dosya/komut işlemi bildirimleri korunur. Görev çıktıları yetki veren komutlar değildir; yalnız canlı sunucu görevi yeniden açılarak mevcut onaylar kullanılabilir.
+
+Varsayılan `store.assistantHistory`, profil dosyasının yanında `<profil-dosyası>.assistant.enc` kullanır. İçerik AES-256-GCM ile mevcut profil anahtarı üzerinden şifrelenir; anahtar dışarı verilmez. Yazılar süreç kuyruğu + `withFileLock` altında okuma/değiştirme, 0600 geçici dosya ve `robustRename` ile yapılır. Bozuk veya çözülemeyen dosya boş geçmişe çevrilmez. Profil deposunun anahtar çözümlemesi paylaşılır; eşleşen anahtar kaybedilirse geri yüklenmelidir. Ayrı `.bak` otomatik üretilmez; host yedekleme yapmalıdır. `close()` kalıcı arşivi silmez; geçici motor ve geri alma kayıtları önceki gibi kapanır.
+
+Kapsam SHA-256 ile sunucu proje kökü + principal kind/id üzerinden ayrılır. Aynı yönetici kimliği aynı kapsamı paylaşır; host farklı yöneticilere kararlı ve farklı `principal.id` sağlamalıdır. Kök yolunun değiştirilmesi ayrı arşivdir. `handle()` host sözleşmesi gereği principal verilmeden güvenilir sunucu çağrısı yapılabilir; HTTP adaptörleri yönetici ve CSRF denetimini uygular.
+
+| API (API köküne göre) | Sözleşme |
+| --- | --- |
+| `GET /assistant/sessions` | `{available, sessions:[{id,title,updatedAt,mode}], reason?}`; metinler listede yok. |
+| `POST /assistant/sessions` | Yeni kayıt; `mode` zorunlu, `title/profileId/system/contextId/modelContext/messages/outputs` isteğe bağlı. 201 ve tam `AssistantSession`. |
+| `GET /assistant/sessions/:id` | Tam kayıt; kapsam dışında/yoksa 404. |
+| `PUT /assistant/sessions/:id` | Tam içerik + güncel `revision`; eski revizyon 409 `ASSISTANT_CONFLICT`. |
+| `DELETE /assistant/sessions/:id` | `{revision}`; yalnız arşiv silinir. |
+
+Tipler `AssistantSession`, `AssistantMessage`, `AssistantOutput`, `AssistantHistoryStorage` olarak `types/core.d.ts` içindedir. Şema: mesaj rolü user/assistant; durum pending/completed/failed/cancelled; tarih, profil etiketi, kaynak referansı, metrik ve bağlam kimliği. Çıktı kaydı taskId, mod, son bilinen durum, metin/dosya özeti, doğrulama sonucu ve sınırlı işlem izi içerir. Bunlar istemci kaynaklı tarihsel kayıtlardır; yetkilendirme veya denetim açısından değiştirilemez bir audit log değildir.
+
+Sınırlar: kapsam başına 50 sohbet, kayıt başına 100 mesaj/20 çıktı ve 220000 UTF-8 bayt; tüm dosya şifrelenmeden önce 40 MiB, diskten okuma 64 MiB. Model yanıt arşivi 32000 karakterle, model bağlamı son 10 tamamlanmış mesaj ve mesaj başına 10000 karakterle sınırlıdır. Listeleme/okuma sınırlı dosyayı tamamen çözer; çok kullanıcılı/yüksek hacimli hostlar özel depo sağlamalıdır. Kullanılmayan kayıtlar otomatik silinmez. Başlangıç sorusu/pending yanıt ve sonuç ayrı yazılardır: tarayıcı çöküşünde son akış parçaları kaybolabilir; kayıt pending kalır. Görev mutasyonundan önce belirsiz işlem niyeti kaydedilir, cevapla durum güncellenir; yanıt alınamazsa kendiliğinden tekrar yapılmaz. Bu, kaynak dosya yazılarıyla aynı ACID işlem veya çöküş sonrası geri alma günlüğü değildir.
 
 ## Kaynaktan başlatma
 
@@ -179,3 +202,18 @@ import { detectProjectType, detectEntryFile, formatVerificationReport } from '@s
 Kökteki asenkron `runInteractiveInit`/`probeAndOpenBrowser`/`initLLMProject`/`verifyIntegration`/`injectIntoEntryFile` sarmalayıcıları bir uyumluluk sürümü için kullanım dışıdır; yeni kod `/init` kullanır. Eski `manager`, `diagnostic`; `production`, `default` olarak eşlenir ve her biri bir kez uyarır. Eski özel üretim bayrakları artık iletilmez.
 
 MIT · [Lisans](../LICENSE) · [Değişiklikler](DEGISIKLIKLER.md) · [Güvenlik](GUVENLIK.md) · [Katkı](KATKI_REHBERI.md)
+
+
+### Graphify ve belge destekli proje bağlamı (2026-10-28)
+
+Proje bilgileri → Bağlı proje → **Graphify ile daha güçlü proje analizi** alanında resmî depo, kurulum ve kullanım rehberi bulunur. Graphify hedef uygulamaya JavaScript bağımlılığı olarak değil, LLM Manager sürecinin çalıştığı sunucuya kurulur. Python 3.10+ gerekir; resmî paket `graphifyy`, CLI `graphify` adındadır: `uv tool install graphifyy` veya ayrı ortamda `python -m pip install graphifyy`. Kaynak: https://github.com/Graphify-Labs/graphify . Bu backend entegrasyonunda `graphify install` ve sohbette `/graphify` gerekmez.
+
+Kurulumdan sonra **Projeyi tara** seçilir. Mutlak host PATH dizinlerindeki CLI yeniden aranır; açık `graphify.command` veya `LLM_GRAPHIFY_PYTHON` / `project.graphifyPython` ayarı önceliklidir. PATH değişikliği çalışan servise yansımıyorsa servis yeniden başlatılır. `project.graphifyAutoDetect: false` otomatik keşfi kapatır. Projeden araç veya kurulum betiği otomatik çalıştırılmaz. Kurulu araç doğrulanmış tarama çıktısı üretirse algılandı, bulunamazsa eksik, çalışmazsa hata durumu gösterilir. Kurulum/çalıştırma birbirinden farklıdır; keşif tek başına başarılı analiz sayılmaz.
+
+Graphify yalnız filtrelenmiş geçici kaynak kopyasında `--code-only` çalışır. Güncel kaynak revizyonuyla eşleşen ilişkiler kaynaklı sohbetin dosya seçimini destekler; kaynak değişince eski harita kullanılmaz ve yeniden tarama istenir. README, kılavuz, `.md` ve `.txt` belgeleri ayrıca yerel okuyucuyla okunur; ilk üç uygun belge için bağlam payı ayrılır. Belgeler ve geçmiş mesajlar talimat/yetki sayılmaz. Seçili kaynaklar yalnız paylaşım onayı verilen kaynaklı sohbette etkin sağlayıcıya gönderilir. Model denemesi proje kaynaklarını kullanmaz.
+
+Tarama kaynak/belge/dışlanan dosya sayılarını ve kısmi taramayı gösterir. Varsayılan sınırlar 2500 dosya, dosya başına 256 KiB, toplam 4 MiB; sohbet bağlamı 40000 karakterdir. Bu nedenle her belge veya bütün proje her istekte modele gönderilmez. Canlı DB, dış servis ve çalışma zamanı davranışları bu analizle doğrulanmış sayılmaz. Geliştirme motoru güncel filtrelenmiş çalışma kopyasını okuyabilir; dosya uygulama ve komut onayları korunur.
+
+Repomix yeniden incelendi (https://repomix.com/guide/); mevcut güvenli okuyucu ve sınırlı kaynak seçimi korunarak zorunlu bağımlılık eklenmedi. Cline/Aider alternatif motor adayları; DBHub veritabanı bağlantısı ertelendiği için eklenmedi. Bunlar kurulmuş veya aktifmiş gibi gösterilmez.
+
+Sohbet arayüzünde merkez menü ve bağlam/kaynaklar paneli kaldırılmıştır. Kayıt işlemleri sol listede Seçili sohbet bölümündedir. Yanıt metrikleri kaldırılan DOM düğümüne bağlı değildir; yerel durumdan mesaj kaydına aktarılır. Kaynak referansları mesaj ayrıntıları ve kayıt formatında korunur. Dikey çerçeve masaüstünde en az 940px, mobilde 800px; kısa ekranlarda sayfa kaydırması kullanılır.

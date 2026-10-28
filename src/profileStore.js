@@ -2,6 +2,7 @@ import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes } from './errors.js';
 import { normalizeRuntimeOptions } from './runtime.js';
 import { withFileLock, robustRename } from './store/fileLock.js';
+import { createAssistantHistoryStorage } from './store/assistantHistory.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 const exists = async file => {
@@ -160,6 +161,12 @@ export function createLLMProfileStore({
         if (error.code !== 'ENOENT') throw error;
         return null;
       });
+      if (!stat && (await exists(`${filePath}.assistant.enc`)))
+        throw new LLMError(
+          ErrorCodes.STORE_DECRYPT_FAILED,
+          'Kayıtlı sohbetler var fakat eşleşen şifreleme anahtarı yok. Anahtarı yedekten kurtarın.',
+          { status: 500, retryable: false }
+        );
       identity = stat ? `${stat.mtimeMs}:${stat.size}` : null;
     }
     if (!cachedKeyBytes || keyIdentity !== identity) {
@@ -245,7 +252,22 @@ export function createLLMProfileStore({
     revision: profile.revision || null
   });
 
+  const assistantPath = `${filePath}.assistant.enc`;
+  const assistantKey = async () => {
+    if (encryptionKey === undefined && !process.env.LLM_CONFIG_ENCRYPTION_KEY && (await exists(assistantPath))) {
+      const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
+      if (!(await exists(keyPath))) throw new Error('Existing assistant history key is missing');
+    }
+    return getKeyBytes();
+  };
+  const assistantHistory = createAssistantHistoryStorage({
+    filePath: assistantPath,
+    seal: async value => encrypt(value, await assistantKey()),
+    open: async value => decrypt(value, await assistantKey())
+  });
+
   return {
+    assistantHistory,
     async list() {
       const data = await read();
       return { version: data.version, activeId: data.activeId, profiles: data.profiles.map(publicProfile) };

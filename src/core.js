@@ -26,6 +26,7 @@ import { getTransport } from './transports/index.js';
 import { createUsageTracker } from './usageLogger.js';
 import { MESSAGES, getErrorMessage } from './messages.js';
 import { createProjectAssistant } from './project/index.js';
+import { createAssistantHistory } from './assistant/history.js';
 import { projectOptionsFromEnv } from './project/options.js';
 
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -95,6 +96,10 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', homeUr
 
   const script =
     fs.readFileSync(path.join(publicDir, 'llm-ui.js'), 'utf8') +
+    '\n' +
+    fs.readFileSync(path.join(publicDir, 'chat-client.js'), 'utf8') +
+    '\n' +
+    fs.readFileSync(path.join(publicDir, 'assistant-history-ui.js'), 'utf8') +
     '\n' +
     fs.readFileSync(path.join(publicDir, 'project-ui.js'), 'utf8');
   return { html, script, locale: normalizedLocale };
@@ -174,6 +179,7 @@ export function createLLMManager({
   project = projectOptionsFromEnv()
 } = {}) {
   const pendingTests = new Set();
+  const assistantHistory = createAssistantHistory({ storage: store.assistantHistory, project });
   const projectAssistant = project
     ? createProjectAssistant({
         options: project,
@@ -947,6 +953,8 @@ export function createLLMManager({
   async function handleRoute({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const cleanPath = (routePath || '').split('?')[0];
+    if (cleanPath.startsWith('/assistant/'))
+      return assistantHistory.handle({ method: verb, path: cleanPath, body, principal });
     if (/^\/project(?:\/|$)/.test(cleanPath)) {
       if (principal && principal.isAdmin !== true)
         return ok({ code: 'FORBIDDEN', error: 'Yönetici yetkisi gerekli.', requestId }, 403);

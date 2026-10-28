@@ -5,6 +5,8 @@ export interface ProjectOptions {
   maxFileBytes?: number;
   maxTotalBytes?: number;
   graphifyPython?: string;
+  /** Host PATH üzerindeki Graphify CLI otomatik keşfi; varsayılan true. */
+  graphifyAutoDetect?: boolean;
   graphify?: { command: string; args?: string[] };
   opencodePath?: string;
   opencode?: { command: string; args?: string[] };
@@ -22,6 +24,7 @@ export interface ProjectInventory {
   revision: string;
   scannedAt: string;
   fileCount: number;
+  documentCount: number;
   bytes: number;
   excluded: number;
   partial: boolean;

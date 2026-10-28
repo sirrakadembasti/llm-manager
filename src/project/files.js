@@ -119,6 +119,15 @@ export function createProjectFiles({
       await walk(base);
       candidates.sort();
     }
+    const priority = name =>
+      /(?:^|\/)README(?:\.[^/]+)?$/i.test(name)
+        ? 0
+        : /\.(?:md|txt)$/i.test(name)
+          ? 1
+          : /(?:^|\/)(?:package\.json|pyproject\.toml|requirements\.txt)|\.(?:sql|prisma|csproj)$/.test(name)
+            ? 2
+            : 3;
+    candidates.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
     const files = [];
     let bytes = 0;
     let excluded = 0;
@@ -138,7 +147,7 @@ export function createProjectFiles({
         const file = await read(name, { signal, gitChecked: true });
         if (bytes + file.bytes > maxTotalBytes) {
           partial = true;
-          break;
+          continue;
         }
         files.push(file);
         bytes += file.bytes;

@@ -5,6 +5,18 @@ import os from 'node:os';
 import path from 'node:path';
 const { runGraphify } = await import('../src/project/graphify.js').catch(() => ({}));
 
+test('Graphify discovery only accepts absolute host PATH directories and detects later installs', async t => {
+  const { findGraphifyCommand } = await import('../src/project/graphify.js');
+  assert.equal(typeof findGraphifyCommand, 'function');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-graphify-discovery-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const env = { PATH: ['.', root].join(path.delimiter) };
+  assert.equal(await findGraphifyCommand(env), null);
+  const executable = path.join(root, process.platform === 'win32' ? 'graphify.exe' : 'graphify');
+  await fs.writeFile(executable, '', { mode: 0o700 });
+  assert.equal(await findGraphifyCommand(env), executable);
+});
+
 async function fixture(t, body) {
   assert.equal(typeof runGraphify, 'function');
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-graphify-test-'));

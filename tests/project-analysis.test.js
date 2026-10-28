@@ -86,3 +86,30 @@ test('context reports truncation and does not fabricate missing file contents', 
   assert.equal(context.partial, true);
   assert.deepEqual(selectProjectContext([], 'missing', 1000).sources, []);
 });
+
+test('context reserves space for project guidance and follows Graphify neighbours', () => {
+  const corpus = [
+    { path: 'README.md', content: '# Uygulama\nSipariş yönetimi.' },
+    { path: 'docs/KULLANICI_KILAVUZU.txt', content: 'Teslimat iş akışı açıklaması.' },
+    { path: 'src/orders.js', content: 'export const orders = 1;' },
+    { path: 'src/hidden.js', content: 'export const implementation = 2;' },
+    ...Array.from({ length: 20 }, (_, i) => ({ path: `src/aaa${i}.js`, content: 'orders\n'.repeat(100) }))
+  ];
+  const graph = {
+    status: 'ready',
+    nodes: [
+      { id: 'a', path: 'src/orders.js', label: 'orders', line: 1 },
+      { id: 'b', path: 'src/hidden.js', label: 'implementation', line: 1 }
+    ],
+    links: [{ from: 'a', to: 'b', kind: 'calls' }]
+  };
+  const result = selectProjectContext(corpus, 'orders', 1600, graph);
+  for (const name of ['README.md', 'docs/KULLANICI_KILAVUZU.txt', 'src/hidden.js'])
+    assert.ok(
+      result.sources.some(s => s.path === name),
+      name
+    );
+  assert.ok(result.text.length <= 1600);
+  assert.equal(result.graphUsed, true);
+  assert.equal(selectProjectContext(corpus, 'orders', 1600, { ...graph, status: 'stale' }).graphUsed, false);
+});

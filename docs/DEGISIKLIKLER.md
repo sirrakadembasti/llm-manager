@@ -4,6 +4,27 @@
 
 ## [Yayımlanmamış]
 
+### Sohbet çalışma alanı
+
+- Graphify kurulum rehberi ve host PATH keşfi; revizyonla doğrulanan grafik destekli kaynak seçimi, README/kılavuz bağlamı ve belge sayıları eklendi. Sohbet alanı uzatıldı ve mesaj sütunu okunabilir genişlikle sınırlandı.
+- Mesajlara daha fazla dikey alan ayrıldı (masaüstü 940px, mobil 800px alt sınır). Merkezdeki sohbet menüsü solda Seçili sohbet alanına taşındı; yinelenen yeni sohbet düğmesi ve Sohbet bağlamı ve kaynaklar paneli kaldırıldı. Kaynak analizi, kayıt ve mesaj ayrıntıları korundu.
+
+- Açılır sohbet seçicisi yerine solda kayıtlı sohbet çerçevesi, satırdan açma/silme ve yeni sohbet; merkezde mesajlar ve altta yazma alanı eklendi.
+- Çalışma türü/profil üst araç çubuğuna; başlık/dışa aktarma/silme/kurtarma soldaki **Seçili sohbet** alanına, proje bilgileri açılır yan panele taşındı. Yanıt ayrıntıları katlanır; mobil liste düğmeyle açılır.
+- Sohbet yanıtı sonu başarı paneli kaldırıldı. Enter/Shift+Enter, IME, klavye odağı ve kullanıcı yukarı kaydırmasını koruyan akış takibi doğrulandı.
+
+### Kalıcı sohbet ve iş çıktıları
+
+- Yönetici/proje kapsamlı şifreli sohbet arşivi, yeniden açma/devam, adlandırma, JSON dışa aktarma, revizyon kontrollü silme ve kayıt hatası kurtarma eklendi. Yeni yönetici API'si: `/assistant/sessions`.
+- Tamamlanmış/başarısız/durdurulmuş/bekleyen yanıtlar ve sınırlı model bağlamı ayrıldı. Geçmiş gezinme ve model/görev işlemleri ortak kilit kullanır; başarısız yanıtlar bağlama girmez.
+- Görev önerileri, dosya listeleri, son bilinen etki ve doğrulama/işlem izi sohbetle saklanır. Canlı görevi açma yeniden doğrulanır; arşivden otomatik uygulama/geri alma yapılmaz. OpenCode hazırlama API'si isteğe bağlı sınırlı sohbet geçmişi kabul eder.
+
+### Arayüz düzeni ve birleşik sohbet
+
+- Üst başlık ve sekmeler inceltildi; ana sayfa bağlantısı, profil sayısı ve etkin profil özet panelleri kaldırıldı. Etkinlik işareti profil kartında korunur.
+- Playground, Proje Asistanı'ndaki **Uygulaman hakkında çalış** alanıyla birleştirildi: model denemesi, kaynaklı sohbet, geliştirme planı ve değişiklik hazırlama tek formdadır. Profil seçimi, sistem talimatı, SSE/JSON, süre/token ve iptal model denemesinde korunur; kaynak modları etkin profili ve kaynak onayını kullanır.
+- Sohbet soldaki geniş sütuna, bağlı proje/etkin model/mimari sağdaki tek bilgi bloğuna alındı; mobilde sohbet önce gelir. API sözleşmesi değişmedi.
+
 Yerel hedef **2.0.0**; npm yayını/Git etiketi oluşturulmadı. Tamamlanan işler ve tarihli kanıtlar [tek yol haritasında](roadmap/YOL_HARITASI.md).
 
 ### Kırıcı değişiklikler ve geçiş

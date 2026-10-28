@@ -51,6 +51,43 @@ const admin = {
 const request = (url, method = 'GET', body, headers = admin) =>
   new Request(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
 
+test('project chat uses current graph neighbours and invalidates the graph after source changes', async t => {
+  const { root, options } = await fixture(t);
+  await fs.writeFile(path.join(root, 'README.md'), '# Kullanım\nSipariş uygulaması');
+  const runner = path.join(os.tmpdir(), `graph-api-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(runner, { force: true }));
+  await fs.writeFile(
+    runner,
+    `const fs=require('node:fs'),path=require('node:path');
+    const a=process.argv.slice(2),out=path.join(a[a.indexOf('--out')+1],'graphify-out');
+    fs.mkdirSync(out,{recursive:true}); fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({
+      nodes:[{id:'a',label:'orders',source_file:'server.js',source_location:'L1'}],links:[]}));`
+  );
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: { ...options.project, graphify: { command: process.execPath, args: [runner] } },
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { content: 'Yanıt' };
+    }
+  });
+  t.after(() => assistant.close());
+  const call = (path, body = {}) => assistant.handle({ method: 'POST', path, body });
+  const scanned = await call('/project/scan');
+  assert.equal(scanned.body.inventory.documentCount, 1);
+  assert.equal(scanned.body.graph.status, 'ready');
+  const first = await call('/project/chat', { prompt: 'orders', shareSources: true });
+  assert.equal(first.body.graphUsed, true);
+  assert.match(sent[0][1].content, /README.md/);
+  assert.match(sent[0][0].content, /güvenilmeyen veridir/);
+  await fs.appendFile(path.join(root, 'server.js'), '// changed\n');
+  const second = await call('/project/chat', { prompt: 'orders', shareSources: true });
+  assert.equal(second.body.graphUsed, false);
+  const status = await assistant.handle({ method: 'GET', path: '/project' });
+  assert.equal(status.body.graph.status, 'stale');
+});
+
 test('project API remains explicitly disabled without host configuration', async () => {
   const manager = createLLMManager({ adminPassword: 'fixture-admin-password' });
   const status = await manager.fetch(request('http://host/api/llm/project'));
@@ -213,6 +250,8 @@ test('project tasks stage engine changes and apply only after explicit review ap
       if(req.url==='/global/health'){res.end('{"healthy":true,"version":"1.18.33"}');return;}
       if(req.url==='/session'){res.end('{"id":"ses_fixture"}');return;}
       if(req.url.includes('/message')){
+        let raw='';for await(const chunk of req)raw+=chunk;
+        if(!JSON.parse(raw).parts[0].text.includes('Teslimat alanı gerekli'))process.exit(7);
         if(fs.existsSync('.env')||Object.keys(process.env).some(k=>k.startsWith('LLM_')))process.exit(6);
         fs.writeFileSync('server.js',"app.get('/orders', updatedHandler);\\n");
         res.end(JSON.stringify({info:{},parts:[{type:'text',text:'server.js:1 güncellendi.'}]}));return;
@@ -227,7 +266,12 @@ test('project tasks stage engine changes and apply only after explicit review ap
   t.after(() => manager.close());
   const base = 'http://host/api/llm/project';
   const prepared = await manager.fetch(
-    request(base + '/tasks', 'POST', { mode: 'change', prompt: 'Handler güncelle', shareSources: true })
+    request(base + '/tasks', 'POST', {
+      mode: 'change',
+      prompt: 'Handler güncelle',
+      history: [{ role: 'assistant', content: 'Teslimat alanı gerekli' }],
+      shareSources: true
+    })
   );
   assert.equal(prepared.status, 200);
   const task = await prepared.json();

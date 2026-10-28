@@ -35,6 +35,16 @@ async function fixture(t) {
   return { root, write };
 }
 
+test('scan budgets prioritize README and guides before unrelated source files', async t => {
+  const { root, write } = await fixture(t);
+  await write('aaa.js', 'export const unrelated = 1;');
+  await write('README.md', '# Uygulama');
+  await write('docs/guide.txt', 'Kullanım rehberi');
+  const snapshot = await createProjectFiles({ root, maxFiles: 2 }).scan();
+  assert.deepEqual(snapshot.files.map(f => f.path).sort(), ['README.md', 'docs/guide.txt']);
+  assert.equal(snapshot.partial, true);
+});
+
 test('project scanner excludes credentials, profile data, generated code and binary content', async t => {
   const { root, write } = await fixture(t);
   await write('src/app.js', 'export const version = 1;\n');

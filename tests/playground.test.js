@@ -4,21 +4,32 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
-test('YH1-E1: public/llm.html contains all playground UI components', () => {
+test('management stays compact and a single assistant composer includes model testing', () => {
   const html = fs.readFileSync(path.resolve('public/llm.html'), 'utf8');
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(new Set(ids).size, ids.length, 'all DOM ids are unique');
+  assert.equal(html.split('</html>').length - 1, 1, 'one complete document');
 
-  assert.ok(html.includes('id="playground-section"'), 'Playground section exists');
-  assert.ok(html.includes('id="playground-profile"'), 'Profile select exists');
-  assert.ok(html.includes('id="playground-system"'), 'System textarea exists');
-  assert.ok(html.includes('id="playground-user"'), 'User textarea exists');
-  assert.ok(html.includes('id="playground-send-btn"'), 'Send button exists');
-  assert.ok(html.includes('id="playground-clear-btn"'), 'Clear button exists');
-  assert.ok(html.includes('id="playground-stream"'), 'Streaming checkbox exists');
-  assert.ok(html.includes('id="playground-output"'), 'Output container exists');
-  assert.ok(html.includes('id="playground-meta"'), 'Metadata container exists');
+  for (const removed of [
+    'home-link',
+    'profile-count',
+    'active-name',
+    'active-summary',
+    'playground-section',
+    'playground-user'
+  ])
+    assert.ok(!html.includes(`id="${removed}"`), `${removed} removed`);
+  for (const id of ['project-chat-form', 'project-profile', 'project-system', 'project-stream', 'project-sidebar'])
+    assert.equal(html.split(`id="${id}"`).length - 1, 1, `${id} appears once`);
+  assert.ok(
+    html.indexOf('id="project-chat-form"') < html.indexOf('id="project-sidebar"'),
+    'chat is before sidebar for desktop and mobile'
+  );
+  const sidebar = html.split('id="project-sidebar"')[1]?.split('</aside>')[0] || '';
+  for (const id of ['project-name', 'project-active-model', 'project-stack']) assert.ok(sidebar.includes(`id="${id}"`));
 });
 
-test('YH1-E1: public/llm-ui.js playground interactions work and populate profile dropdown', async () => {
+test('profile management publishes profile choices to the unified assistant and preserves saving', async () => {
   const elements = new Map();
   const listeners = new Map();
 
@@ -148,6 +159,7 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
     return { ok: true, status: 200, json: async () => ({}) };
   };
 
+  let profileUpdate;
   const context = {
     document: {
       body: { dataset: { apiBase: '/api/llm', homeUrl: '/' } },
@@ -155,7 +167,15 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
       createElement: tag => makeElement(tag),
       querySelectorAll: () => []
     },
-    window: { scrollTo() {}, confirm: () => true },
+    window: {
+      scrollTo() {},
+      confirm: () => true,
+      llmProjectUI: {
+        setProfiles: (profiles, activeId) => {
+          profileUpdate = { profiles, activeId };
+        }
+      }
+    },
     fetch: fakeFetch,
     AbortController,
     TextDecoder,
@@ -170,22 +190,8 @@ test('YH1-E1: public/llm-ui.js playground interactions work and populate profile
 
   await new Promise(r => setTimeout(r, 40));
 
-  // Verify playground dropdown has been populated
-  const pgSelect = elements.get('playground-profile');
-  assert.equal(pgSelect.options.length, 2);
-  assert.equal(pgSelect.value, 'p-1');
-
-  // Verify clear button works
-  elements.get('playground-user').value = 'Test prompt';
-  elements.get('playground-system').value = 'Test system';
-  elements.get('playground-output').textContent = 'Some output';
-  elements.get('playground-meta').textContent = 'Meta';
-
-  elements.get('playground-clear-btn').trigger('click');
-  assert.equal(elements.get('playground-user').value, '');
-  assert.equal(elements.get('playground-system').value, '');
-  assert.equal(elements.get('playground-output').textContent, '');
-  assert.equal(elements.get('playground-meta').textContent, '');
+  assert.equal(profileUpdate?.profiles.length, 2);
+  assert.equal(profileUpdate?.activeId, 'p-1');
 
   // Saving serializes selected fallback IDs, including an explicit empty list to clear them.
   elements.get('fallback-profiles').options[1].selected = true;

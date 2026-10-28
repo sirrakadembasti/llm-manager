@@ -32,7 +32,7 @@ test('createUiAssets pre-renders Turkish by default', () => {
   assert.match(assets.html, /data-locale="tr"/);
   assert.match(assets.html, /<script id="llm-i18n" type="application\/json">/);
   assert.match(assets.html, /data-i18n="app\.title">LLM Profil Yönetimi</);
-  assert.match(assets.html, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
+  assert.match(assets.html, /data-i18n="project\.mode_model">Model denemesi</);
 });
 
 test('legacy English option cannot switch the Turkish interface', () => {
@@ -42,7 +42,7 @@ test('legacy English option cannot switch the Turkish interface', () => {
   assert.match(assets.html, /data-locale="tr"/);
   assert.match(assets.html, /<script id="llm-i18n" type="application\/json">/);
   assert.match(assets.html, /data-i18n="app\.title">LLM Profil Yönetimi</);
-  assert.match(assets.html, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
+  assert.match(assets.html, /data-i18n="project\.mode_model">Model denemesi</);
   assert.match(assets.html, /data-i18n="profiles\.title">Kayıtlı profiller</);
   assert.match(assets.html, /data-i18n-placeholder="form\.name_placeholder" placeholder="Örn\. Üretim modeli"/);
 });
@@ -67,7 +67,7 @@ test('mountLLMManagement serves localized page for express', async () => {
     const body = await res.text();
     assert.match(body, /<html lang="tr"/);
     assert.match(body, /data-locale="tr"/);
-    assert.match(body, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
+    assert.match(body, /data-i18n="project\.mode_model">Model denemesi</);
   } finally {
     server.close();
   }
@@ -82,5 +82,5 @@ test('fetchHandler serves localized page for Web standard request', async () => 
   const body = await res.text();
   assert.match(body, /<html lang="tr"/);
   assert.match(body, /data-locale="tr"/);
-  assert.match(body, /data-i18n="playground\.title">Deneme sohbeti \(Playground\)</);
+  assert.match(body, /data-i18n="project\.mode_model">Model denemesi</);
 });

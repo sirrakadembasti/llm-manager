@@ -45,3 +45,9 @@ Kod haritası `docs/graphify-out/` altındadır. Haritayı gerçek `.env`, `data
 - Test/SDK kontrolleri kalıcı kullanıcı ortamını değiştirmemelidir; .NET kontrollerinde `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` korunur.
 
 Teknik kararlar ve tamamlanma kanıtları [yol haritasında](roadmap/YOL_HARITASI.md) tutulur. Ayrı bir `GEMINI.md` proje hafızası kullanılmaz.
+
+## Sohbet değişikliklerinde doğrulama
+
+`tests/assistant-history.test.js`, `tests/assistant-history-ui.test.js`, `tests/chat-client.test.js`, `tests/project-ui.test.js` ve `tests/playground.test.js` ile kayıt/kapsam/revizyon, SSE, iptal, sohbet devamı ve arayüz davranışlarını denetleyin. Kaynak/metrik verilerini kaldırılmış DOM panellerine bağlamayın; mesaj kaydı ve güvenli metin gösterimini koruyun. Başlık/dışa aktarma/silme/kurtarma sol listedeki Seçili sohbet alanındadır. API değişirse `types/core.d.ts` ve `types/project.d.ts` de güncellenir. Gerçek veri yerine izole geçici dizin ve sentetik anahtar kullanın.
+
+Statik Graphify raporlarını elle düzenleyip yeniden üretilmiş gibi sunmayın. Araç çıktıları ile Türkçe açıklama ve kaynak manifesti farklıdır; haritanın kapsadığı eski kaynak revizyonunu belirtin. Kapsam ve test sonuçlarını yalnız yol haritasında tarihli tutun.
