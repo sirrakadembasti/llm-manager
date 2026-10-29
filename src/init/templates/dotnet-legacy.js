@@ -1,4 +1,4 @@
-export default function legacyDotnet() {
+export default function legacyDotnet({ apiPath = '/api/llm' } = {}) {
   return {
     'LlmClient.cs': `using System;
 using System.IO;
@@ -28,7 +28,7 @@ namespace LlmManager
         {
             return Task.Factory.StartNew(delegate {
                 cancellationToken.ThrowIfCancellationRequested();
-                var url = Environment.GetEnvironmentVariable("LLM_MANAGER_URL") ?? "http://127.0.0.1:8010/api/llm/chat";
+                var url = Environment.GetEnvironmentVariable("LLM_MANAGER_URL") ?? ${JSON.stringify('http://127.0.0.1:8010' + apiPath + '/chat')};
                 var req = (HttpWebRequest)WebRequest.Create(url);
                 req.Method = "POST";
                 req.ContentType = "application/json; charset=utf-8";

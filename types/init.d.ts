@@ -43,6 +43,12 @@ export interface InitProjectOptions {
   cwd?: string;
   type?: ProjectType;
   password?: string;
+  adminUser?: string;
+  authMode?: 'basic' | 'host';
+  hostAuthModule?: string;
+  adminRoles?: string[];
+  pagePath?: string;
+  apiPath?: string;
   allowedOrigins?: string | string[];
   force?: boolean;
   journal?: ChangeJournal;
@@ -52,6 +58,9 @@ export interface InitProjectResult {
   esm: boolean;
   createdFiles: string[];
   scriptAdded: boolean;
+  pagePath: string;
+  apiPath: string;
+  authMode: 'basic' | 'host';
   journal: ChangeJournal;
   targetFramework?: string;
   targetFamily?: 'modern' | 'netfx' | 'unknown';
@@ -75,6 +84,9 @@ export interface ProbeOptions {
   cwd?: string;
   port?: number;
   password?: string;
+  adminUser?: string;
+  pagePath?: string;
+  apiPath?: string;
   startServerIfNeeded?: boolean;
   openBrowser?: boolean;
   autoCloseStartedServer?: boolean;
@@ -88,6 +100,8 @@ export interface ProbeResult {
   status: number;
   startedServer: boolean;
   openedBrowser: boolean;
+  skipped?: boolean;
+  reason?: string;
   server?: HttpServer;
 }
 export function probeAndOpenBrowser(options?: ProbeOptions): Promise<ProbeResult>;

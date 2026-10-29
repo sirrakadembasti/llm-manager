@@ -5,7 +5,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { detectProjectType, detectEntryFile } from './detect.js';
 import { resolveLlmRelPath } from './paths.js';
+import { readEnv } from '../envFile.js';
 function getExpectedHelperFiles(cwd, type) {
+  const env = readEnv(path.join(cwd, '.env'));
+  const pagePath = env.LLM_PAGE_PATH || '/llm';
+  const apiPath = env.LLM_API_PATH || '/api/llm';
   if (type === 'python') return ['llm_client.py'];
   if (type === 'dotnet') return ['LlmClient.cs'];
   if (type === 'spa') return [resolveLlmRelPath(cwd, 'spa')];
@@ -13,18 +17,22 @@ function getExpectedHelperFiles(cwd, type) {
     const hasSrcApp = fs.existsSync(path.join(cwd, 'src', 'app'));
     const baseDir = hasSrcApp ? 'src' : '';
     const llmRel = baseDir ? `${baseDir}/llm.js` : 'llm.js';
-    const apiRouteRel = `${baseDir ? `${baseDir}/` : ''}app/api/llm/[...slug]/route.js`;
-    const pageRouteRel = `${baseDir ? `${baseDir}/` : ''}app/llm/[[...slug]]/route.js`;
+    const apiRouteRel = `${baseDir ? `${baseDir}/` : ''}app${apiPath}/[...slug]/route.js`;
+    const pageRouteRel = `${baseDir ? `${baseDir}/` : ''}app${pagePath}/[[...slug]]/route.js`;
     return [llmRel, apiRouteRel, pageRouteRel, `${baseDir ? `${baseDir}/` : ''}app/actions/llm.js`];
   }
   if (type === 'nuxt') {
-    return ['server/utils/llm.js', 'server/api/llm/[...slug].js', 'server/routes/llm/[...slug].js'];
+    return [
+      'server/utils/llm.js',
+      `server/routes${apiPath}/[...slug].js`.replace(/^server\/routes\/api\//, 'server/api/'),
+      `server/routes${pagePath}/[...slug].js`
+    ];
   }
   if (type === 'sveltekit') {
     return [
       'src/lib/server/llm.js',
-      'src/routes/api/llm/[...slug]/+server.js',
-      'src/routes/llm/[...slug]/+server.js',
+      `src/routes${apiPath}/[...slug]/+server.js`,
+      `src/routes${pagePath}/[...slug]/+server.js`,
       'src/routes/api/ask/+server.js'
     ];
   }
@@ -39,6 +47,26 @@ export function verifyIntegration({
   const normalizedEntry = entryFile ? entryFile.replace(/\\/g, '/').replace(/^\.\//, '') : null;
   const checks = [];
   const warnings = [];
+  const integrationEnv = readEnv(path.join(cwd, '.env'));
+  if (integrationEnv.LLM_AUTH_MODE === 'host') {
+    const adapter = path.resolve(cwd, integrationEnv.LLM_HOST_AUTH_MODULE || '');
+    checks.push({
+      id: 'host_auth',
+      title: 'Host yönetici oturumu adaptörü',
+      ok:
+        type === 'express' &&
+        adapter.startsWith(path.resolve(cwd) + path.sep) &&
+        fs.existsSync(adapter) &&
+        fs.statSync(adapter).isFile(),
+      solution: 'LLM_HOST_AUTH_MODULE ile proje içindeki requireAuth middleware adaptörünü belirtin.'
+    });
+    warnings.push(
+      'Host oturumu canlı olarak yoklanmadı; hedef uygulamada yönetici, normal kullanıcı ve oturumsuz erişimi test edin.'
+    );
+  }
+  warnings.push(
+    'Yol taraması sabit rotaları kontrol eder. Dinamik rotalar, proxy ve middleware sırası hedef uygulamada ayrıca doğrulanmalıdır.'
+  );
   if (needsHostPackage(cwd, type))
     checks.push({
       id: 'package_installed',
@@ -187,6 +215,7 @@ export function verifyIntegration({
     }
   }
   let syntaxFailure = null;
+  const priorWarningCount = warnings.length;
   for (const rel of new Set(filesToSyntaxCheck)) {
     const ext = path.extname(rel).toLowerCase();
     const full = path.join(cwd, rel);
@@ -208,7 +237,12 @@ export function verifyIntegration({
       solution: `${syntaxFailure.file} dosyasındaki hatalı satırı düzeltin veya yedeğe dönüp "npx llm-manager init --force" çalıştırın.`
     });
   } else {
-    checks.push({ id: 'syntax_check', title: syntaxTitle, ok: true, ...(warnings.length ? { skipped: true } : {}) });
+    checks.push({
+      id: 'syntax_check',
+      title: syntaxTitle,
+      ok: true,
+      ...(warnings.length > priorWarningCount ? { skipped: true } : {})
+    });
   }
 
   return {

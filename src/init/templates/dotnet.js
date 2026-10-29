@@ -1,7 +1,7 @@
 import legacyDotnet from './dotnet-legacy.js';
 
-export default function dotnet({ legacy = false } = {}) {
-  if (legacy) return legacyDotnet();
+export default function dotnet({ legacy = false, apiPath = '/api/llm' } = {}) {
+  if (legacy) return legacyDotnet({ apiPath });
   // HttpClient/async require Framework 4.5+; older targets use the TPL template.
   return {
     'LlmClient.cs': `using System;
@@ -31,7 +31,7 @@ namespace LlmManager
         }
         public static async Task<string> AskAsync(string prompt, string system = "", CancellationToken cancellationToken = default(CancellationToken))
         {
-            var url = Environment.GetEnvironmentVariable("LLM_MANAGER_URL") ?? "http://127.0.0.1:8010/api/llm/chat";
+            var url = Environment.GetEnvironmentVariable("LLM_MANAGER_URL") ?? ${JSON.stringify('http://127.0.0.1:8010' + apiPath + '/chat')};
             using (var req = new HttpRequestMessage(HttpMethod.Post, url))
             using (var payload = new MemoryStream())
             {

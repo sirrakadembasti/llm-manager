@@ -11,7 +11,20 @@ import {
   type LLMStore
 } from '@sirrakadembasti/llm-manager';
 import { createStandaloneServer } from '@sirrakadembasti/llm-manager/server';
+import { mountLLMIntegration, type IntegrationOptions } from '@sirrakadembasti/llm-manager/integration';
 import { detectProjectType, initLLMProject, runInteractiveInit } from '@sirrakadembasti/llm-manager/init';
+
+const integrationOptions: IntegrationOptions = {
+  authMode: 'host',
+  adminRoles: ['admin', 'owner'],
+  requireAuth: (req, _res, next) => {
+    req.user = { id: 'admin-1', role: 'admin' };
+    next();
+  }
+};
+const integration = mountLLMIntegration({}, integrationOptions);
+const integrationPage: string = integration.pagePath;
+void integrationPage;
 
 // 1. Core Manager and Message types
 const messages: LLMMessage[] = [

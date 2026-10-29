@@ -1,13 +1,15 @@
 import path from 'node:path';
 import { packageInstalled } from '../compiler.js';
 import { serverHelper, webRoutes } from './shared.js';
-export default function nextjs({ cwd, fs, PKG }) {
+export default function nextjs({ cwd, fs, PKG, pagePath = '/llm', apiPath = '/api/llm' }) {
   const base = fs.existsSync(path.join(cwd, 'src/app')) ? 'src/' : '';
   const helper = base + 'llm.js';
   const files = {
-    [helper]: (packageInstalled(cwd, 'server-only') ? "import 'server-only';\n" : '') + serverHelper(PKG)
+    [helper]:
+      (packageInstalled(cwd, 'server-only') ? "import 'server-only';\n" : '') +
+      serverHelper(PKG, true, { pagePath, apiPath })
   };
-  for (const route of ['app/api/llm/[...slug]/route.js', 'app/llm/[[...slug]]/route.js']) {
+  for (const route of [`app${apiPath}/[...slug]/route.js`, `app${pagePath}/[[...slug]]/route.js`]) {
     const rel = base + route;
     let imp = path.posix.relative(path.posix.dirname(rel), helper);
     if (!imp.startsWith('.')) imp = './' + imp;

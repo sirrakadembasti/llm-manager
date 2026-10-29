@@ -5,6 +5,7 @@ import { readEnv, upsertEnv, ensureGitignore } from '../envFile.js';
 import { detectProjectType, isEsmProject } from './detect.js';
 import { createChangeJournal } from './journal.js';
 import { resolveInitOrigins } from './origins.js';
+import { planIntegration } from './integration.js';
 import express from './templates/express.js';
 import spa from './templates/spa.js';
 import nextjs from './templates/nextjs.js';
@@ -101,6 +102,12 @@ export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
   password,
+  adminUser,
+  authMode,
+  hostAuthModule,
+  adminRoles,
+  pagePath,
+  apiPath,
   allowedOrigins,
   force = false,
   journal = createChangeJournal(cwd)
@@ -109,12 +116,38 @@ export function initLLMProject({
   const esm = isEsmProject(cwd, type);
   const envPath = path.join(cwd, '.env');
   const env = readEnv(envPath);
+  const integration = planIntegration(cwd, {
+    type,
+    adminUser,
+    authMode,
+    hostAuthModule,
+    adminRoles,
+    pagePath,
+    apiPath
+  });
+  const expressHelper = path.join(cwd, 'llm.js');
+  if (
+    integration.authMode === 'host' &&
+    !force &&
+    fs.existsSync(expressHelper) &&
+    !fs.readFileSync(expressHelper, 'utf8').includes('mountLLMIntegration')
+  ) {
+    throw new Error(
+      'Mevcut llm.js host oturumu adaptörünü desteklemiyor. Dosyayı inceleyip --force ile yükseltin veya entegrasyonu elle taşıyın.'
+    );
+  }
   const origins = ['spa', 'tauri'].includes(type) ? resolveInitOrigins(cwd, allowedOrigins) : '';
-  password ??= env.LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
+  password ??= env.LLM_ADMIN_PASSWORD || integration.examplePassword || crypto.randomBytes(18).toString('base64url');
   const token = env.LLM_CHAT_TOKENS || crypto.randomBytes(24).toString('base64url');
   journal.capture(envPath);
   journal.capture(path.join(cwd, '.gitignore'));
   upsertEnv(envPath, {
+    LLM_ADMIN_USER: integration.adminUser,
+    LLM_AUTH_MODE: integration.authMode,
+    LLM_PAGE_PATH: integration.pagePath,
+    LLM_API_PATH: integration.apiPath,
+    LLM_ADMIN_ROLES: integration.adminRoles.join(','),
+    ...(integration.hostAuthModule ? { LLM_HOST_AUTH_MODULE: integration.hostAuthModule } : {}),
     LLM_ADMIN_PASSWORD: password,
     LLM_CHAT_TOKENS: token,
     LLM_CHAT_TOKEN: env.LLM_CHAT_TOKEN || token.split(',')[0]
@@ -127,7 +160,7 @@ export function initLLMProject({
       upsertEnv(envPath, { LLM_ALLOWED_ORIGINS: origins });
   }
   const target = type === 'dotnet' ? dotnetTargets(cwd) : undefined;
-  const files = templates[type]({ cwd, PKG, esm, fs, legacy: target?.legacy });
+  const files = templates[type]({ cwd, PKG, esm, fs, legacy: target?.legacy, ...integration });
   const createdFiles = [];
   for (const [rel, content] of Object.entries(files)) {
     const full = path.join(cwd, rel);
@@ -146,12 +179,30 @@ export function initLLMProject({
     }
   }
   if (target) registerDotnet(target, journal);
+  journal.write(
+    path.join(cwd, '.llm-manager.json'),
+    JSON.stringify(
+      {
+        version: 1,
+        type,
+        pagePath: integration.pagePath,
+        apiPath: integration.apiPath,
+        authMode: integration.authMode,
+        generatedFiles: [...new Set([...(integration.previous.generatedFiles || []), ...createdFiles])]
+      },
+      null,
+      2
+    ) + '\n'
+  );
   return {
     type,
     esm,
     createdFiles,
     scriptAdded,
     journal,
+    pagePath: integration.pagePath,
+    apiPath: integration.apiPath,
+    authMode: integration.authMode,
     ...(target ? { targetFramework: target.targetFramework, targetFamily: target.targetFamily } : {})
   };
 }

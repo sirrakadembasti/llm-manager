@@ -11,6 +11,8 @@ export async function createStandaloneServer({
   chatTokens,
   logger = console,
   handleSignals = false,
+  pagePath = '/llm',
+  apiPath = '/api/llm',
   ...managerOptions
 } = {}) {
   if (!adminPassword) {
@@ -50,7 +52,7 @@ export async function createStandaloneServer({
   if (originsSet.size > 0) {
     app.use((req, res, next) => {
       const origin = req.get('Origin');
-      const chatPath = `${managerOptions.apiPath || '/api/llm'}/chat`;
+      const chatPath = `${apiPath}/chat`;
       const isChat = req.path === chatPath || req.path === `${chatPath}/`;
 
       if (originsSet.has('*')) {
@@ -76,10 +78,12 @@ export async function createStandaloneServer({
     });
   }
 
-  app.get('/', (_req, res) => res.redirect('/llm'));
+  app.get('/', (_req, res) => res.redirect(pagePath));
 
   const management = mountLLMManagement(app, {
     ...managerOptions,
+    pagePath,
+    apiPath,
     logger,
     adminUser,
     adminPassword,
@@ -97,7 +101,7 @@ export async function createStandaloneServer({
   });
 
   const actualPort = server.address().port;
-  const url = `http://${host.includes(':') ? `[${host}]` : host}:${actualPort}/llm`;
+  const url = `http://${host.includes(':') ? `[${host}]` : host}:${actualPort}${pagePath}`;
 
   let closed = false;
   let closePromise;

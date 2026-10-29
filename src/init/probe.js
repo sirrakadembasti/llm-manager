@@ -25,6 +25,9 @@ export async function probeAndOpenBrowser({
   cwd = process.cwd(),
   port = 8010,
   password,
+  adminUser,
+  pagePath,
+  apiPath,
   startServerIfNeeded = true,
   openBrowser = true,
   autoCloseStartedServer = false,
@@ -32,10 +35,24 @@ export async function probeAndOpenBrowser({
   browserOpener
 } = {}) {
   const env = readEnv(path.join(cwd, '.env'));
+  adminUser ??= env.LLM_ADMIN_USER || 'admin';
+  pagePath ??= env.LLM_PAGE_PATH || '/llm';
+  apiPath ??= env.LLM_API_PATH || '/api/llm';
+  if (env.LLM_AUTH_MODE === 'host') {
+    return {
+      ok: false,
+      url: pagePath,
+      status: 0,
+      startedServer: false,
+      openedBrowser: false,
+      skipped: true,
+      reason: 'Host oturumu hedef uygulamada doğrulanmalıdır.'
+    };
+  }
   password ??= env.LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid probe port');
-  let url = `http://127.0.0.1:${port}/llm`;
-  const auth = 'Basic ' + Buffer.from('admin:' + password).toString('base64');
+  let url = `http://127.0.0.1:${port}${pagePath}`;
+  const auth = 'Basic ' + Buffer.from(adminUser + ':' + password).toString('base64');
   let ok = false;
   let status = 0;
   let startedServer = false;
@@ -46,7 +63,7 @@ export async function probeAndOpenBrowser({
     try {
       const res = await fetch(url, { headers: { Authorization: auth } });
       status = res.status;
-      if (res.status === 200) {
+      if (res.status === 200 && (await res.text()).includes(`data-api-base="${apiPath}"`)) {
         ok = true;
       }
     } catch {
@@ -62,6 +79,9 @@ export async function probeAndOpenBrowser({
         port,
         host: '127.0.0.1',
         adminPassword: password,
+        adminUser,
+        pagePath,
+        apiPath,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
         dataDir: path.join(cwd, 'data'),
@@ -72,6 +92,9 @@ export async function probeAndOpenBrowser({
         port: 0,
         host: '127.0.0.1',
         adminPassword: password,
+        adminUser,
+        pagePath,
+        apiPath,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
         dataDir: path.join(cwd, 'data'),
@@ -82,7 +105,7 @@ export async function probeAndOpenBrowser({
     startedServer = true;
     url = srvInstance.url;
     const actualPort = srvInstance.port;
-    const catalogUrl = `http://127.0.0.1:${actualPort}/api/llm/catalog`;
+    const catalogUrl = `http://127.0.0.1:${actualPort}${apiPath}/catalog`;
 
     try {
       const [pageRes, catRes] = await Promise.all([
@@ -90,7 +113,10 @@ export async function probeAndOpenBrowser({
         fetch(catalogUrl, { headers: { Authorization: auth } })
       ]);
       status = pageRes.status;
-      ok = pageRes.status === 200 && catRes.status === 200;
+      ok =
+        pageRes.status === 200 &&
+        catRes.status === 200 &&
+        (await pageRes.text()).includes(`data-api-base="${apiPath}"`);
     } catch {
       ok = false;
     }

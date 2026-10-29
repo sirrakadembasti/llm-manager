@@ -5,7 +5,6 @@ import { packageInstalled } from './compiler.js';
 import { INSTALL_SPEC, EXPRESS_SPEC, needsHostPackage, standalonePrerequisite } from './standalone.js';
 import { PKG } from './project.js';
 import readline from 'node:readline/promises';
-import crypto from 'node:crypto';
 import path from 'node:path';
 import { readEnv } from '../envFile.js';
 import { detectProjectType, detectEntryFile } from './detect.js';
@@ -26,6 +25,12 @@ export async function runInteractiveInit({
   cwd = process.cwd(),
   type,
   password,
+  adminUser,
+  authMode,
+  hostAuthModule,
+  adminRoles,
+  pagePath,
+  apiPath,
   allowedOrigins,
   port = 8010,
   force = false,
@@ -38,7 +43,6 @@ export async function runInteractiveInit({
   browserOpener,
   installRunner = execFileSync
 } = {}) {
-  password ??= readEnv(path.join(cwd, '.env')).LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
   const journal = createChangeJournal(cwd);
   let rl = null;
   const promptUser = promptText => {
@@ -132,7 +136,24 @@ export async function runInteractiveInit({
       }
       if (!allowedOrigins) logger('CORS kapalı; istemci origin adresini LLM_ALLOWED_ORIGINS ile ayarlayabilirsiniz.');
     }
-    const initRes = initLLMProject({ cwd, type: detectedType, password, allowedOrigins, force, journal });
+    const initRes = initLLMProject({
+      cwd,
+      type: detectedType,
+      password,
+      adminUser,
+      authMode,
+      hostAuthModule,
+      adminRoles,
+      pagePath,
+      apiPath,
+      allowedOrigins,
+      force,
+      journal
+    });
+    password = readEnv(path.join(cwd, '.env')).LLM_ADMIN_PASSWORD;
+    logger(
+      `Yönetim yolu: ${initRes.pagePath}; API: ${initRes.apiPath}; giriş: ${initRes.authMode}. Menü değiştirilmez.`
+    );
     if (detectedType === 'nextjs') await configureNext({ cwd, journal, promptUser, yes, logger, packageName: PKG });
     const injectRes = injectIntoEntryFile({
       cwd,
@@ -177,11 +198,37 @@ export async function runInteractiveInit({
       return { ok: false, step: 'verify', verification, rolledBack };
     }
 
-    // Adım 4: Canlı /llm Yoklaması ve Tarayıcı Açma
+    // Host sessions cannot be verified using standalone Basic credentials.
+    if (initRes.authMode === 'host') {
+      logger(
+        'Host oturumu adaptörü bağlandı. Hedef uygulamayı başlatıp yönetici ve yetkisiz kullanıcı ile erişimi doğrulayın; ayrı parola sunucusu başlatılmadı.'
+      );
+      return {
+        ok: true,
+        type: detectedType,
+        entryFile,
+        initRes,
+        injectRes,
+        verification,
+        probe: {
+          ok: false,
+          url: initRes.pagePath,
+          status: 0,
+          startedServer: false,
+          openedBrowser: false,
+          skipped: true,
+          reason: 'Host oturumuyla canlı doğrulama gerekli.'
+        }
+      };
+    }
+    // Adım 4: Canlı yönetim yoklaması ve tarayıcı açma
     const probe = await probeAndOpenBrowser({
       cwd,
       port,
       password,
+      adminUser: readEnv(path.join(cwd, '.env')).LLM_ADMIN_USER,
+      pagePath: initRes.pagePath,
+      apiPath: initRes.apiPath,
       openBrowser,
       autoCloseStartedServer: autoCloseServer,
       handleSignals,
@@ -190,7 +237,9 @@ export async function runInteractiveInit({
     });
 
     if (probe.ok) {
-      logger(`\n[Adım 4/4] ✅ Canlı /llm yönetim ekranı doğrulandı!`);
+      logger(
+        `\n[Adım 4/4] ✅ ${probe.startedServer ? 'Ayrı yönetim sunucusu' : 'Yönetim ekranı'} doğrulandı (${initRes.pagePath}).`
+      );
       logger(`🌐 Yönetim Adresi: ${probe.url}`);
       logger('Parola .env dosyasında LLM_ADMIN_PASSWORD olarak saklandı.');
     }

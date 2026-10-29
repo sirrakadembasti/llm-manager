@@ -17,6 +17,8 @@ export interface StandaloneServerOptions {
   port?: number;
   adminUser?: string;
   adminPassword?: string;
+  pagePath?: string;
+  apiPath?: string;
   allowedOrigins?: string | string[];
   dataDir?: string;
   chatTokens?: string | string[];

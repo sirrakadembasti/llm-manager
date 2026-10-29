@@ -1,11 +1,11 @@
-export default function python() {
+export default function python({ apiPath = '/api/llm' } = {}) {
   return {
     'llm_client.py': `import urllib.request
 import urllib.error
 import json
 import os
 
-LLM_URL = os.environ.get("LLM_MANAGER_URL", "http://127.0.0.1:8010/api/llm/chat")
+LLM_URL = os.environ.get("LLM_MANAGER_URL", ${JSON.stringify('http://127.0.0.1:8010' + apiPath + '/chat')})
 
 class LLMError(Exception):
     def __init__(self, message, code=None, status=None):

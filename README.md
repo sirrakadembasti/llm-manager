@@ -26,6 +26,15 @@ npm install github:sirrakadembasti/llm-manager express
 npx llm-manager init
 ```
 
+Kurulum menü eklemez. Yönetim yolu `/llm` olur; sabit rota veya sayfa çakışması bulunursa `/llm1`, `/llm2` seçilir.
+Rol sistemi olmayan web/masaüstü/eski uygulamalarda ayrı LLM kullanıcı adı ve parolası kullanılır.
+Express yönetici oturumuna bağlamak için `--auth host --auth-module ./llm-auth.cjs` seçin;
+oturum adaptörü ve izinli roller açıkça yapılandırılır. [Giriş yöntemleri ve sınırlar](docs/KULLANICI_KILAVUZU.md#yönetim-yolu-ve-giriş).
+
+Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulama ve kurulum geri alma ilk kapsamı tamamlandı.
+LLM Manager serisinde **499 test: 498 geçti, 1 platform testi atlandı**; Mimo Stok kabulünde **290/290 test** geçti.
+Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
+
 Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başka bir projedir. Yerel 2.0.0 sürümü henüz **yayımlanmamış** durumundadır.
 
 ## Proje Asistanı

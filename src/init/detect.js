@@ -171,6 +171,17 @@ export function detectEntryFile(cwd = process.cwd(), type = detectProjectType(cw
     );
   }
 
+  if (type === 'express') {
+    for (const rel of candidates) {
+      const full = path.join(cwd, rel);
+      if (
+        fs.existsSync(full) &&
+        fs.statSync(full).isFile() &&
+        /\b(?:const|let|var)\s+app\s*=\s*express\s*\(/.test(fs.readFileSync(full, 'utf8'))
+      )
+        return rel;
+    }
+  }
   for (const rel of candidates) {
     const full = path.join(cwd, rel);
     if (fs.existsSync(full) && fs.statSync(full).isFile()) {

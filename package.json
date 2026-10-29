@@ -9,6 +9,10 @@
     "llm-manager": "bin/llm-manager.js"
   },
   "exports": {
+    "./integration": {
+      "types": "./types/integration.d.ts",
+      "default": "./src/integration.js"
+    },
     ".": {
       "types": "./types/index.d.ts",
       "default": "./src/index.js"

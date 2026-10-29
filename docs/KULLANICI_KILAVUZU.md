@@ -24,7 +24,7 @@ LLM_ADMIN_PASSWORD=kendi-guclu-parolaniz
 
 `npm start` çalıştırın; [http://127.0.0.1:8010/llm](http://127.0.0.1:8010/llm) adresine bu bilgilerle girin. Durdurma: **Ctrl+C**. Linux/macOS'ta da mevcut `.env` üzerine yazmadan aynı ayarları ve npm komutlarını kullanın.
 
-CLI ve `npm start` çalışma dizininin `.env` dosyasını okur; mevcut süreç ortamı önceliklidir. PowerShell'de eski oturum ayarlarını kaldırmak için `Remove-Item Env:LLM_ADMIN_USER, Env:LLM_ADMIN_PASSWORD -ErrorAction SilentlyContinue` kullanılabilir. Kütüphaneyi elle bağlayan uygulama `.env` yüklemesini kendisi yapar. Dosya/ayar değişince sunucuyu yeniden başlatın; eski arayüz görünüyorsa **Ctrl+F5** kullanın.
+CLI ve `npm start` çalışma dizininin `.env` dosyasını okur; mevcut süreç ortamı önceliklidir. PowerShell'de eski oturum ayarlarını kaldırmak için `Remove-Item Env:LLM_ADMIN_USER, Env:LLM_ADMIN_PASSWORD -ErrorAction SilentlyContinue` kullanılabilir. Düşük seviyeli API'yi elle bağlayan uygulama `.env` yüklemesini kendisi yapar; Express entegrasyon helper'ı kendi hedef klasöründeki `.env` dosyasını okur. Dosya/ayar değişince sunucuyu yeniden başlatın; eski arayüz görünüyorsa **Ctrl+F5** kullanın.
 
 ## Arayüz ve sohbet
 
@@ -133,6 +133,40 @@ Edge desteklenmez. Sunucusuz Node dağıtımında kalıcı ana uygulama deposu g
 Next.js için `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; sihirbaz dinamik config çalıştırmaz, basit literal yapıları düzenler. Üretilen Server Action host yetkisi kurulana kadar kapalıdır. Nuxt/SvelteKit sunucu modülleri istemci bileşenine taşınmaz. Electron `contextIsolation: true`, `nodeIntegration: false` kullanır; yalnız kendi loopback Basic challenge'ına parola verir, dış gezinmeyi engeller; mevcut preload korunur.
 
 Python/.NET `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` okur, `.env` yüklemez. Modern/.NET 4.5+ HttpClient ve `await LlmClient.AskAsync()`; .NET 4.0/net40/belirsiz eski hedefler C#4, HttpWebRequest/TPL ve `ContinueWith` kullanır. NuGet gerektirmeyen JSON/assembly yardımcıları üretilir; eski hedefte hostun tam runtime doğrulaması ayrıca gerekir.
+
+### Yönetim yolu ve giriş
+
+Kurulum **menü eklemez**. Önce `/llm` ve `/api/llm` denenir; sabit rota, dosya tabanlı sayfa veya statik dosya çakışmasında `/llm1` + `/api/llm1`, ardından `/llm2` + `/api/llm2` seçilir. Seçim hedef `.env` ve sır içermeyen `.llm-manager.json` dosyasına kaydedilir; tekrar kurulumda mevcut yol ve parola korunur. Express başlangıcında daha önce kayıtlı sayfa rotaları da kontrol edilir; kullanılan gerçek adresler `setupLLM(app)` sonucunun `pagePath` ve `apiPath` alanlarındadır. Özel yollar `--page-path /tools/llm --api-path /api/tools/llm` ile verilebilir; çakışırsa üzerine yazılmaz.
+
+**Ayrı LLM girişi:** Rol sistemi olmayan uygulamalarda ve varsayılan kurulumda `--auth basic` kullanılır. Kullanıcı adı/parola önce hedef `.env`, ardından hedef `.env.example` ve paketle gelen `.env.example` varsayılanlarından alınır; kullanıcı adı yoksa `admin`, parola boşsa benzersiz rastgele parola üretilir ve yalnız `.env` içine yazılır. Terminal ortamı veya açık API seçenekleri çalışma anında `.env` değerlerinden önceliklidir. Tarayıcı Basic Auth penceresiyle giriş yapılır; paket örneğindeki parola boş bırakılır.
+
+**Mevcut yönetici oturumu:** Otomatik bağlantı şu anda Express içindir. Adaptör önce hedef uygulamanın gerçek oturumunu doğrulamalı ve `req.user` üretmelidir. Örneğin mevcut Mimo Stok backend'inde `llm-auth.cjs` içeriği şu olabilir:
+
+```js
+module.exports = require('./src/middleware/auth').auth;
+```
+
+Ardından hedef backend klasöründe:
+
+```sh
+npx llm-manager init --type express --auth host --auth-module ./llm-auth.cjs --admin-roles admin
+```
+
+Yalnız `req.user.isAdmin === true`, izinli `req.user.role` veya izinli `req.user.roles` kabul edilir. Roller tam adlarıyla eşleşir; farklı yönetici rolleri `--admin-roles admin,owner` ile açıkça eklenir. Pasif/devre dışı kullanıcılar reddedilir. Adaptör bulunamazsa veya oturum doğrulanamazsa ayrı parolaya otomatik geçilmez. Sihirbaz bu modda ayrı sunucu başlatmaz; canlı doğrulamayı tamamlanmış saymaz. Hedefte yönetici, normal kullanıcı ve oturumsuz erişim ayrıca denenmelidir.
+
+Programatik Express bağlantısı `@sirrakadembasti/llm-manager/integration` alt yolundaki `mountLLMIntegration(app, { cwd, authMode, requireAuth, adminRoles })` ile yapılır. `basePath: '/stok'` verilirse yönetim ve API adresleri bu genel öneki kullanır; proxy öneki siliyorsa host dispatch öncesinde geri koymalıdır. App ve Router üzerinde yol çakışmaları denetlenir. Bu yönetim adaptöründe chat Bearer erişimi ve herkese açık sağlık ucu kapalıdır; bütün panel/API erişimi seçilen yönetici girişine bağlıdır. Daha geniş sohbet politikaları için mevcut düşük seviye `mountLLMManagement` API'si kullanılır.
+
+**Masaüstü ve eski/gömülü uygulamalar:** Node sunucusu barındıramayan uygulamada yönetim ekranı ayrı, sürekli çalışan Node servisinde açılır. Servis hedef `.env` bilgilerini ve seçilen yolları CLI üzerinden kullanır; uygulama HTTP istemcisiyle bağlanır. Python/.NET/Tauri şablonlarının istemci adresi seçilen API yoluna göre üretilir. Aynı domain altında `/llm` isteniyorsa reverse proxy bağlantısı ayrıca yapılır; yerel servis kurulması bu yönlendirmeyi kendiliğinden oluşturmaz. Electron'un izole ana süreç paneli ayrı bir şablondur; paketli/native dağıtımın ayrıca sınanması gerekir. Yönetici parolasını renderer veya tarayıcı paketine koymayın.
+
+Sabit rota taraması bütün uygulamayı anlattığı anlamına gelmez: dinamik rotalar, proxy önekleri, iç içe router'lar ve özel middleware sırası hedefte doğrulanır. Bilinen Express bağlantısı JSON/cookie/session katmanlarından sonra, yakalanabilen genel rotalardan önce eklenir; `app = express()` noktası bulunamazsa dosyaya tahmini kod yazılmaz ve doğrulama elle bağlantı ister. Kurulum içindeki hata/ret sırasında journal dosyaları geri alır; npm bağımlılık kurulumu bu işlemin dışındadır. Eski helper'dan host moduna geçiş inceleme ve gerektiğinde `--force` ister. Paket yükseltmesi veya hedef uygulamanın güncellenmesi otomatik yapılmaz.
+
+### Kurulumu yükseltme ve geri alma
+
+Express ilk kapsamı tamamlanmıştır: menüsüz bağlantı, ayrı Basic veya mevcut yönetici oturumu seçimi, ayarlanabilir adres ve çakışma denetimi, kurulum doğrulaması ve journal ile geri alma. Hedefin oturum adaptörü açıkça verilir; rol isimleri tahmin edilmez. Host doğrulaması başarısız olduğunda Basic parolaya geçilmez.
+
+Paket yükseltmesinden önce hedef `.env`, bağlantı dosyaları ve profil/geçmiş/anahtar üçlüsünü koruyun. Mevcut helper otomatik olarak ezilmez; inceleyip gerektiğinde `init --force` kullanın. Kurulum sırasında hata veya ret varsa journal yaptığı dosya değişikliklerini geri alır; npm kurulumu ve daha sonra ortaya çıkan çalışma hataları bu transaction kapsamında değildir. Başarılı paket güncellemesinden sonra hedef sunucuyu yeniden başlatın ve oturumlu/oturumsuz erişimi tekrar deneyin.
+
+Özel proxy için sayfa kadar betiği, API'yi ve profil kaydını da doğrulayın. Mimo Stok kabulünde bunlar öneki koruyan ve soyan yerel HTTP proxy ile sınandı; bütün adayları yakalayan önceden kayıtlı dinamik rotada otomatik ekleme durduruldu. Native masaüstü paketleme ve kurumsal TLS/proxy kabulü ayrı dağıtım çalışmasıdır.
 
 ### Özel depo
 
@@ -268,6 +302,8 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 | Ayar | Kapsam |
 | --- | --- |
 | LLM_ADMIN_USER / LLM_ADMIN_PASSWORD | Kullanıcı varsayılan admin; parola gerekli |
+| LLM_AUTH_MODE / LLM_HOST_AUTH_MODULE / LLM_ADMIN_ROLES | Init ve Express entegrasyonunda basic/host, oturum adaptörü ve izinli yönetici rolleri |
+| LLM_PAGE_PATH / LLM_API_PATH | Init, Express entegrasyonu ve CLI yönetim yolları; sihirbaz çakışmada numaralı yol seçer |
 | HOST / PORT / LLM_DATA_DIR | CLI: 127.0.0.1 / 8010 / ./data; bayraklar öncelikli. `npm start` örneği yalnız PORT'u doğrudan okur. |
 | LLM_CONFIG_PATH / LLM_CONFIG_KEY_PATH / LLM_CONFIG_ENCRYPTION_KEY | Açık dosya yolları / 32 bayt hex veya base64 anahtar |
 | LLM_CHAT_TOKENS / LLM_ALLOWED_ORIGINS | Chat Bearer listesi / açık CORS origin listesi |
@@ -304,6 +340,7 @@ CLI/örnek SIGINT/SIGTERM kapanışı en fazla **10 saniye** sürer; servis yön
 | `src/profileStore.js`, `store/`, `assistant/` | Şifreli profil/geçmiş, kilit/revizyon, session API |
 | `src/project/` | Güvenli envanter/analiz/bağlam; workspace/process; relay/opencode/tasks; changes/commands |
 | `src/init/`, `bin/` | Proje algılama, şablon, journal/geri alma, doğrulama, CLI |
+| `src/integration.js`, `src/integration/` | Express yönetici girişi ve çakışmasız yönetim yolu seçimi |
 | `public/` | Profil UI; chat-client, assistant-history-ui, project-ui. Betikler tek korumalı UI asset'inde birleşir. |
 | `types/`, `examples/`, `tests/`, `scripts/`, `.github/` | Tipler, çalışır örnekler, davranış testleri, isteğe bağlı araçlar, CI |
 | `docs/` | Bu tek kılavuz ve küçük tarihsel kabul betiği |
@@ -342,6 +379,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | `@sirrakadembasti/llm-manager` | Express ve temel API |
 | `@sirrakadembasti/llm-manager/core` | Framework bağımsız çekirdek/depo |
 | `@sirrakadembasti/llm-manager/server` | Bağımsız sunucu |
+| `@sirrakadembasti/llm-manager/integration` | Açık basic/host girişiyle menüsüz Express yönetim bağlantısı |
 | `@sirrakadembasti/llm-manager/init` | Algılama, kurulum, doğrulama ve geri alma |
 | `@sirrakadembasti/llm-manager/setup` | Anahtar ve profil yedekleri |
 | `@sirrakadembasti/llm-manager/runtime` | Üretim ve hata sınıflandırma |
@@ -356,13 +394,16 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | --- | --- |
 | 2026-10-19 / 1.0.0 | İlk bağımsız core/Express/CLI, sağlayıcı kataloğu ve şifreli profiller. |
 | 2026-10-20–27 / 2.0 geliştirme | Çoklu framework init, async/host store, tipler, transportlar/SSE/retry/fallback, güvenlik/kota/loglar, dağıtım/CI; Türkçe arayüz. YH1/YH2 kartları kapatıldı. |
-| 2026-10-28 | Proje Asistanı, OpenCode, onaylı değişiklik/geri alma; birleşik sohbet ve şifreli kalıcı geçmiş. |
-| 2026-10-29 | Anahtar döndürmeye sohbet eklendi; normal yazma hatasında geri alma. Graphify değerlendirilip ek tarama maliyeti nedeniyle entegrasyonu, ayarları ve harita çıktıları kaldırıldı. Kaynak seçimi yerleşik analizi kullanır. |
+| 2026-10-28 / `29066dc`, `b73f5d6` | Proje Asistanı, OpenCode, onaylı değişiklik/geri alma; birleşik sohbet ve şifreli kalıcı geçmiş. |
+| 2026-10-29 / `6acce05` | Anahtar döndürmeye sohbet eklendi; normal yazma hatasında geri alma. Graphify değerlendirilip ek tarama maliyeti nedeniyle entegrasyonu, ayarları ve harita çıktıları kaldırıldı. Kaynak seçimi yerleşik analizi kullanır. |
+| 2026-10-29 entegrasyon güncellemesi | Menüsüz kurulum; `/llm`, `/llm1`, `/llm2` yol seçimi; ayrı parola veya açık Express yönetici oturumu; mevcut ayarları koruma ve geri alma. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
 
-2026-10-29 commit öncesi tam seri (`node --test --test-concurrency=4 tests/*.test.js tests/**/*.test.js`): **479 test; 478 geçti, 0 başarısız, 1 platform testi atlandı**. Yerleşik tarama/SQL/import ilişkileri, kaynaklı sohbetin güncel içerik/revizyon denetimi, OpenCode plan/değişiklik akışları doğrulandı. Lint/typecheck/format ve 22 yerel dosya/bölüm bağlantısı kontrolü geçti; 94 dosyalık paket çıktısında kaldırılan araca ait dosya yok. API'deki grafik alanları ve eski araç seçenekleri kaldırıldı; bağımsız host kurulumu değiştirilmedi.
+2026-10-29 entegrasyon güncellemesi ve stok kabulü sonrası tam seri (`node --test --test-concurrency=4 tests/*.test.js tests/**/*.test.js`): **499 test; 498 geçti, 0 başarısız, 1 platform testi atlandı**. Önceki profil/sohbet/proje akışlarına ek olarak numaralı yol seçimi, Express 4/5 iç içe router çakışmaları, önekli Router bağlantısı, basic/host yetkileri, tekrar kurulum, geri alma ve eksik anahtarda veriyi koruma sınandı. Lint/typecheck/format kontrolleri geçti; 98 dosyalık pakette yeni entegrasyon girişleri var, gerçek `.env`, anahtar ve profil verisi yok.
+
+Mimo Stok kabulünde güncel paket kuruldu; **290/290 test** geçti. Gerçek aktif admin oturumuyla canlı `/llm`, betik ve API erişimi; ayrıca öneki koruyan/silen yerel HTTP reverse proxy, yetkisiz erişim, özel yol ve kurulum geri alma sınandı. Bu sonuç bütün IIS/Nginx/TLS dağıtımlarının veya paketli masaüstü uygulamalarının kabulü anlamına gelmez.
 
 Son kapsam ölçümü 2026-10-28'de 446 testlik kaynakta satır %94,16/dal %85,96 idi; güncel kodun kapsam sonucu sayılmaz. Tam seri sonucu ile kapsam ölçümünü birbirinin yerine kullanmayın.
 

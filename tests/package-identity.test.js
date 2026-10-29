@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { initLLMProject } from '../src/init.js';
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
 test('approved package identity and generated imports use scoped name', async () => {
@@ -13,7 +13,12 @@ test('approved package identity and generated imports use scoped name', async ()
   try {
     fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ type: 'module' }));
     initLLMProject({ cwd, type: 'express' });
-    assert.ok(fs.readFileSync(path.join(cwd, 'llm.js'), 'utf8').includes(`from '${pkg.name}'`));
+    const installed = path.join(cwd, 'node_modules', ...pkg.name.split('/'));
+    fs.mkdirSync(path.dirname(installed), { recursive: true });
+    fs.symlinkSync(fileURLToPath(new URL('..', import.meta.url)), installed, 'junction');
+    const generated = await import(pathToFileURL(path.join(cwd, 'llm.js')).href);
+    assert.equal(typeof generated.setupLLM, 'function');
+    assert.equal(typeof generated.askLLM, 'function');
     assert.equal(typeof (await import('@sirrakadembasti/llm-manager/core')).createLLMManager, 'function');
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });

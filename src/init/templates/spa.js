@@ -1,8 +1,8 @@
-export default function spa({ cwd, fs }) {
+export default function spa({ cwd, fs, apiPath = '/api/llm' }) {
   return {
     [fs.existsSync(cwd + '/src') ? 'src/llm.js' : 'llm.js']:
       `// UYARI: Tarayıcıya giden her değer herkese açıktır. Bu belirteç yalnız sohbet yetkilidir; üretimde kendi sunucunuz üzerinden çağırın.
-const LLM_URL = import.meta.env?.VITE_LLM_URL || 'http://127.0.0.1:8010/api/llm/chat';
+const LLM_URL = import.meta.env?.VITE_LLM_URL || ${JSON.stringify('http://127.0.0.1:8010' + apiPath + '/chat')};
 const LLM_TOKEN = import.meta.env?.VITE_LLM_CHAT_TOKEN;
 export async function askLLM(prompt, options = {}) {
   const res = await fetch(LLM_URL, {

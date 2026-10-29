@@ -55,6 +55,16 @@ export function injectIntoEntryFile({
   }
 
   const originalContent = fs.readFileSync(fullPath, 'utf8');
+  if (type === 'express' && !/\b(?:const|let|var)\s+app\s*=\s*express\s*\(/.test(originalContent)) {
+    return {
+      modified: false,
+      entryFile: relEntry,
+      addedLines: [],
+      diffPreview: '',
+      reason: 'Express app oluşturma noktası doğrulanamadı; setupLLM(app) bağlantısını elle ekleyin.',
+      rollback: () => {}
+    };
+  }
   if (
     ['nuxt', 'sveltekit', 'fastify', 'koa', 'hono', 'nestjs', 'tauri', 'unknown'].includes(type) ||
     (type === 'nextjs' &&
@@ -131,9 +141,11 @@ export function injectIntoEntryFile({
 
       let setupTargetIdx = -1;
       for (let i = 0; i < lines.length; i += 1) {
-        if (/\bapp\.use\s*\(\s*express\.json\s*\(\s*\)\s*\)/.test(lines[i])) {
+        if (
+          /\bapp\.use\s*\(\s*(?:express\.json|cookieParser|session)\s*\(/.test(lines[i]) &&
+          /\)\s*\)\s*;?\s*$/.test(lines[i])
+        ) {
           setupTargetIdx = i + 1;
-          break;
         }
       }
       if (setupTargetIdx < 0) {

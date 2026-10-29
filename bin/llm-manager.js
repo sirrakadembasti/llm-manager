@@ -20,6 +20,11 @@ Seçenekler:
   -t, --type <tip>          Proje tipi: express | spa | nextjs | nuxt | sveltekit | electron | dotnet | python | fastify | koa | hono | nestjs | tauri (varsayılan: otomatik algılar)
   -w, --password <sır>      Yönetim / yedekleme parolası (LLM_ADMIN_PASSWORD / LLM_BACKUP_PASSWORD)
   -u, --user <ad>           Kullanıcı adı (varsayılan: admin, LLM_ADMIN_USER ile de verilebilir)
+  --auth <basic|host>       Kurulum girişi: ayrı parola veya Express yönetici oturumu
+  --auth-module <dosya>     Host oturumunu doğrulayan proje içi Express middleware adaptörü
+  --admin-roles <roller>    Host yönetici rolleri, virgülle ayrılır (varsayılan: admin)
+  --page-path <yol>         Yönetim yolu (varsayılan: /llm; çakışırsa /llm1, /llm2)
+  --api-path <yol>          Yönetim API yolu (varsayılan: /api/llm)
   --host <adres>            Dinlenecek adres (varsayılan: 127.0.0.1)
   -p, --port <sayı>         Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
   -c, --cors <adres>        İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
@@ -128,6 +133,13 @@ let host = process.env.HOST || '127.0.0.1';
 let dataDir = process.env.LLM_DATA_DIR;
 let chatTokens = process.env.LLM_CHAT_TOKENS;
 let projectRoot = process.env.LLM_PROJECT_ROOT;
+let authMode = process.env.LLM_AUTH_MODE;
+let hostAuthModule = process.env.LLM_HOST_AUTH_MODULE;
+let adminRoles = process.env.LLM_ADMIN_ROLES?.split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
+let pagePath = process.env.LLM_PAGE_PATH;
+let apiPath = process.env.LLM_API_PATH;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -171,6 +183,20 @@ for (let i = 0; i < args.length; i++) {
   } else if (arg === '--project-root') {
     projectRoot = String(args[++i] || '');
     if (!projectRoot || projectRoot.startsWith('-')) fail('Proje kaynak dizini gerekli.');
+  } else if (arg === '--auth') {
+    authMode = String(args[++i] || '');
+    if (!['basic', 'host'].includes(authMode)) fail('--auth basic veya host olmalıdır.');
+  } else if (arg === '--auth-module') {
+    hostAuthModule = String(args[++i] || '');
+  } else if (arg === '--admin-roles') {
+    adminRoles = String(args[++i] || '')
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean);
+  } else if (arg === '--page-path') {
+    pagePath = String(args[++i] || '');
+  } else if (arg === '--api-path') {
+    apiPath = String(args[++i] || '');
   } else fail(`Bilinmeyen seçenek: ${arg}`);
 }
 
@@ -180,6 +206,12 @@ if (isInit) {
   const result = await runInteractiveInit({
     type: initType,
     password: process.env.LLM_ADMIN_PASSWORD,
+    adminUser: process.env.LLM_ADMIN_USER,
+    authMode,
+    hostAuthModule,
+    adminRoles,
+    pagePath,
+    apiPath,
     allowedOrigins: process.env.LLM_ALLOWED_ORIGINS,
     port: Number(process.env.PORT) || 8010,
     force,
@@ -199,6 +231,7 @@ if (isInit) {
     process.exit(0);
   }
 } else {
+  if (authMode === 'host') fail('Host oturumu ayrı sunucuda kullanılamaz; Express init --auth host ile bağlayın.');
   if (!process.env.LLM_ADMIN_PASSWORD) {
     fail('Parola gerekli: --password <parola> verin veya LLM_ADMIN_PASSWORD ortam değişkenini ayarlayın.');
   }
@@ -213,6 +246,8 @@ if (isInit) {
     allowedOrigins: process.env.LLM_ALLOWED_ORIGINS || '',
     dataDir,
     chatTokens,
+    ...(pagePath ? { pagePath } : {}),
+    ...(apiPath ? { apiPath } : {}),
     ...(projectRoot ? { project: { ...projectOptionsFromEnv(), root: path.resolve(projectRoot) } } : {}),
     handleSignals: true
   });
