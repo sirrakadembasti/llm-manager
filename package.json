@@ -1,7 +1,7 @@
 {
   "name": "@sirrakadembasti/llm-manager",
   "version": "2.0.0",
-  "description": "Reusable authenticated LLM profile management and diagnostics",
+  "description": "Authenticated LLM profiles, persistent chats and reviewed project development",
   "type": "module",
   "main": "src/index.js",
   "types": "./types/index.d.ts",
@@ -51,7 +51,6 @@
     "docs",
     "README.md",
     "LICENSE",
-    "docs/DEGISIKLIKLER.md",
     ".env.example"
   ],
   "scripts": {

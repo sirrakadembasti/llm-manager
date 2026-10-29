@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const guide = fs.readFileSync(new URL('../docs/TEKNIK_KILAVUZ.md', import.meta.url), 'utf8');
+const guide = fs.readFileSync(new URL('../docs/KULLANICI_KILAVUZU.md', import.meta.url), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 test('Turkish technical guide matrix covers the ten supported scenarios and manual/serverless boundaries', () => {
-  const matrix = guide.split('## Desteklenen ortamlar')[1]?.split('\n## ')[0] ?? '';
+  const matrix = guide.split('### Desteklenen ortamlar')[1]?.split('\n### ')[0] ?? '';
   const rows = matrix
     .split('\n')
     .filter(line => /^\|/.test(line))

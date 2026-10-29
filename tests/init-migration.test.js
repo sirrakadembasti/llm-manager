@@ -9,16 +9,9 @@ const helpers = ['detectProjectType', 'detectEntryFile', 'formatVerificationRepo
 
 test('2.0 migration names removed root helpers and supplies an executable scoped replacement', async t => {
   const readme = fs.readFileSync(new URL('../docs/KULLANICI_KILAVUZU.md', import.meta.url), 'utf8');
-  const changelog = fs.readFileSync(new URL('../docs/DEGISIKLIKLER.md', import.meta.url), 'utf8');
-  const deprecated = changelog
-    .match(/## \[Yayımlanmamış\]([\s\S]*?)(?=\n## \[|$)/)?.[1]
-    .match(/### Kullanımdan kaldırılanlar\r?\n([\s\S]*?)(?=\n### |$)/)?.[1];
-  assert.ok(deprecated, 'Unreleased must explain the deprecated root API migration');
-  for (const doc of [deprecated, readme]) {
-    assert.match(doc, /2\.0[^\n]*kaldır/);
-    for (const name of helpers) assert.ok(doc.includes(`\`${name}\``), `${name} migration is documented`);
-    assert.ok(doc.includes('@sirrakadembasti/llm-manager/init'));
-  }
+  assert.match(readme, /2\.0[^\n]*kaldır/);
+  for (const name of helpers) assert.ok(readme.includes(`\`${name}\``), `${name} migration is documented`);
+  assert.ok(readme.includes('@sirrakadembasti/llm-manager/init'));
   const example = [...readme.matchAll(/```js\r?\n([\s\S]*?)```/g)]
     .map(match => match[1])
     .find(code => helpers.every(name => code.includes(name)));

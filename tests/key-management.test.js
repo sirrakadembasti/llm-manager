@@ -10,6 +10,79 @@ import { createLLMProfileStore, parseEncryptionKey, encrypt, decrypt } from '../
 
 const cliPath = fileURLToPath(new URL('../bin/llm-manager.js', import.meta.url));
 
+for (const scenario of ['profiles-and-history', 'custom-path', 'history-only']) {
+  test(`rotation preserves readable assistant history after restart: ${scenario}`, async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-rotate-history-'));
+    const previous = process.env.LLM_CONFIG_ENCRYPTION_KEY;
+    t.after(() => {
+      if (previous === undefined) delete process.env.LLM_CONFIG_ENCRYPTION_KEY;
+      else process.env.LLM_CONFIG_ENCRYPTION_KEY = previous;
+      fs.rmSync(root, { recursive: true, force: true });
+    });
+    const filePath = path.join(root, scenario === 'custom-path' ? 'custom.json' : 'llm-profiles.json');
+    const oldKey = 'a'.repeat(64);
+    const newKey = 'b'.repeat(64);
+    const store = createLLMProfileStore({ filePath, encryptionKey: oldKey });
+    let profile;
+    if (scenario !== 'history-only')
+      profile = await store.save({
+        name: 'Rotation',
+        provider: 'openai',
+        model: 'test',
+        baseURL: 'https://api.openai.com/v1',
+        apiKey: 'synthetic-key'
+      });
+    await store.assistantHistory.update('scope', sessions => sessions.push({ id: 'one', title: 'Sohbet içeriği' }));
+    const historyPath = `${filePath}.assistant.enc`;
+    const original = fs.readFileSync(historyPath);
+    rotateEncryptionKey({ filePath, keyPath: path.join(root, 'llm-encryption.key'), oldKey, newKey });
+    const restarted = createLLMProfileStore({ filePath, encryptionKey: newKey });
+    assert.deepEqual(await restarted.assistantHistory.read('scope'), [{ id: 'one', title: 'Sohbet içeriği' }]);
+    if (profile) assert.equal((await restarted.get(profile.id)).apiKey, 'synthetic-key');
+    assert.deepEqual(fs.readFileSync(`${historyPath}.bak`), original);
+    assert.ok(!fs.readFileSync(historyPath, 'utf8').includes('Sohbet içeriği'));
+    assert.throws(() => decrypt(fs.readFileSync(historyPath, 'utf8'), parseEncryptionKey(oldKey)));
+  });
+}
+
+for (const failure of ['corrupt-history', 'key-write']) {
+  test(`rotation leaves profiles, history and key unchanged on ${failure}`, async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-rotate-failure-'));
+    const previous = process.env.LLM_CONFIG_ENCRYPTION_KEY;
+    t.after(() => {
+      if (previous === undefined) delete process.env.LLM_CONFIG_ENCRYPTION_KEY;
+      else process.env.LLM_CONFIG_ENCRYPTION_KEY = previous;
+      fs.rmSync(root, { recursive: true, force: true });
+    });
+    const filePath = path.join(root, 'llm-profiles.json');
+    const keyPath = path.join(root, 'llm-encryption.key');
+    const historyPath = `${filePath}.assistant.enc`;
+    const oldKey = 'a'.repeat(64);
+    fs.writeFileSync(keyPath, oldKey);
+    const store = createLLMProfileStore({ filePath, encryptionKey: oldKey });
+    await store.save({
+      name: 'Rotation',
+      provider: 'openai',
+      model: 'test',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'synthetic-key'
+    });
+    await store.assistantHistory.update('scope', sessions => sessions.push({ id: 'one' }));
+    if (failure === 'corrupt-history') fs.writeFileSync(historyPath, 'corrupt encrypted history');
+    const originals = [filePath, historyPath, keyPath].map(p => fs.readFileSync(p));
+    if (failure === 'key-write') {
+      const rename = fs.renameSync;
+      t.mock.method(fs, 'renameSync', (from, to) => {
+        if (to === keyPath) throw Object.assign(new Error('Synthetic key write failure'), { code: 'EIO' });
+        return rename(from, to);
+      });
+    }
+    assert.throws(() => rotateEncryptionKey({ filePath, keyPath, oldKey, newKey: 'b'.repeat(64) }));
+    [filePath, historyPath, keyPath].forEach((p, i) => assert.deepEqual(fs.readFileSync(p), originals[i]));
+    assert.ok(!fs.readdirSync(root).some(p => p.endsWith('.tmp') || p.endsWith('.lock')));
+  });
+}
+
 test('rotateEncryptionKey re-encrypts all profile secrets and backs up old key', async () => {
   const origKey = process.env.LLM_CONFIG_ENCRYPTION_KEY;
   delete process.env.LLM_CONFIG_ENCRYPTION_KEY;

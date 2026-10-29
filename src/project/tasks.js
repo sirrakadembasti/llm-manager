@@ -54,7 +54,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     });
   }
 
-  async function prepare(body, signal, context = {}) {
+  async function prepare(body, signal) {
     if (tasks.size >= 10)
       throw projectError('PROJECT_TASK_LIMIT', 'Yeni görevden önce eski görev kayıtlarından birini kapatın.', 409);
     if (body?.shareSources !== true)
@@ -97,12 +97,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       relay = await createProjectRelay({ profile, networkOptions, signal });
       const currentAnalysis = analyzeProject(before.files);
       const structuralContext = JSON.stringify({
-        sources: selectProjectContext(
-          before.files,
-          body.prompt,
-          12000,
-          context.graph?.revision === before.revision ? context.graph : null
-        ).text,
+        sources: selectProjectContext(before.files, body.prompt, 12000).text,
         api: currentAnalysis.api.slice(0, 30),
         database: currentAnalysis.database.slice(0, 20)
       }).slice(0, 20000);

@@ -316,17 +316,6 @@ function createLLMProjectUI({
       : inventory
         ? `${inventory.fileCount} kaynak dosyası · ${inventory.documentCount || 0} belge · ${inventory.excluded || 0} dosya dışlandı · ${inventory.partial ? 'Tarama sınırlı' : 'İzin verilen kaynaklar tarandı'} · ${new Date(inventory.scannedAt).toLocaleString('tr-TR')}`
         : tr('scan_first', 'Mimari özeti oluşturmak için projeyi tarayın.');
-    el('project-graph-status').textContent =
-      {
-        ready: `Graphify algılandı · ${next.graph?.nodes?.length || 0} öğe, ${next.graph?.links?.length || 0} ilişki. Güncel harita kaynaklı sohbette ve geliştirme görevlerinde kullanılır.`,
-        stale:
-          'Kaynaklar değişti; Graphify haritasını yenilemek için projeyi tekrar tarayın. Sohbet güncel kaynaklarla devam eder.',
-        unavailable:
-          'Graphify bulunamadı. Kurulum rehberini açın; kurduktan sonra projeyi tekrar tarayın. Temel kaynak ve belge analizi kullanılabilir.',
-        error:
-          'Graphify çalıştırılamadı veya uyumsuz çıktı üretti. Kurulumu kontrol edip tekrar tarayın; temel analiz kullanılabilir.',
-        'not-scanned': 'Graphify kurulumu tarama sırasında denetlenecek. Başlamak için Projeyi tara düğmesine basın.'
-      }[next.graph?.status] || 'Graphify kurulumu ve kullanım bilgisi için projeyi bağlayıp tarayın.';
     const analysis = next.analysis;
     el('project-stack').replaceChildren(
       ...(analysis?.stack || []).slice(0, 30).map(s => textNode('li', `${s.name} ${s.version} · ${s.path}`))

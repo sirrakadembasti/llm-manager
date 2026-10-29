@@ -1,6 +1,6 @@
 import { analyzeProject } from './analyze.js';
 
-export function selectProjectContext(files, question, budget = 40000, graph = null) {
+export function selectProjectContext(files, question, budget = 40000) {
   const terms = [
     ...new Set(
       String(question)
@@ -19,22 +19,6 @@ export function selectProjectContext(files, question, budget = 40000, graph = nu
     ])
   );
   const report = analyzeProject(files);
-  const graphPaths = new Set();
-  const graphUsed = graph?.status === 'ready';
-  if (graphUsed) {
-    const nodes = new Map(graph.nodes.map(n => [n.id, n]));
-    const seeds = new Set(
-      graph.nodes.filter(n => terms.some(term => `${n.path} ${n.label}`.toLowerCase().includes(term))).map(n => n.id)
-    );
-    for (const link of graph.links) {
-      if (!seeds.has(link.from) && !seeds.has(link.to)) continue;
-      for (const id of [link.from, link.to]) {
-        const node = nodes.get(id);
-        if (node && scores.has(node.path)) graphPaths.add(node.path);
-      }
-    }
-    for (const name of graphPaths) scores.set(name, (scores.get(name) || 0) + 12);
-  }
   for (const r of report.relationships) {
     if ((scores.get(r.from) || 0) > 2) scores.set(r.to, (scores.get(r.to) || 0) + 3);
     if ((scores.get(r.to) || 0) > 2) scores.set(r.from, (scores.get(r.from) || 0) + 3);
@@ -74,5 +58,5 @@ export function selectProjectContext(files, question, budget = 40000, graph = nu
     sources.push({ path: file.path, startLine: start + 1, endLine: end });
     if (start > 0 || end < lines.length) partial = true;
   }
-  return { text, sources, partial: partial || sources.length < files.length, graphUsed };
+  return { text, sources, partial: partial || sources.length < files.length };
 }

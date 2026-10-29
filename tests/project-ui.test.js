@@ -57,7 +57,8 @@ function fixture(request, chatClient) {
         'project-meta',
         'project-context-status',
         'project-source-details',
-        'project-clear'
+        'project-clear',
+        'project-graph-status'
       ].includes(id)
     )
       throw new Error(`Removed chat control accessed: ${id}`);
@@ -90,26 +91,15 @@ const ready = {
   activeProfile: { name: 'Etkin', model: 'fixture' },
   inventory: { revision: 'one', fileCount: 2, partial: false, scannedAt: '2026-10-28T10:00:00Z' },
   analysis: { stack: [], api: [], database: [], files: [] },
-  graph: { status: 'unavailable', nodes: [], links: [] },
   capabilities: {}
 };
 
-test('scan information explains Graphify installation, readiness and stale results', async () => {
-  let report = ready;
+test('scan information shows source coverage without external analysis setup', async () => {
+  const report = { ...ready, inventory: { ...ready.inventory, documentCount: 1 } };
   const { ui, element } = fixture(async () => report);
   await ui.init();
-  assert.match(element('project-graph-status').textContent, /kurduktan sonra/);
-  report = {
-    ...ready,
-    graph: { status: 'ready', nodes: [{}], links: [] },
-    inventory: { ...ready.inventory, documentCount: 1 }
-  };
-  await ui.refresh();
-  assert.match(element('project-graph-status').textContent, /Graphify algılandı/);
   assert.match(element('project-status').textContent, /1 belge/);
-  report = { ...report, graph: { status: 'stale' } };
-  await ui.refresh();
-  assert.match(element('project-graph-status').textContent, /tekrar tarayın/);
+  assert.doesNotMatch(fs.readFileSync('public/llm.html', 'utf8'), /graphify|project-graph-status/i);
 });
 
 test('project tabs preserve management as default and support keyboard navigation', async () => {

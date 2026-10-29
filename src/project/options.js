@@ -5,7 +5,6 @@ export function projectOptionsFromEnv(env = process.env) {
   if (!root) return false;
   return {
     root: path.resolve(root),
-    ...(env.LLM_OPENCODE_PATH ? { opencodePath: env.LLM_OPENCODE_PATH } : {}),
-    ...(env.LLM_GRAPHIFY_PYTHON ? { graphifyPython: env.LLM_GRAPHIFY_PYTHON } : {})
+    ...(env.LLM_OPENCODE_PATH ? { opencodePath: env.LLM_OPENCODE_PATH } : {})
   };
 }

@@ -34,18 +34,17 @@ Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başk
 
 Sohbet çalışma alanı model denemesini de içerir: proje bağlamadan kayıtlı profil seçebilir, sistem talimatı verebilir ve akışlı yanıtı süre/token bilgisiyle sınayabilirsiniz. Kaynaklı sohbet ve geliştirme türleri etkin profili kullanır. Soldaki listeden sohbet açılır/silinir; **Seçili sohbet** alanından başlık, dışa aktarma ve kayıt işlemleri yapılır. Mesajlar geniş dikey merkez alanda, proje bilgileri açılabilen sağ paneldedir. Mobilde **Sohbetler** düğmesi listeyi açar.
 
-Sunucuya `LLM_PROJECT_ROOT` verin veya CLI'da `llm-manager --project-root F:\uygulamalar\hedef` kullanın. Paket entegrasyonunda `project: { root: '/absolute/target' }` seçeneği vardır. OpenCode ayrıca kurulmalıdır; `LLM_OPENCODE_PATH` ile yolu seçebilirsiniz. Graphify kuruluysa taramada host PATH üzerinden bulunur; açık Python yolu için `LLM_GRAPHIFY_PYTHON` kullanılır. Tarama alanında kurulum rehberi vardır; sohbette `/graphify` komutu gerekmez. [Entegrasyon](docs/ENTEGRASYON.md#proje-asistanını-bağlama) ve [kullanım ayrıntıları](docs/KULLANICI_KILAVUZU.md#proje-asistanı-ikinci-sekme).
+Sunucuya `LLM_PROJECT_ROOT` verin veya CLI'da `llm-manager --project-root F:\uygulamalar\hedef` kullanın. Paket entegrasyonunda `project: { root: '/absolute/target' }` seçeneği vardır. Kaynak taraması yerleşiktir; ek analiz aracı kurulmaz. Plan ve değişiklik görevleri için OpenCode ayrıca kurulmalıdır; `LLM_OPENCODE_PATH` ile yolu seçebilirsiniz. [Bağlama ve kullanım](docs/KULLANICI_KILAVUZU.md#proje-asistanı).
 
 Görevler geçici kaynak kopyasında hazırlanır; hedef dosyalar ayrı onayla değişir. Sohbetler ve iş çıktısı özetleri mevcut anahtarla şifreli kalıcı kaydedilir; kayıtlı sohbet açılıp sürdürülebilir. Canlı diff/geri alma kayıtları sunucu belleğindedir; kapanışta silinir. Geçmiş kaydı dosyaları otomatik uygulamaz. Kaynak taraması gerçek veritabanına bağlanmaz.
 
 ## Belgeler
 
-- [Kullanıcı kılavuzu](docs/KULLANICI_KILAVUZU.md): arayüz, API, ayarlar, güvenlik ve yedekleme.
-- [Entegrasyon](docs/ENTEGRASYON.md) · [Dağıtım](docs/DAGITIM.md) · [Teknik kılavuz](docs/TEKNIK_KILAVUZ.md)
-- [Yol haritası](docs/roadmap/YOL_HARITASI.md) · [Klasörlerin amacı ve temizlik listesi](docs/KLASORLER.md)
-- [Graphify kod haritası](docs/graphify-out/README.md): kaynak ilişkileri ve tarama kapsamı.
-- [Değişiklikler](docs/DEGISIKLIKLER.md) · [Katkı](docs/KATKI_REHBERI.md) · [Güvenlik](docs/GUVENLIK.md)
+- [Tek kullanıcı kılavuzu](docs/KULLANICI_KILAVUZU.md): başlangıç, arayüz, entegrasyon, API, güvenlik, yedekleme, dağıtım ve geliştirme.
+- [Değişiklikler, doğrulanmış durum ve belge özetleri](docs/KULLANICI_KILAVUZU.md#geçmiş-ve-belge-özetleri).
 
 **Yedekleme:** `data/llm-profiles.json`, varsa `data/llm-profiles.json.assistant.enc` ve `data/llm-encryption.key` dosyalarını birlikte saklayın. Anahtar kaybolursa profiller ve sohbet geçmişi çözülemez. Özel profil yolu kullanılıyorsa geçmiş dosyası `<profil-dosyası>.assistant.enc` konumundadır.
+
+Anahtar döndürme profil ve sohbet geçmişini birlikte yeniden şifreler. Önce sunucuyu durdurun; açık/env anahtarını güncelleyip yeniden başlatın. [Yedekleme ve kurtarma](docs/KULLANICI_KILAVUZU.md#yedekleme-ve-sorun-giderme).
 
 [MIT Lisansı](LICENSE)

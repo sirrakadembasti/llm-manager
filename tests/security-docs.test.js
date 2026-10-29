@@ -2,26 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-test('GUVENLIK.md exists and documents reporting procedures', () => {
-  assert.ok(fs.existsSync('docs/GUVENLIK.md'));
-  const content = fs.readFileSync('docs/GUVENLIK.md', 'utf8');
+test('Unified guide exists and documents reporting procedures', () => {
+  assert.ok(fs.existsSync('docs/KULLANICI_KILAVUZU.md'));
+  const content = fs.readFileSync('docs/KULLANICI_KILAVUZU.md', 'utf8');
   assert.match(content, /Güvenlik açığı bildirme/);
   assert.match(content, /Güvenlik mimarisi ilkeleri/);
   assert.match(content, /Sır sızıntısını önleme/);
 });
 
-test('KATKI_REHBERI.md exists and documents quality and commit guidelines', () => {
-  assert.ok(fs.existsSync('docs/KATKI_REHBERI.md'));
-  const content = fs.readFileSync('docs/KATKI_REHBERI.md', 'utf8');
+test('Unified guide exists and documents quality and commit guidelines', () => {
+  assert.ok(fs.existsSync('docs/KULLANICI_KILAVUZU.md'));
+  const content = fs.readFileSync('docs/KULLANICI_KILAVUZU.md', 'utf8');
   assert.match(content, /Standart commit biçimi/);
   assert.match(content, /Kalite doğrulama komutları/);
   assert.match(content, /npm test/);
   assert.match(content, /Sır sızıntısını önleme/);
 });
 
-test('docs/TEHDIT_MODELI.md exists and covers primary threat vectors', () => {
-  assert.ok(fs.existsSync('docs/TEHDIT_MODELI.md'));
-  const content = fs.readFileSync('docs/TEHDIT_MODELI.md', 'utf8');
+test('docs/KULLANICI_KILAVUZU.md exists and covers primary threat vectors', () => {
+  assert.ok(fs.existsSync('docs/KULLANICI_KILAVUZU.md'));
+  const content = fs.readFileSync('docs/KULLANICI_KILAVUZU.md', 'utf8');
   assert.match(content, /Korunan varlıklar/);
   assert.match(content, /Sunucu tarafı istek sahteciliği \(SSRF\)/);
   assert.match(content, /Siteler arası istek sahteciliği \(CSRF\)/);
@@ -36,8 +36,8 @@ test('.github/workflows/ci.yml runs production dependency audit', () => {
 });
 
 test('security policy distinguishes unreleased development from existing release support', () => {
-  const content = fs.readFileSync('docs/GUVENLIK.md', 'utf8');
-  assert.match(content, /\| 1\.x\.x\s*\| Evet \|/);
+  const content = fs.readFileSync('docs/KULLANICI_KILAVUZU.md', 'utf8');
+  assert.match(content, /1\.x\.x desteklenir/);
   assert.match(content, /2\.0\.0[^\n]*yayımlanmamış/);
   assert.match(content, /yayımlanmış 2\.x sürümünün kanıtı değildir/);
   assert.match(content, /Geliştirme sürümündeki açıkları[^\n]*özel kanallardan/i);
@@ -45,8 +45,8 @@ test('security policy distinguishes unreleased development from existing release
 });
 
 test('supply-chain threat separates current repository controls from planned protections', () => {
-  const content = fs.readFileSync('docs/TEHDIT_MODELI.md', 'utf8');
-  const supplyChain = content.split('### 2.7 Tedarik zinciri')[1]?.split('\n---')[0];
+  const content = fs.readFileSync('docs/KULLANICI_KILAVUZU.md', 'utf8');
+  const supplyChain = content.split('### Tedarik zinciri')[1]?.split('\n### ')[0];
   assert.ok(supplyChain, 'supply-chain threat section is required');
   const [current, planned] = supplyChain.split('**Planlanan kontroller (uygulanmadı):**');
   assert.match(current, /bağımlılık[^\n]*kilit dosyası[^\n]*CI[^\n]*yayıncı/i);

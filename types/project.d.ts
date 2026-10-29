@@ -1,13 +1,9 @@
-/** Proje erişimi yalnız sunucu tarafından yapılandırılır; tarayıcı kaynak kökünü değiştiremez. */
+/** Yerleşik kaynak analizi; proje kökü ve OpenCode yalnız sunucuda yapılandırılır. */
 export interface ProjectOptions {
   root: string;
   maxFiles?: number;
   maxFileBytes?: number;
   maxTotalBytes?: number;
-  graphifyPython?: string;
-  /** Host PATH üzerindeki Graphify CLI otomatik keşfi; varsayılan true. */
-  graphifyAutoDetect?: boolean;
-  graphify?: { command: string; args?: string[] };
   opencodePath?: string;
   opencode?: { command: string; args?: string[] };
   commands?: Record<string, { command: string; args?: string[]; timeoutMs?: number }>;

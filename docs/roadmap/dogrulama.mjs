@@ -1,4 +1,5 @@
-// Yol Haritası 2 bulgularının doğrulama betiği.
+// Tarihsel YH2 HTTP sözleşmeleri için küçük kabul betiği; tam testlerin yerine geçmez.
+// Güncel kullanım ve sınırlar: docs/KULLANICI_KILAVUZU.md
 // Çalıştırma (depo kökünden): node docs/roadmap/dogrulama.mjs
 // YH2 Faz 0 + G08 + G11 tamamlandığında beklenen çıktı:
 //   1) 404 CHAT_DISABLED  2a) profil listesi  2b) 409  3) 201  4) 401 veya 500 AUTH_NOT_CONFIGURED

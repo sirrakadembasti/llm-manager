@@ -2,61 +2,50 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const readme = fs
+const guide = fs
   .readFileSync(new URL('../docs/KULLANICI_KILAVUZU.md', import.meta.url), 'utf8')
   .replaceAll('\r\n', '\n');
-const guide = fs.readFileSync(new URL('../docs/ENTEGRASYON.md', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const scenarios = [
-  ['Express', 'express'],
-  ['SPA', 'spa'],
-  ['Next.js', 'nextjs'],
-  ['Nuxt', 'nuxt'],
-  ['SvelteKit', 'sveltekit'],
-  ['Electron', 'electron'],
-  ['Tauri', 'tauri'],
-  ['Fastify, Koa, Hono ve NestJS', 'fastify/koa/hono/nestjs'],
-  ['Python', 'python'],
-  ['.NET ve .NET Framework', 'dotnet']
+  ['Express', 'express', 'Hayır'],
+  ['SPA', 'spa', 'Evet'],
+  ['Next.js', 'nextjs', 'Hayır'],
+  ['Nuxt', 'nuxt', 'Hayır'],
+  ['SvelteKit', 'sveltekit', 'Hayır'],
+  ['Electron', 'electron', 'Hayır'],
+  ['Tauri', 'tauri', 'Evet'],
+  ['Fastify, Koa, Hono ve NestJS', 'fastify/koa/hono/nestjs', 'Hayır'],
+  ['Python', 'python', 'Evet'],
+  ['.NET ve .NET Framework', 'dotnet', 'Evet']
 ];
-const rows = text =>
-  text
-    .split('\n')
-    .filter(line => /^\| /.test(line))
-    .map(line =>
-      line
-        .split('|')
-        .slice(1, -1)
-        .map(cell => cell.trim())
-    );
+const matrix = guide.split('### Desteklenen ortamlar')[1]?.split('\n### ')[0] ?? '';
+const rows = matrix
+  .split('\n')
+  .filter(line => /^\| /.test(line))
+  .slice(2)
+  .map(line =>
+    line
+      .split('|')
+      .slice(1, -1)
+      .map(cell => cell.trim())
+  );
 
-test('YH2-G25: scenario names, order and types agree across both environment tables', () => {
-  const matrix = readme.split('## Desteklenen ortamlar matrisi')[1]?.split('\n## ')[0] ?? '';
-  const environments = guide.split('## Desteklenen ortamlar')[1].split('\n## ')[0];
+test('YH2-G25: unified guide provides one supported environment matrix', () => {
   assert.deepEqual(
-    rows(matrix)
-      .slice(2)
-      .map(row => row.slice(0, 2)),
-    scenarios
+    rows.map(row => row.slice(0, 2)),
+    scenarios.map(row => row.slice(0, 2))
   );
-  assert.deepEqual(
-    rows(environments)
-      .slice(2)
-      .map(row => row.slice(0, 2)),
-    scenarios
-  );
-  assert.deepEqual(rows(matrix), rows(environments), 'deployment and injection boundaries must agree');
+  assert.equal((guide.match(/### Desteklenen ortamlar/g) || []).length, 1);
 });
 
-test('YH2-G25: each scenario states identity, deployment, serverless and process boundaries', () => {
-  for (const [name] of scenarios) {
-    const section = guide.split(`## ${name}\n`)[1]?.split('\n## ')[0] ?? '';
-    const warning = section.match(/> \[!WARNING\]\n((?:>[^\n]*\n?)+)/)?.[1] ?? '';
-    for (const field of ['Güvenlik ve sınırlar', 'Kimlik:', 'Çalışma:', 'Sunucusuz:', 'Ayrı süreç:']) {
-      assert.ok(warning.includes(field), `${name}: missing ${field}`);
-    }
-  }
-  const windows =
-    "Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun.";
-  assert.ok(readme.includes(windows));
-  assert.ok(guide.includes(windows));
+test('YH2-G25: unified integration matrix retains process and identity boundaries', () => {
+  assert.deepEqual(
+    rows.map(row => row[3]),
+    scenarios.map(row => row[2])
+  );
+  assert.match(matrix, /yalnız chat Bearer/);
+  assert.match(matrix, /renderer admin parolası almaz/);
+  assert.match(matrix, /doğrulanmış principal ile elle köprü/);
+  assert.match(matrix, /Edge desteklenmez/);
+  assert.match(matrix, /kalıcı ana uygulama deposu/);
+  assert.match(guide, /0600.*Windows.*NTFS ACL/);
 });

@@ -1,232 +1,242 @@
-# Kullanıcı kılavuzu
+# LLM Manager kullanıcı kılavuzu
 
-## Proje Asistanı: ikinci sekme
+Sağlayıcı, model ve API anahtarlarını yönetin; modelleri deneyin, bağlı projenizi inceleyin ve onayladığınız değişiklikleri uygulayın. Bu belge kullanım, entegrasyon, işletim ve geliştirme bilgilerinin tek kaynağıdır. Son düzenleme: **2026-10-29**.
 
-`LLM Yönetimi` ilk ve varsayılan sekmedir; profil ekleme, düzenleme ve etkinleştirme burada yapılır. Üst başlık ve sekmeler tek ince satırdadır; ana sayfa bağlantısı ve büyük profil özetleri kaldırılmıştır. Etkin profil kendi kartındaki işaretle görülebilir.
+**Gereksinimler:** Node.js **22.12+**. Paket `@sirrakadembasti/llm-manager`, CLI `llm-manager`; npm'deki çıplak `llm-manager` başka projedir. Yerel **2.0.0 yayımlanmamış** geliştirme sürümüdür. Arayüz yalnız Türkçedir. Docker ve veritabanı zorunlu değildir. Express adaptörü/CLI için Express **4.19.2+ veya 5.x** gerekir; `/core` Express gerektirmez.
 
-`Proje Asistanı` içinde tek sohbet çalışma alanı vardır. Ayrı Playground bu alana taşınmıştır. Soldaki sohbet çerçevesinden yeni konuşma açılır, kayıtlı konuşmaya dönülür veya satırdaki × ile açık onayla silinir. Ortadaki mesaj alanı bağımsız kayar; yazma alanı altta kalır. **Çalışma türü** ve **Kullanılacak profil** sohbetin üst araç çubuğundadır. **Proje bilgileri** düğmesi bağlı proje/etkin model/mimari panelini açar. Mobilde sol liste **Sohbetler** düğmesiyle açılır.
+[Başlatma](#başlatma) · [Arayüz](#arayüz-ve-sohbet) · [Proje Asistanı](#proje-asistanı) · [Entegrasyon](#entegrasyon) · [API](#api-ve-sınırlar) · [Güvenlik](#güvenlik) · [Yedekleme](#yedekleme-ve-sorun-giderme) · [Dağıtım](#dağıtım-ve-ayarlar) · [Geliştirme](#geliştirme-ve-mimari) · [Geçmiş ve belge özetleri](#geçmiş-ve-belge-özetleri)
 
-| Çalışma türü | Davranış |
-| --- | --- |
-| Model denemesi | Proje bağlanmadan da çalışır. İstediğiniz kayıtlı profili seçin; **Yanıt ayarları** altında sistem talimatı ve akış seçeneğini düzenleyin. Proje kaynakları gönderilmez. |
-| Kaynaklı sohbet | Etkin profil ve seçilmiş proje kaynaklarıyla çalışır; kaynak paylaşım onayı gerekir. Profil seçimi kilitlenir; kaynak referansları gösterilir. |
-| Geliştirme planı | Etkin profille OpenCode kullanır; temiz kaynak kopyasında okuma yapar, hedef dosyalara yazmaz. |
-| Değişiklik hazırla | Etkin profille OpenCode kullanır; geçici kopyada hazırlanan farklar ayrı işlem onayıyla hedefe uygulanır. |
+## Başlatma
 
-Yanıt tarihi, tamamlanma durumu, süre ve sağlayıcı bildiriyorsa token sayısı mesajın **Yanıt ayrıntıları** altında gösterilir. **Enter** mesajı gönderir; **Shift+Enter** yeni satır ekler. Sohbet yanıtı sonrası başarı paneli gösterilmez; bekleme durumu sohbetin üstündeki küçük durum satırında, hatalar mevcut bildirimde görünür. Akış seçeneği model denemesine aittir; kaynaklı sohbetin yanıtı tamamlandığında gösterilir. **Durdur**, model denemesinin bağlantısını veya devam eden proje işlemini iptal eder; kısmi yanıt tamamlanmış sayılmaz. Mod veya profil değiştiğinde kayıtlı mesajlar ekranda kalır; model denemesi ve proje bağlamları birbirine taşınmaz. **+ Yeni sohbet** mevcut kaydı silmeden boş bir çalışma açar. Kaynak kökü sunucu tarafından `LLM_PROJECT_ROOT` veya `project.root` ile bağlanır; tarayıcıdan keyfi dizin açılamaz.
-
-1. İlk sekmede kullanacağınız profili etkinleştirin.
-2. İkinci sekmede **Projeyi tara** düğmesine basın. Bu işlem yereldir; manifestleri çalıştırmaz. Teknoloji, API, SQL kolonları ve kaynak ilişkileri dosya/satır kanıtlarıyla gösterilir. Statik analizin bulamadığı dinamik ilişkiler olabilir.
-3. Kaynak aktarımı kutusunu okuyup onaylayın. Sohbette seçilmiş parçalar; OpenCode görevlerinde temiz kaynak kopyasından okunan dosyalar etkin sağlayıcıya gönderilir. Sır taraması bir algılayıcıdır; paylaşmadan önce kaynaklarınızın uygunluğunu değerlendirin.
-4. **Kaynaklı sohbet** ile mimariyi sorun. **Geliştirme planı** kaynaklarda yazma izni vermez. **Değişiklik hazırla** ayrı geçici kopyada çalışır; hedefi doğrudan düzenlemez.
-5. Önce/sonra dosyalarını inceleyin, işlem onay kutusunu işaretleyin ve farkı uygulayın. Onay her işlemden sonra sıfırlanır. Dosya sürümü değişmişse uygulama/geri alma `PROJECT_CONFLICT` ile durur; yeniden görev hazırlayın.
-6. Hostun tanımladığı doğrulama komutunu ayrıca onaylayın. Gerçek çıkış kodu gösterilir; bağımlılık veya servis bulunamaması başarısız sonuçtur. Komut geçici kopyada çalışır; `node_modules`, veriler ve sırlar kopyalanmaz. Otomatik paket kurulumu yapılmaz.
-
-**Geri alma kaydı yalnız sunucu belleğindedir.** Sayfa yenilendiğinde sunucu açık kaldıysa görev seçicisinden yeniden açılabilir. Sunucu kapanırsa veya **Görev kaydını kapat** seçilirse uygulanmış dosyalar kalır, oturumun geri alma kaydı silinir. En fazla 10 görev saklanır. Sohbet geçmişi ve iş çıktısı özeti aşağıdaki kalıcı kayıt sisteminde saklanır; bu kayıt canlı geri alma yetkisi sağlamaz.
-
-`.env*`, anahtarlar, `data`, bağlantılı dizinler, ikili dosyalar ve üretilmiş içerikler dışlanır; Git ignore kuralları uygulanır. Varsayılan sınırlar: 2500 dosya, dosya başına 256 KiB, toplam 4 MiB. Sınırlı taramayla sohbet yapılabilir; dosya değiştirme görevi hazırlanamaz. Canlı veritabanı bağlantısı ve migration çalıştırma bu özelliğin parçası değildir; yeni migration dosyası hazırlanabilir.
-
-OpenCode eksikse model denemesi ve kaynak tarama/sohbet çalışır, plan ve değişiklik görevi hata verir. Graphify isteğe bağlıdır; eksik veya başarısızsa temel kaynak analizi kullanılabilir. **Durdur** devam eden tarama/sohbet/motor/komut işlemini durdurur.
-
-Node.js **22.12+** için sağlayıcı, profil ve API anahtarı yönetimi. Bağımsız sunucu veya uygulama eklentisi olarak çalışır; Docker ve veritabanı zorunlu değildir.
-
-Paket adı **`@sirrakadembasti/llm-manager`**, CLI adı `llm-manager`. npm'deki çıplak `llm-manager` başka bir projedir. Yerel sürüm **2.0.0 / yayımlanmamış**; bu, npm yayını veya yayımlanmış Git etiketi anlamına gelmez.
-
-[Teknik kılavuz](TEKNIK_KILAVUZ.md) · [Başlangıç](../README.md) · [Entegrasyon](ENTEGRASYON.md) · [Dağıtım](DAGITIM.md) · [Yol haritası](roadmap/YOL_HARITASI.md)
-
-İçindekiler: [Başlatma](#hızlı-başlangıç) · [Entegrasyon](#uygulamaya-ekleme) · [Arayüz](#arayüzü-kullanma) · [API](#api-kullanımı) · [Güvenlik](#kimlik-ve-güvenlik) · [Yedekleme](#veri-yedek-ve-işletim) · [2.0 geçişi](#20-geçişi-ve-alt-yollar)
-
-
-### Kayıtlı sohbetler ve iş çıktıları
-
-Soldaki **Sohbetler** listesinden eski konuşmayı açıp devam edebilirsiniz. **+ Yeni sohbet** eski kaydı silmeden boş konuşma açar. Her satırdaki × yalnız o kaydı onayla siler. Soldaki sohbet listesinin altındaki **Seçili sohbet** alanında başlık kaydetme, JSON dışa aktarma, etkin kaydı silme ve kaydı yeniden deneme vardır. Gönderilen soru önce kaydedilir; yanıt tamamlandıktan veya durdurulduktan sonra durumuyla birlikte tekrar kaydedilir. **Kaydedildi** yazısını kontrol edin. Sayfa/bağlantı yanıt sürerken kapanırsa kayıt tamamlanmamış görünür; otomatik yeniden istek gönderilmez. Akışın son kayıttan sonra gelen parçaları tarayıcı kapanınca kaybolabilir. Durdurulmuş veya başarısız yanıtlar sonraki model bağlamına alınmaz.
-
-Varsayılan dosya deposu mesajları ve sistem talimatını mevcut profil anahtarıyla şifreler. Anahtar, profil ve `.assistant.enc` dosyasını birlikte yedekleyin. Anahtar eksik veya dosya bozuksa geçmiş sıfırlanmaz; erişim durur. JSON dışa aktarımı **şifresizdir**, güvenli saklayın. Ortak yönetici hesabını kullananlar aynı proje sohbetlerini görür. Özel profil deposu kayıt desteği sağlamıyorsa ekranda yalnız sayfa belleğinde çalışıldığı belirtilir.
-
-Kayıtta en fazla 100 mesaj/20 iş çıktısı, yaklaşık 220 KB ve yönetici/proje başına 50 sohbet tutulur. Eski kayıtlar otomatik silinmez. Yanıtın kayıt metni en fazla 32000 karakterdir; çok uzun çıktıları sağlayıcıdan daha küçük parçalar halinde isteyin. Modelin sonraki isteğine yalnız aynı çalışma bağlamının son 10 tamamlanmış mesajı (mesaj başına en fazla 10000 karakter) gönderilir; tüm arşiv model belleği değildir. Profil/model/sistem talimatı değişince model bağlamı yenilenir. Kaynak sohbetinden plan/değişiklik moduna geçerken tamamlanmış proje bağlamı kullanılabilir.
-
-Disk, boyut, bağlantı veya başka sekmeyle revizyon çakışmasında mevcut ekrandaki metin korunur; **Kaydı tekrar dene** yalnız kaydı dener, modeli tekrar çağırmaz. Gerekirse dışa aktarın. Kayıt yapılamıyorsa yeni/eski sohbet açarken kaydedilmeyen kısmı bırakmak için ayrıca onay istenir. Başka sekmenin daha yeni kaydı sessizce ezilmez.
-
-**İş çıktıları ve uygulama etkisi** her görevin önerisini, dosya listesini, son bilinen durumunu, doğrulama çıktısını ve işlem izini gösterir. **Canlı görevi aç** gerçek sunucu kaydını denetler; ayrı inceleme/onay ekranını kullanır. Eski bir sohbeti açmak dosya yazmaz veya komut çalıştırmaz.
-
-| Durum / senaryo | Hedef uygulamadaki etkisi |
-| --- | --- |
-| Model denemesi, kaynaklı sohbet veya plan | Dosya yazmaz; yanıt bir öneri/bilgidir. |
-| Değişiklik önerisi hazır | Fark geçici kopyadadır; hedefe uygulanmamıştır. |
-| Fark açık onayla uygulandı | Kaynak dosyaları değişir. Çalışan servis, paket kurulumu ve gerçek veritabanı kendiliğinden güncellenmez. Migration/deploy ayrı süreçtir. |
-| Doğrulama başarısız | Başarı olarak gösterilmez; uygulanmış dosyaları otomatik geri almaz. Komut geçici kaynak kopyasında çalışır. |
-| Dosya sonradan değişti | Mevcut sürüm kontrolü uygulama/geri almayı durdurur; güncel kaynaklardan yeniden hazırlayın. |
-| İşlem sonucu alınamadı | Etki doğrulanmamış görünür. Canlı görevi açıp dosyaları inceleyin; otomatik tekrar uygulanmaz. |
-| Sunucu yeniden başladı / görev kapatıldı | Sohbet ve iş özeti okunabilir; canlı diff/geri alma kaydı yoktur. Yeniden uygulama için güncel kaynaklardan yeni görev hazırlayın. |
-| Sohbet kaydı silindi | Yalnız sohbet arşivi silinir. Uygulanmış dosyalar ve ayrıca yönetilen canlı görevler değişmez. |
-
-## Hızlı başlangıç
-
-Depo klasöründe, PowerShell:
+Depo klasöründe PowerShell açın:
 
 ```powershell
 npm ci
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-`.env` dosyasını düzenleyin; mevcut diğer ayarları koruyun:
+Mevcut ayarları koruyarak `.env` içine yazın:
 
 ```dotenv
 LLM_ADMIN_USER=admin
 LLM_ADMIN_PASSWORD=kendi-guclu-parolaniz
 ```
 
-`npm start` çalıştırıp **http://127.0.0.1:8010/llm** adresini açın. Belirlediğiniz kullanıcı/parolayla giriş yapın. Sağlayıcı/model/API anahtarını kaydedin, test edin ve profili etkinleştirin. Durdurma: **Ctrl+C**. Linux/macOS'ta da aynı `.env` ayarlarından sonra `npm ci` ve `npm start` kullanın.
+`npm start` çalıştırın; [http://127.0.0.1:8010/llm](http://127.0.0.1:8010/llm) adresine bu bilgilerle girin. Durdurma: **Ctrl+C**. Linux/macOS'ta da mevcut `.env` üzerine yazmadan aynı ayarları ve npm komutlarını kullanın.
 
-`npm start` ve CLI çalışma dizininin `.env` dosyasını okur. Terminalde önceden verilmiş değerler önceliklidir; PowerShell'de dosyadaki değerlere dönmek için `Remove-Item Env:LLM_ADMIN_PASSWORD, Env:LLM_ADMIN_USER -ErrorAction SilentlyContinue` kullanın. `$env:...` ile verilen değerler dosyaya kaydedilmez. `npx llm-manager init`, parolayı kurulumun yapıldığı hedef projenin `.env` dosyasına yazar. Kütüphaneyi elle entegre ediyorsanız ortam dosyasını hostunuz yüklemelidir.
+CLI ve `npm start` çalışma dizininin `.env` dosyasını okur; mevcut süreç ortamı önceliklidir. PowerShell'de eski oturum ayarlarını kaldırmak için `Remove-Item Env:LLM_ADMIN_USER, Env:LLM_ADMIN_PASSWORD -ErrorAction SilentlyContinue` kullanılabilir. Kütüphaneyi elle bağlayan uygulama `.env` yüklemesini kendisi yapar. Dosya/ayar değişince sunucuyu yeniden başlatın; eski arayüz görünüyorsa **Ctrl+F5** kullanın.
 
-`.env` veya uygulama dosyaları değişince açık sunucuyu **Ctrl+C** ile durdurup `npm start` ile yeniden başlatın. Arayüz güncellemesi görünmüyorsa tarayıcıda **Ctrl+F5** kullanın.
+## Arayüz ve sohbet
 
-Express kurulu bir Node hostunda GitHub'dan CLI kullanımı:
+**LLM Yönetimi** ilk sekmedir. Profil adı, sağlayıcı, model, API anahtarı ve gerekiyorsa özel adresi girin; kaydedin, bağlantıyı test edin ve profili etkinleştirin. Aynı anda bir profil etkindir. **Modelleri getir** hesabınızın erişimini sorgular; profil klonlanabilir. Düzenlemede boş API anahtarı kayıtlı değeri korur; sağlayıcı/adres değişiminde yeni anahtar gerekir. Kimlik/adres/model/anahtar değişikliği eski test sonucunu sıfırlar.
 
-```sh
-npx github:sirrakadembasti/llm-manager --password guclu-parola --port 8010
-```
+Zaman sınırı, çıktı tokenı, düşünme ve gelişmiş üretim ayarları profil bazındadır; destek modele bağlıdır. Yedek profiller hata durumunda sırayla denenir. Test sonucu profil kartında, hata kodu ve destek kimliği bildirimde görünür. Açık/koyu tema sistem tercihini izler. `locale` eski JavaScript kodunda yok sayılır; `homeUrl` uyumluluk için kabul edilir ancak arayüzde dönüş bağlantısı oluşturmaz.
 
-Express adaptörü/CLI sunucusu için Express **4.19.2+ veya 5.x** gerekir; optional peer'dır. `npm ci` geliştirme kopyasına Express'i kurar. Core tek başına Express gerektirmez.
+Sağlayıcı kataloğu ve varsayılan model listeleri (katalog tarihi: 2026-10; güncel liste için **Modelleri getir** kullanın) [providers.json](../src/catalog/providers.json) içindedir; tam kaynak tarihi **2026-10-24**. Öneriler hesap/bölge/üretim erişim garantisi değildir. Boş öneri listesinde model kimliği elle girilebilir. `node scripts/check-catalog.js --provider openai` ilgili sağlayıcının anahtarıyla yalnız model listesi GET kontrolü yapar; üretim veya bütün parametreler doğrulanmış sayılmaz.
 
-Windows'ta Node kurulu olduğu halde bulunamıyorsa [cmd.exe PATH sınırını](https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation) kontrol edin: 8191 karakteri aşan PATH yok sayılabilir. Eski geçici girdileri temizleyip terminali yenileyin. .NET doğrulaması artık geçici araç yollarını kullanıcı PATH'ine eklemez.
+**Proje Asistanı** sekmesindeki **Çalışma türü**:
 
-## Uygulamaya ekleme
+| Tür | Kullanımı |
+| --- | --- |
+| Model denemesi | Proje gerektirmez. Kayıtlı profil seçilir; sistem talimatı ve SSE/JSON akışı **Yanıt ayarları** altındadır. Kaynak gönderilmez. |
+| Kaynaklı sohbet | Etkin profil ve seçilmiş proje parçaları kullanılır; kaynak paylaşım onayı gerekir. Yanıt tamamlanınca gösterilir. |
+| Geliştirme planı | OpenCode temiz kopyayı okur; hedef dosyalara yazmaz. |
+| Değişiklik hazırla | OpenCode geçici kopyada fark hazırlar; hedefe uygulama ayrıca onaylanır. |
 
-Host proje klasöründe:
+Solda **Sohbetler**, altında **Seçili sohbet** kayıt işlemleri; ortada mesajlar, altta yazma alanı vardır. **Proje bilgileri** sağ paneli açar. Mobilde sohbet listesi **Sohbetler** düğmesiyle açılır. **Enter** gönderir, **Shift+Enter** satır ekler; **Durdur** isteği iptal eder. Süre/token/kaynaklar **Yanıt ayrıntıları** içindedir. Kısa ekranlarda sayfa da kaydırılır; mesaj alanı bağımsız kayar.
+
+### Kayıtlı sohbetler
+
+**+ Yeni sohbet** eski kaydı silmez. Listeden konuşmayı açıp devam edin; × ile onaylayarak silin. **Seçili sohbet** alanından adlandırın, JSON dışa aktarın veya **Kaydı tekrar dene** kullanın. **Kaydedildi** durumunu kontrol edin. Yeniden kayıt modeli tekrar çağırmaz; silme uygulanmış proje dosyalarını geri almaz.
+
+Varsayılan geçmiş `<profil-dosyası>.assistant.enc` dosyasında aynı profil anahtarıyla şifrelidir. Aynı yönetici/proje kökü aynı arşivi paylaşır; kök değişirse kapsam değişir. Özel depo geçmiş desteği sağlamazsa sayfa belleği kullanıldığı açıkça bildirilir. JSON dışa aktarımı **şifresizdir**. Kayıt/bağlantı hatasında ekrandaki metin korunur; gerekirse dışa aktarın. Başka sekmenin güncel revizyonu sessizce ezilmez.
+
+| Kayıt sınırı | Değer |
+| --- | --- |
+| Yönetici/proje başına sohbet | 50; otomatik silinmez |
+| Sohbet başına | 100 mesaj, 20 iş çıktısı, 220000 UTF-8 bayt |
+| Arşivlenen yanıt | En fazla 32000 karakter |
+| Sonraki model bağlamı | Aynı bağlamın son 10 tamamlanmış mesajı; mesaj başına 10000 karakter |
+| Toplam geçmiş dosyası | Şifreleme öncesi 40 MiB; diskten okuma 64 MiB |
+
+Profil/model/sistem talimatı değişince model bağlamı yenilenir; kayıtlı mesajlar silinmez. Model ve proje bağlamları ayrıdır. Kaynaklı sohbetten plan/değişikliğe tamamlanmış proje bağlamı aktarılabilir. Başarısız, yarım veya durdurulmuş yanıtlar model bağlamına girmez. Sayfa kapanırken son akış parçaları kaybolabilir; pending kayıt otomatik yeniden gönderilmez.
+
+## Proje Asistanı
+
+Kaynak kökünü sunucuda `LLM_PROJECT_ROOT` veya `project.root` ile açıkça belirtin; CLI karşılığı `--project-root`. `project: false` ortamla etkinleştirmeyi de kapatır. Tarayıcı kök/motor/komut seçemez.
+
+1. İlk sekmede profili etkinleştirin; **Proje bilgileri → Projeyi tara** seçin.
+2. Teknoloji, API, SQL kolonları ve dosya ilişkilerini dosya/satır kanıtlarıyla inceleyin. Tarama manifest çalıştırmaz ve gerçek DB'ye bağlanmaz.
+3. Kaynak paylaşımını onaylayıp sohbet/plan/değişiklik isteyin. Sohbette seçili parçalar, motor görevinde kopyadan okunan dosyalar sağlayıcıya gönderilir.
+4. Değişiklikte önce/sonra içeriklerini inceleyin; işlem onayını verip uygulayın. Onay her işlemden sonra sıfırlanır. Kaynak değişmişse `PROJECT_CONFLICT` ile durur.
+5. Varsa hostun tanımladığı doğrulamayı ayrı onayla çalıştırın; gerçek çıkış kodunu kontrol edin. Başarısız doğrulama dosyaları otomatik geri almaz. Geri alma da dosya sürümü eşleşmesi ister.
+
+Dosya farkları ve geri alma kayıtları **sunucu belleğindedir**; en fazla 10 görev tutulur. Sunucu kapanınca veya **Görev kaydını kapat** seçilince uygulanmış dosyalar kalır, geri alma kaydı gider. Sohbetteki iş çıktısı öneri/dosya listesi/son bilinen etki/doğrulama/işlem izini korur. **Canlı görevi aç** mevcut sunucu kaydını yeniden denetler; geçmişi açmak dosya yazmaz veya komut çalıştırmaz. Yanıt alınamadığında işlem etkisi belirsizdir; otomatik yeniden uygulamayın.
+
+Uygulama yalnız kaynak dosyalarını değiştirir; paket kurulumu, migration, servis yeniden başlatma ve deployment ayrı süreçtir. Eski migration'ı değiştirmek yerine yeni dosya hazırlanabilir. Geçici kopyada `node_modules`, sırlar ve canlı veriler yoktur; çalışmayan kontrol başarı sayılmaz.
+
+### Araçlar ve tarama kapsamı
+
+Kaynak taraması ve bağlam seçimi yerleşiktir; Python veya harici analiz aracı gerektirmez. OpenCode yalnız plan/değişiklik görevleri için ayrı kurulmalıdır; `LLM_OPENCODE_PATH` / `project.opencodePath` ile yolu verilebilir. Eksikse model denemesi, tarama ve kaynaklı sohbet çalışır; motor görevleri hata verir.
+
+`.env*`, anahtarlar, `data`, bağlantılı/ikili/üretilmiş dosyalar ve Git ignore kapsamı dışlanır. Varsayılan tarama: **2500 dosya, dosya başına 256 KiB, toplam 4 MiB**. Kısmi taramayla sohbet yapılır, motor görevi hazırlanmaz. Sohbet kaynak bütçesi **40000 karakter**; ilk üç uygun README/kılavuz/metin için sınırlı pay ayrılır. Bütün proje her istekte gönderilmez; sır algılayıcı kusursuz değildir.
+
+Yerleşik analiz JS/TS importlarını, bazı JS/Python route işaretlerini, fetch çağrılarını ve SQL CREATE TABLE kolonlarını kaynak örüntülerinden çıkarır; dosya adı/içerik eşleşmeleri ve yerel ilişkiler bağlam sırasını belirler. Her sohbet/görev kaynakları yeniden okur; eski revizyonla istek 409 verir. Statik örüntüler tam LSP, çalışma zamanı veya DB introspection değildir. Belgeler/geçmiş mesajlar talimat ya da dosya/komut yetkisi sayılmaz. Repomix, Cline, Aider ve DBHub ürünün etkin bileşenleri değildir.
+
+## Entegrasyon
+
+Ana uygulama klasöründe:
 
 ```sh
 npm install github:sirrakadembasti/llm-manager express
 npx llm-manager init
 ```
 
-Sihirbaz proje türünü bulur; onayınızla yardımcıları ekler, doğrular ve `/llm` sayfasını açar. Yerel son kodu kullanmak için Windows'ta `npm install "F:\projeler\llm-manager" express` yapılabilir. Kurulumdan önce çıplak `npx llm-manager` kullanmayın.
-
-Express'e elle bağlantı:
+Sihirbaz türü bulur, değişiklikleri onayla uygular, doğrular ve sayfayı açar. `--type`, `--force`, `-y`, `--no-open` seçenekleri vardır. `-y` doğrulama hatasında scaffold'u geri alır; ayrı onaylanan paket kurulumunun node_modules/lockfile değişikliği geri alma kapsamında değildir. Mevcut yardımcılar `--force` olmadan ezilmez; belirsiz girişe/çıktı klasörüne kod eklenmez. Derleyici yoksa kontrol atlanmış gösterilir; yardımcı derlenmesi hostun tam build kanıtı değildir.
 
 ```js
 import express from 'express';
 import { mountLLMManagement } from '@sirrakadembasti/llm-manager';
-
 const app = express();
 const llm = mountLLMManagement(app, {
-  adminPassword: process.env.LLM_ADMIN_PASSWORD
+  adminPassword: process.env.LLM_ADMIN_PASSWORD,
+  adminUser: process.env.LLM_ADMIN_USER || 'admin',
+  // Proje özelliği gerekmiyorsa bu alanı kaldırın.
+  project: { root: '/absolute/target', commands: {
+    test: { command: process.execPath, args: ['--test'], timeoutMs: 60000 }
+  } }
 });
 app.listen(3000);
-// Sunucu kodunda: const cevap = await llm.ask('Merhaba');
+// Güvenilir sunucu kodunda: await llm.ask('Merhaba');
+// Host kapanışında: await llm.close();
 ```
 
-Framework bağımsız kullanım:
+Framework bağımsız kullanım: `import { createLLMManager } from '@sirrakadembasti/llm-manager/core'`; yönetici oluşturup `ask()`, `stream()`, `fetch(Request)` veya `handle()` kullanın. `ask()`/`handle()` güvenilir host API'leridir; HTTP kimlik/yetki denetimini adaptör sağlar. Express host session için `requireAuth`, Web için `authorize(request)` verilebilir; yönetim `isAdmin === true` ister.
+
+### Desteklenen ortamlar
+
+| Ortam | CLI türü | Bağlantı / kimlik sınırı | Ayrı Node süreci |
+| --- | --- | --- | --- |
+| Express | express | ESM/CJS/TypeScript; Basic/host session, chat Bearer; parser auth sonrası | Hayır |
+| SPA | spa | HTTP helper; yalnız chat Bearer, üretimde kendi backend'iniz | Evet |
+| Next.js | nextjs | App Router Node; yalnız sunucu importu; admin/host authorize | Hayır |
+| Nuxt | nuxt | `server/utils/llm.js`; istemcide HTTP, sunucuda host kimliği | Hayır |
+| SvelteKit | sveltekit | `src/lib/server/llm.js`, `+server.js`; ask rotası fetch politikasına delege | Hayır |
+| Electron | electron | `userData/llm`, main/preload IPC; renderer admin parolası almaz | Hayır |
+| Tauri | tauri | HTTP helper; Rust/Electron enjeksiyonu yok, chat Bearer | Evet |
+| Fastify, Koa, Hono ve NestJS | fastify/koa/hono/nestjs | Otomatik enjeksiyon yok; doğrulanmış principal ile elle köprü | Hayır |
+| Python | python | `llm_client.py`, `ask_llm()`; URL/token, 330 sn, tipli LLMError | Evet |
+| .NET ve .NET Framework | dotnet | `LlmClient.cs`; URL/token, iptal/330 sn; .NET 4.0 ve modern hedefler | Evet |
+
+Edge desteklenmez. Sunucusuz Node dağıtımında kalıcı ana uygulama deposu gerekir; Electron sürekli masaüstü ana süreci ister. SPA/Tauri/Python/.NET istemci olabilir, yönetim servisi sürekli Node ister. Gruplanmış framework'lerden tek CLI türü seçin. CJS helper senkron kurulur ve hostun 404 katmanından önce bağlanır.
+
+Next.js için `serverExternalPackages: ['@sirrakadembasti/llm-manager']` gerekir; sihirbaz dinamik config çalıştırmaz, basit literal yapıları düzenler. Üretilen Server Action host yetkisi kurulana kadar kapalıdır. Nuxt/SvelteKit sunucu modülleri istemci bileşenine taşınmaz. Electron `contextIsolation: true`, `nodeIntegration: false` kullanır; yalnız kendi loopback Basic challenge'ına parola verir, dış gezinmeyi engeller; mevcut preload korunur.
+
+Python/.NET `LLM_MANAGER_URL` ve `LLM_CHAT_TOKEN` okur, `.env` yüklemez. Modern/.NET 4.5+ HttpClient ve `await LlmClient.AskAsync()`; .NET 4.0/net40/belirsiz eski hedefler C#4, HttpWebRequest/TPL ve `ContinueWith` kullanır. NuGet gerektirmeyen JSON/assembly yardımcıları üretilir; eski hedefte hostun tam runtime doğrulaması ayrıca gerekir.
+
+### Özel depo
+
+`store` metotları `T | Promise<T>` döndürebilir; dosya deposu asenkrondur. Güncellemede `id + revision`, silme/etkinleştirmede JSON `revision` zorunludur; karşılaştırma/yazma atomik olmalıdır. Eski kaydın açık `null` revizyonu ilk değişiklikte geçerli, eksik alan geçersizdir.
+
+| Metot | Sözleşme |
+| --- | --- |
+| `list()` | `{version: 1, activeId, profiles}`; sırsız |
+| `get(id)`, `getActive()` | İç profil: apiKey/transport dahil veya null; yalnız sunucu |
+| `save(input)` | Genel profil; yeni kayıtta name/provider/model/baseURL/apiKey |
+| `remove(id, revision)`, `activate(id, revision)` | Güncel liste; host remove `{ok:true}` da döndürebilir |
+| `recordTest(id, status, expectedRevision, details)` | Genel profil; revizyon değiştiyse null; revision değiştirmez |
+
+`status` passed/failed, `details` mode/durationMs/isteğe bağlı code içerir. [Async bellek örneği](../examples/memory-store.js) geçici ve tek süreçlidir. `testMessages`/`validateTestReply` iç profil alır; bu nesneyi loglamayın. İsteğe bağlı `store.assistantHistory.read(scope)` listeyi, `update(scope, mutate)` atomik güncel liste değişikliğinin sonucunu döndürür; mutate hata verirse yazılmamalıdır. Şifreleme, süreçler arası transaction ve yedekleme hostun sorumluluğudur. Çok kullanıcılı host her yöneticiye kararlı ve farklı `principal.id` sağlamalıdır.
+
+## API ve sınırlar
+
+Varsayılan sayfa `/llm`, API kökü `/api/llm`; `pagePath` / `apiPath` ile değiştirilebilir. Aşağıdaki yollar API köküne göredir. Yazma istekleri `X-LLM-CSRF: 1` ister. Bearer yalnız `POST /chat` içindir; diğer uçlar yönetici ister. `/health` sırsız ve herkese açıktır; `health: false` kapatır.
+
+| İşlem | Yöntem / yol ve temel gövde |
+| --- | --- |
+| Katalog/profiller | `GET /catalog`, `GET /profiles` |
+| Profil oluştur/güncelle/sil | `POST /profiles`, `PUT /profiles/:id`, `DELETE /profiles/:id` |
+| Etkinleştir/test/modeller | `POST /profiles/:id/activate`, `POST /profiles/:id/test`, `GET /profiles/:id/models` |
+| Önizleme/özet/sağlık | `POST /models/preview`, `GET /usage?month=YYYY-MM`, `GET /health` |
+| Model sohbeti | `POST /chat`: `{prompt}` veya `{messages}`, isteğe bağlı `stream: true` |
+| Proje durumu/tarama/iptal | `GET /project`, `POST /project/scan`, `POST /project/cancel` |
+| Kaynaklı sohbet | `POST /project/chat`: `{prompt, shareSources:true, revision?, history?}` |
+| Görev hazırla/listele/oku | `POST /project/tasks`: `{mode:'plan' veya 'change', prompt, shareSources:true, revision?, history?}`; `GET /project/tasks` ve `/:id` |
+| Uygula/geri al/doğrula | `POST /project/tasks/:id/apply`, `/revert`, `/commands/:name`: `{approved:true, revision}` |
+| Görevi kapat | `POST /project/tasks/:id/discard`: `{approved:true}` |
+| Sohbet arşivi | `GET /assistant/sessions` → `{available,sessions:[{id,title,updatedAt,mode}],reason?}` |
+| Arşiv oluştur/oku/güncelle/sil | `POST /assistant/sessions`: mode zorunlu; `GET /assistant/sessions/:id`; `PUT /:id`: tam içerik+revision; `DELETE /:id`: `{revision}` |
+
+Arşiv POST 201 ve tam kayıt döndürür. Kayıt alanları `title, mode, profileId, system, contextId, modelContext, messages, outputs`; mesaj rolü user/assistant, durumu pending/completed/failed/cancelled. Tam tipler [core.d.ts](../types/core.d.ts) ve [project.d.ts](../types/project.d.ts) içindedir. Kapsam dışında/yok kayıt 404, eski revizyon 409 `ASSISTANT_CONFLICT`; özel history desteği yoksa liste available false, yazma 503 verir.
+
+HTTP sohbet örneği (sunucuda `LLM_CHAT_TOKENS` tanımlı ve etkin profil varken):
 
 ```js
-import { createLLMManager } from '@sirrakadembasti/llm-manager/core';
-const llm = createLLMManager({ adminPassword: process.env.LLM_ADMIN_PASSWORD });
-const cevap = await llm.ask('Merhaba');
-// HTTP adaptörü: await llm.fetch(request)
-```
-
-## Desteklenen ortamlar matrisi
-
-| Ortam | Tip | Üretimde kullanım | Ayrı Node süreci | Otomatik enjeksiyon |
-| --- | --- | --- | --- | --- |
-| Express | express | Kalıcı disk/host store ile | Hayır | Evet |
-| SPA | spa | Kendi backend'iniz üzerinden önerilir | Evet | Evet; HTTP istemci yardımcısı |
-| Next.js | nextjs | Node runtime + kalıcı disk/host store | Hayır | Yalnız sunucu bileşeni |
-| Nuxt | nuxt | Node sunucusunda | Hayır | İstemci bileşenine yapılmaz |
-| SvelteKit | sveltekit | Node adaptörü + kalıcı store | Hayır | İstemci bileşenine yapılmaz |
-| Electron | electron | Ana süreç, userData deposu | Hayır | Ana süreç |
-| Tauri | tauri | HTTP istemcisi | Evet | Hayır |
-| Fastify, Koa, Hono ve NestJS | fastify/koa/hono/nestjs | Host auth adaptörüyle | Hayır | Hayır; elle bağlantı |
-| Python | python | HTTP istemcisi | Evet | Yardımcı import |
-| .NET ve .NET Framework | dotnet | HTTP istemcisi | Evet | Yardımcı namespace |
-
-Next.js App Router ve Node runtime desteklenir; Edge desteklenmez. Sunucusuz ortamda kalıcı host deposu gerekir. SPA/Tauri/Python/.NET ayrı Node sunucusuna HTTP ile bağlanır. Diğer framework'lerde ayrıntılar ve yardımcı çağrıları [entegrasyon kılavuzunda](ENTEGRASYON.md).
-
-## Neler sağlar?
-
-- Şifreli profiller, etkin profil, test, canlı model listesi, klonlama ve Türkçe arayüz.
-- OpenAI/Anthropic/Google transportları, SSE akışı, iptal, retry ve sıralı fallback.
-- Sağlayıcı kataloğu ve varsayılan model listeleri (katalog tarihi: 2026-10; güncel liste için **Modelleri getir** kullanın). [Tarihli kaynaklar ve model sınırları](roadmap/YOL_HARITASI.md#katalog-kaynakları).
-- Yetkilendirme, CSRF, SSRF, kota, güvenli loglar ve isteğe bağlı aylık kullanım özeti.
-
-## Arayüzü kullanma
-
-1. **Yeni profil** bölümünde bir ad, sağlayıcı, model ve API anahtarı girip kaydedin.
-2. Kayıtlı profilin bağlantı testini çalıştırın. **Modelleri getir** ile hesabınızın erişebildiği modelleri sorgulayabilirsiniz.
-3. Uygulamanın kullanacağı profili etkinleştirin. Aynı anda tek profil etkindir.
-4. **Proje Asistanı → Uygulaman hakkında çalış → Model denemesi** yolunda profil ve mesaj seçip yanıtı sınayın. **Yanıt ayarları** altındaki akış seçeneği yanıtı geldikçe gösterir.
-
-Düzenlerken API anahtarını boş bırakmak kayıtlı anahtarı korur. Zaman sınırı, çıktı tokenı, düşünme modu ve gelişmiş üretim ayarları profil bazındadır; destek modele bağlıdır. Yedek profiller, hata durumunda sırayla denenecek profillerdir.
-
-İşlem bildirimleri üstte görünür kalır; hata, başarı, bilgi ve bekleme durumları ayrı gösterilir. Hata açıklamasının altında kod, destek kimliği ve süre yer alır. Bildirimi **×** ile kapatabilirsiniz; test sonucu ilgili profil kartında kalır. Karttaki ayrıntı bu sekmede korunur, profil değişince sıfırlanır; sayfayı yeniden açınca sunucuda saklanan test geçmişi gösterilir. Açık/koyu görünüm sistem tercihini izler.
-
-### Arayüz dili
-
-Arayüz metinleri `public/i18n/tr.json` içindedir. Arayüz ve paket hata sözlüğü yalnız Türkçedir; etkin dil ayarı yoktur. Eski JavaScript `locale: 'en'` seçeneği dikkate alınmaz ve Türkçe kullanılır. `getErrorMessage` işlevinin kullanım dışı ikinci parametresi uyumluluk için kabul edilir; dili değiştirmez.
-
-## API kullanımı
-
-Yönetim sayfası `/llm`, API kökü `/api/llm`. Yazma isteklerinde `X-LLM-CSRF: 1` gerekir.
-
-| İşlem | API yolu |
-| --- | --- |
-| Katalog / profil listesi | `GET /catalog`, `GET /profiles` |
-| Oluştur / güncelle / sil | `POST /profiles`, `PUT /profiles/:id`, `DELETE /profiles/:id` |
-| Etkinleştir / test et | `POST /profiles/:id/activate`, `POST /profiles/:id/test` |
-| Model listesi / önizleme | `GET /profiles/:id/models`, `POST /models/preview` |
-| Sohbet | `POST /chat`: `{ prompt }` veya `{ messages }` |
-| Sağlık / aylık özet | `GET /health`, `GET /usage?month=YYYY-MM` |
-
-`ask()` varsayılan olarak string, `{ raw: true }` ile usage/finishReason/profil/süre içeren sonuç döndürür. `stream()` AsyncIterable; HTTP `{ stream: true }` ile SSE `delta`, `done`, `error` üretir. `done`, gerçek `profileId` ve `fallbackUsed` içerir. İstemci kopunca üst akış iptal edilir; doğrudan çağrılarda `signal` verilebilir.
-
-Retry yalnız retryable hatalarda ve ilk parça yayımlanmadan önce çalışır. `Retry-After`/backoff sınırları korunur; ilk çıktıdan sonra retry/fallback yapılmaz. Tüm denemeler ilk profilin tek timeout bütçesini paylaşır; `retry: false` yeniden denemeyi kapatır. Gizli düşünce son yanıta eklenmez; filtre ve kesilme tipli hata üretir.
-
-| Ayar | Varsayılan / sınır |
-| --- | --- |
-| `limits` | 100 mesaj; 200000 toplam / 100000 tek mesaj karakteri; 262144 bayt gövde |
-| Mesaj rolleri | `system`, `user`, `assistant`; en az bir `user` |
-| Süre / token | 120000 ms (5000–300000); 8192 token (256–32768) |
-| Gelişmiş | `temperature` 0–2; `topP` 0–1; `stop` en çok 4 dize; `responseFormat` text/json |
-| `thinking` | auto/enabled/disabled; model desteğine bağlı |
-| `chatAccess` | authenticated/admin/false |
-| `chatOverrides` | admin/all/none; varsayılan admin |
-| Kota | Sohbet 30/dk; test 10/dk; model/önizleme 10/dk; hatalı giriş 10/dk |
-
-Geçersiz mesaj/JSON 400; büyük gövde 413. Express kendi ayrıştırıcısını auth sonrasına bağlar; hostun daha önceki ayrıştırıcısı daha küçük sınır koyabilir. HTTP yanıtları sır içermez. [Depo sözleşmesi ve hata kodları](ENTEGRASYON.md#özel-depo).
-
-### HTTP ile sohbet örneği
-
-Node.js sunucu kodunda; yönetici parolasını tarayıcıya koymayın. Önce bir profil kaydedip etkinleştirin:
-
-```js
-const adminUser = process.env.LLM_ADMIN_USER || 'admin';
-const authorization = 'Basic ' + Buffer.from(`${adminUser}:${process.env.LLM_ADMIN_PASSWORD}`).toString('base64');
 const response = await fetch('http://127.0.0.1:8010/api/llm/chat', {
   method: 'POST',
-  headers: { Authorization: authorization, 'Content-Type': 'application/json', 'X-LLM-CSRF': '1' },
+  headers: { Authorization: 'Bearer ' + process.env.LLM_CHAT_TOKEN,
+    'Content-Type': 'application/json', 'X-LLM-CSRF': '1' },
   body: JSON.stringify({ prompt: 'Merhaba' })
 });
 const result = await response.json();
 if (!response.ok) throw new Error(JSON.stringify(result));
-console.log(result);
 ```
 
-Sohbet istemcilerine yönetim yetkisi vermek yerine sunucuda `LLM_CHAT_TOKENS` tanımlayıp `Authorization: Bearer <belirteç>` kullanabilirsiniz. Bu belirteç yalnız sohbet içindir. Akış için gövdeye `stream: true` ekleyin ve yanıtı JSON yerine SSE olarak okuyun.
+`ask()` dize, `{raw:true}` ile usage/finishReason/profileId/duration sonucu döndürür. `stream()` AsyncIterable; HTTP SSE `delta`, `done`, `error` kullanır. `done` gerçek `profileId`/`fallbackUsed` taşır. Bağlantı kopması veya `signal` sağlayıcı isteğini iptal eder; done olmadan bitiş başarı değildir. Retry yalnız retryable hatada ilk çıktıdan önce çalışır; Retry-After/backoff ve bütün fallback'ler ilk profilin tek süre bütçesini paylaşır. `retry:false` kapatır. Gizli düşünce son yanıta eklenmez; filtre/kesilme ayrı hatadır.
 
-## Kimlik ve güvenlik
+| Ayar / kapsam | Varsayılan veya sınır |
+| --- | --- |
+| `limits` | maxMessages 100; maxChars 200000; maxSingleMessageChars 100000; maxBodyBytes 262144 |
+| Mesaj | system/user/assistant; en az bir user |
+| `timeoutMs` / `maxOutputTokens` | 120000 ms (5000–300000); 8192 (256–32768) |
+| Üretim | temperature 0–2; topP 0–1; stop en çok 4 dize; responseFormat text/json |
+| `thinking` | auto/enabled/disabled; modele göre tam kapama desteklenmeyebilir |
+| `chatAccess` / `chatOverrides` | authenticated/admin/false; admin/all/none (varsayılan admin) |
+| Kota | Chat 30/dk; test 10/dk; model/önizleme 10/dk; hatalı giriş 10/dk |
+| Sağlayıcı çıktısı / kısa test | JSON 2 MiB, SSE 8 MiB; quick test en çok 20 sn/512 token |
+| Proje isteği | Prompt 10000 karakter; kaynaklı sohbet geçmişi en çok 12, görev geçmişi 10 mesaj; mesaj başına 10000 karakter |
+| Değişiklik / motor köprüsü | 100 dosya, 2 MiB önce/sonra; 40 sağlayıcı isteği, istek 1 MiB, yanıt 8 MiB |
 
-Yönetim sayfası/betiği/API'si Basic admin veya admin host principal ister. `authorize(request)` host kimliği sağlayabilir; yapılandırılmamış Web auth `AUTH_NOT_CONFIGURED` ile kapalıdır. Bearer `LLM_CHAT_TOKENS` yalnız sohbet içindir; `chatAccess: 'admin'` bunu da kapatır. `requireAuth` Express session bağlantısı içindir. `ask()`/`handle()` güvenilir host API'leridir; HTTP yetkisini adaptör sağlar. `insecureNoAuth: true` yalnız açık güvensiz yerel tercihtir.
+Proje chat/tasks mevcut chat kotasını paylaşır. Kota anahtarı host `clientKey` veya Web `getClientId(request)`, sonra `principal.id`, yoksa ortak anonim kimliktir. Express `req.ip`/`trust proxy` hostun sorumluluğudur. 429 `Retry-After` taşır; `rateLimit:false` kapatır. Kotalar süreç içidir, dağıtık maliyet tavanı değildir.
 
-Kotalar host `clientKey` / Web `getClientId(request)` (Express `req.ip`), sonra `principal.id`, yoksa ortak anonim kimlikle çalışır. Profil değiştirmek test/model kotasını yenilemez. `trust proxy` hostun sorumluluğudur. 429 yanıtı `Retry-After` taşır; `rateLimit: false` kapatır. Kotalar süreç içidir, dağıtık değildir.
+Amaçlar `quick | diagnostic | default`. MiMo auto modunda `purpose: 'diagnostic'` ve `purpose: 'quick'` düşünmeyi kapatır; `purpose: 'default'` model varsayılanını korur. MiMo quick testi açık thinking seçimini de kapatır. Test geçmesi üretim uygunluğu garantisi değildir.
 
-SPA geliştirme belirteci de tarayıcıda herkese açıktır; üretimde kendi backend'inizi kullanın. Sihirbaz Vite için localhost:5173 seçer; diğerlerinde açık origin ister. `-y` ile origin yoksa CORS kapalı kalır. Sihirbaz `*` kabul etmez; CLI wildcard yalnız sohbet rotasında, credentials olmadan kullanılabilir. Admin parolası kaynak koda/npm script'ine yazılmaz; `.env`, `.env.local` ve sır dosyaları gitignore'a eklenir.
+## Güvenlik
 
-HTTPS ve soket/DNS filtresi özel IP'leri engeller. LAN/Ollama için açık `allowedPrivateHosts`; proxy için `proxyUrl`/`LLM_HTTPS_PROXY` ve `allowedHosts` kullanın. Proxy DNS'inde yerel IP filtresi uygulanamaz; hedefler bilinen sağlayıcı alan adları ve açık listeyle sınırlandırılır.
+### Güvenlik mimarisi ilkeleri
 
-## Veri, yedek ve işletim
+**Korunan varlıklar:** sağlayıcı/şifreleme anahtarları, yönetici kimliği, sohbet/kaynak içerikleri ve kullanım kayıtları. **Sır sızıntısını önleme:** genel profiller `hasApiKey` gösterir; iç get/getActive sonuçları yalnız sunucuda kalır. AES-256-GCM 12 bayt IV ve 16 bayt tag kullanır. `redact()` logları maskeler; `logContent: false` sabittir ve içerik günlüğü açılamaz.
 
-Varsayılan `data/llm-profiles.json` ve `data/llm-encryption.key` dosyaları otomatik oluşur; **ikisini birlikte yedekleyin**. Anahtar kaybolursa profiller çözülemez. AES-256-GCM kullanılır. Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun.
+| Tehdit | Mevcut kontrol / kalan sorumluluk |
+| --- | --- |
+| Sunucu tarafı istek sahteciliği (SSRF) | HTTPS, DNS/soket özel IP filtresi, yönlendirme reddi. LAN için açık allowedPrivateHosts; proxyUrl/LLM_HTTPS_PROXY durumunda uzak DNS nedeniyle bilinen/açık allowedHosts listesi gerekir. |
+| Siteler arası istek sahteciliği (CSRF) | Yazma başlığı, CORS, CSP/X-Frame-Options. Host kendi session/SameSite ve uçlarını korur. |
+| Kimlik bilgisi ve sır sızıntısı | Basic/host admin ile chat Bearer ayrıdır. Tarayıcı/masaüstüne gömülü token herkese açıktır; üretimde kendi backend'inizi kullanın. |
+| Yetkisiz erişim | Web auth yapılandırılmamışsa AUTH_NOT_CONFIGURED ile kapalıdır. insecureNoAuth yalnız açık yerel tercihtir. Dış ağda TLS, güçlü parola ve servis hesabı kullanın. |
+| Kaynak tüketimi ve maliyet istismarı | Gövde/mesaj/token/süre/çıktı sınırları, kota ve iptal; admin override. Sağlayıcı maliyet raporu ayrıca izlenmelidir. |
+| Dosya ve model talimatları | Açık kök, realpath/symlink/ignore/sır kontrolleri; model çıktısı güvenli metindir. Paylaşım ve hedefe yazma ayrı onay ister. |
+
+Vite geliştirmesi localhost:5173 kullanabilir; diğer SPA/Tauri origin'leri açık verilmelidir. Sihirbaz `*` kabul etmez; CLI wildcard yalnız sohbet için, credentials olmadan işler. Admin sırrı istemciye verilmez. Eksik origin ile `-y` CORS açmaz. Ortam/sır dosyalarını Git dışında tutun.
+
+OpenCode temiz HOME/env, rastgele loopback parolası ve geçici köprü tokenıyla çalışır; gerçek API anahtarı ana süreçte kalır. Plugin/skill, LSP, bash, dış dizin, paylaşım ve snapshot kapalıdır. İzinler **OS sandbox değildir**; araç ve host komutları servis hesabı yetkileriyle çalışır. Komutlar hostun adlandırdığı command/args listesindendir, shell false kullanır. Araç kullanım maliyeti mevcut chat usage sayacına eklenmez.
+
+Revizyon, kilit ve atomik tek dosya yazımı yerel bütünlüğü destekler; NFS/SMB, çok dosyalı ACID, atomik compare-and-swap veya çöküş sonrası kalıcı geri alma garantisi yoktur. İş çıktıları istemci kaynaklı tarihsel verilerdir; değiştirilemez audit günlüğü veya komut yetkisi değildir.
+
+### Tedarik zinciri
+
+Tehdit: kötücül bağımlılık, kilit dosyası, CI eylemi veya yayıncı kimliği bütün varlıkları etkileyebilir. **Mevcut kontroller:** runtime `undici`, isteğe bağlı peer `express`; `npm ci` package-lock.json bütünlüklerini kullanır; CI `npm audit --omit=dev` geliştirme bağımlılıklarını kapsamaz. `npm pack --dry-run`/izin listesi gerçek env, veri ve test dosyalarını dışlar. Yayın iş akışı yoktur; action etiketleri değiştirilebilirdir.
+
+**Planlanan kontroller (uygulanmadı):** bağımlılık/kilit dosyası incelemesi, CI eylemlerini değişmez commit SHA'larına sabitleme, yayıncı/kaynak politikası, köken kanıtı ve çıktı imzalama. Audit bilinen açıkları denetler; güvenilirlik garantisi vermez.
+
+### Güvenlik açığı bildirme
+
+Sır/istismar ayrıntısını açık issue'da paylaşmayın; [özel GitHub bildirimi](https://github.com/sirrakadembasti/llm-manager/security/advisories/new) veya `sirrakadembasti@users.noreply.github.com` adresine `[SECURITY VULNERABILITY] llm-manager` konusuyla bildirin. Etki, tekrar adımları, commit/sürüm, OS ve Node sürümünü ekleyin. Hedef alındı bildirimi 48 saat, ön değerlendirme 5 iş günüdür; açıklamayı düzeltmeyle koordine edin.
+
+Mevcut destek politikası: **1.x.x desteklenir; <1.0 desteklenmez**. Yerel 2.0.0 yayımlanmamıştır; yayımlanmış 2.x sürümünün kanıtı değildir. Bu durum ek bakım veya eski sürüme düzeltme taşıma taahhüdü eklemez. Geliştirme sürümündeki açıkları da özel kanallardan bildirin.
+
+## Yedekleme ve sorun giderme
+
+**Birlikte saklayın:** `data/llm-profiles.json`, varsa `data/llm-profiles.json.assistant.enc`, `data/llm-encryption.key`. Özel profil yolunda geçmiş `<profil-dosyası>.assistant.enc` olur. Anahtar kaybı profilleri ve geçmişi çözülemez bırakır; bozuk dosyayı koruyun, boş depoyla ezmeyin. Profil `.bak`, döndürme veri `.bak` ve `.old-*` anahtar yedekleri eşleşen takım hâlinde saklanmalıdır. Normal sohbet yazıları ayrı `.bak` üretmez; anahtar döndürme geçmiş yedeği de alır.
 
 ```sh
 npx llm-manager key rotate
@@ -234,56 +244,146 @@ npx llm-manager export --out yedek.json --password yedek-parolasi
 npx llm-manager import yedek.json --password yedek-parolasi
 ```
 
-Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup eski `.env` anahtarını kilit altında dosyaya taşır; `.env` değişmez. `writeEnv: true` deprecated uyumluluk yoludur. Döndürme eski anahtarı `.old-<tarih>-<kimlik>` adıyla saklar.
+**Döndürmeden önce** bütün depo süreçlerini durdurun ve üç dosyayı yedekleyin. Profil/geçmiş kilitlenip yazmadan önce çözülür; ikisi yeni anahtarla şifrelenir. Eski veriler `.bak`, eski anahtar `llm-encryption.key.old-<tarih>-<kimlik>` olur. Bozuk geçmiş işlemi durdurur; normal yazma hatasında veriler geri alınır. Sistem çökmesinde çok dosyalı atomiklik yoktur; profil/geçmiş yedeklerini eşleşen eski anahtarla birlikte geri yükleyin.
 
-`STORE_DECRYPT_FAILED`, kayıtlı API anahtarının açılamadığını bildirir; sağlayıcı hatası değildir. `.env` içindeki eski `LLM_CONFIG_ENCRYPTION_KEY`, doğru anahtar dosyasının önüne geçebilir. Önce `.env`, profil ve anahtarı yedekleyin. Dosyadaki anahtarın mevcut profilleri açtığı doğrulanmışsa çakışan `.env` ayarını kaldırıp sunucuyu yeniden başlatın. Yeni bir anahtar üretmek eski profilleri kurtarmaz; şifreli verinin bozulması da aynı hatayı verebilir.
+Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup legacy `.env` anahtarını dosyaya taşır; `.env` değişmez. `writeEnv: true` eski uyumluluk yoludur. Döndürme sonrasında açık/env anahtarını yeni değere güncelleyip süreçleri yeniden başlatın; CLI `.env` dosyasını güncellemez. Export/import yalnız **profil** taşır, sohbet arşivini içermez.
 
-Terminaldeki `auth.failed`, eksik veya yanlış yönetim kimlik bilgili isteği gösterir. Tarayıcının ilk Basic Auth isteğinde veya eski parola önbellekte kaldığında görülebilir; sağlayıcı bağlantısıyla ilgili değildir.
-
-Depo Promise tabanlıdır; yerel disk kilidi, FIFO yazma, revizyon ve `.bak` yedeği kullanır. NFS/SMB garantisi yoktur. `STORE_CORRUPT` için bozuk dosyayı koruyup eşleşen anahtar ve sağlam `.bak` ile dönün; `STORE_VERSION_UNSUPPORTED` için uyumlu sürüm kullanın. Boş depoyla üzerine yazmayın.
-
-`logger` istek kimliğiyle güvenli üstveri yazar. `logContent: false` sabittir; sır/istem/cevap günlüğe yazılmaz. `chat.completed` başarı, hata, iptal ve erken yineleyici dönüşünde bir mantıksal sohbet için bir kez code/usage/son profil bilgisi verir; bilinmeyen usage null'dır. `usageLog: true` aylık sayısal JSONL ve yönetici `/usage` özeti açar. Herkese açık `/health` sırsızdır; `health: false` kapatır. `homeUrl`, ana uygulamaya dönüş bağlantısını ayarlar.
-
-CLI/örnek sunucu SIGINT/SIGTERM'de kapanır; üst sınır 10 saniyedir. Programatik factory/probe/init host sinyallerini varsayılan olarak yönetmez; sahipli bağımsız süreçte `handleSignals: true`, gömülü kullanımda `await instance.close()` kullanın. [Docker, servis ve kurtarma](DAGITIM.md).
-
-## 2.0 geçişi ve alt yollar
-
-Eski paket: `npm uninstall llm-manager`; yeni paket: `npm install github:sirrakadembasti/llm-manager`. Importları scoped ada taşıyın; CLI adı ve veriler korunur. Dosya deposu çağrılarını `await` edin; özel store `T | Promise<T>` döndürebilir.
-
-| Alt yol | Amaç |
+| Belirti / kod | Yapılacak işlem |
 | --- | --- |
-| `@sirrakadembasti/llm-manager` | Express ve temel API |
-| `@sirrakadembasti/llm-manager/core` | Framework bağımsız çekirdek/depo |
-| `@sirrakadembasti/llm-manager/server` | Bağımsız sunucu |
-| `@sirrakadembasti/llm-manager/init` | Algılama, kurulum, doğrulama, geri alma |
-| `@sirrakadembasti/llm-manager/setup` | Anahtar yönetimi |
-| `@sirrakadembasti/llm-manager/runtime` | İstek/yanıt ve hata sınıflandırma |
-| `@sirrakadembasti/llm-manager/transport` | Güvenli HTTP taşıma |
-| `@sirrakadembasti/llm-manager/errors` | Tipli hata kodları |
+| auth.failed / 401 | Yönetici adı/parolası ve tarayıcı Basic önbelleğini kontrol edin; ilk anonim istek de bunu üretebilir. |
+| STORE_DECRYPT_FAILED / ASSISTANT_STORE_FAILED | Eşleşen anahtarı ve veri dosyasını geri yükleyin; eski env anahtarı dosyanın önüne geçebilir. Yeni anahtar eski veriyi kurtarmaz. Disk/izin de kontrol edilmelidir. |
+| STORE_CORRUPT / STORE_VERSION_UNSUPPORTED | Dosyayı koruyun; uyumlu sürüm veya eşleşen sağlam yedek kullanın. |
+| STORE_LOCKED / PROFILE_CONFLICT / ASSISTANT_CONFLICT | Kilidi/revizyonu kontrol edin; ekrandaki kaydedilmemiş metni dışa aktararak güncel kaydı açın. |
+| PROJECT_CONFLICT / PROJECT_PARTIAL_APPLY | Güncel kaynakları yeniden tarayın; kısmi uygulamada dosyaları elle karşılaştırın. |
+| MESSAGES_INVALID / BODY_INVALID / BODY_TOO_LARGE | Mesaj/JSON biçimini veya boyutunu düzeltin; 400/413. Host parser daha küçük sınır koyabilir. |
+| 429 / 504 / 499 | Retry-After bekleyin; süreyi/araç durumunu kontrol edin; 499 iptaldir. |
+| Node kurulu ama npm bulamıyor | Windows cmd.exe PATH sınırı 8191 karakterdir; eski geçici girdileri temizleyip terminali yenileyin. |
 
-2.0 sürümünde senkron `detectProjectType`, `detectEntryFile`, `formatVerificationReport` kökten kaldırıldı:
+Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygulama kullanıcısının erişebileceği bir konuma koyun ve NTFS ACL verin. POSIX'te dosya/dizin izinlerini de sınırlandırın. Şifreli/çevrimdışı yedek kullanın; anahtar arşivini herkese açmayın.
+
+## Dağıtım ve ayarlar
+
+Üretimde TLS ters vekili, servis hesabı ve kalıcı veri dizini kullanın. Ağa açık CLI en az **12 karakter** parola ister. Parolayı komut satırı/kabuk geçmişi yerine servis ortamında tutun. Sağlık: `curl -f http://127.0.0.1:8010/api/llm/health`; ok/version/hasActiveProfile/requestId döner, canlı sağlayıcı başarısını kanıtlamaz. `usageLog:true` veya `LLM_USAGE_LOG=true` aylık içeriksiz JSONL ve admin `/usage` açar; `chat.completed` başarı/hata/iptal/erken yineleyici dönüşü dahil mantıksal isteği bir kez kaydeder, bilinmeyen usage null'dır.
+
+| Ayar | Kapsam |
+| --- | --- |
+| LLM_ADMIN_USER / LLM_ADMIN_PASSWORD | Kullanıcı varsayılan admin; parola gerekli |
+| HOST / PORT / LLM_DATA_DIR | CLI: 127.0.0.1 / 8010 / ./data; bayraklar öncelikli. `npm start` örneği yalnız PORT'u doğrudan okur. |
+| LLM_CONFIG_PATH / LLM_CONFIG_KEY_PATH / LLM_CONFIG_ENCRYPTION_KEY | Açık dosya yolları / 32 bayt hex veya base64 anahtar |
+| LLM_CHAT_TOKENS / LLM_ALLOWED_ORIGINS | Chat Bearer listesi / açık CORS origin listesi |
+| LLM_ALLOW_LOCAL_HTTP / LLM_HTTPS_PROXY / LLM_USAGE_LOG | true ile yerel HTTP istisnası / proxy / true ile kullanım kaydı |
+| LLM_PROJECT_ROOT / LLM_OPENCODE_PATH | Kaynak kökü / OpenCode motor yolu |
+
+Her giriş noktası her değişkeni otomatik okumaz. CLI bayrakları `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`, `--project-root`; tümü için `--help`.
+
+LAN host izinlerini programatik `allowedPrivateHosts` seçeneğiyle verin; önceki belgede anılan `LLM_ALLOWED_PRIVATE_HOSTS` mevcut kod tarafından okunmaz. Proxy için ek `allowedHosts` verilebilir. Kaynak kökü ve araçlar core tarafından env'den çözülebilir; paket entegrasyonunda açık seçenekler kullanılabilir.
+
+### Docker ve servisler
+
+```sh
+docker build -t llm-manager .
+docker run -d --name llm-manager --restart unless-stopped -p 8010:8010 -v llm_data:/data -e LLM_ADMIN_PASSWORD llm-manager
+```
+
+Önce kabukta parolayı tanımlayın. İmaj `node:22-alpine`, non-root `node`, `/data` volume ve healthcheck kullanır; Express'i kurar. CMD host/port/data değerlerini açık verir: `0.0.0.0:8010`, `/data`. Portu değiştirirken CMD ve healthcheck'i birlikte uyarlayın. Compose/Kubernetes'te aynı imajı Secret/env, kalıcı volume/PVC ve `/api/llm/health` yoklamasıyla çalıştırın; NFS/SMB ortak dosya deposu yerine uygun host store seçin. OpenCode imaja otomatik kurulmaz; bağlı proje kökünü ayrıca mount edin, `data` dizinini kaynak kökü yapmayın.
+
+| Servis | Asgari kurulum |
+| --- | --- |
+| PM2 | `pm2 start node_modules/@sirrakadembasti/llm-manager/bin/llm-manager.js --name llm-manager`; cwd'yi `.env` olan hosta ayarlayın, `pm2 startup` talimatını uygulayın, `pm2 save`. |
+| systemd | WorkingDirectory host, EnvironmentFile host/.env, User ayrı servis hesabı; ExecStart mutlak node + paketin bin/llm-manager.js yolu; Restart=on-failure, TimeoutStopSec=15. `systemctl daemon-reload`, enable --now; journalctl ile izleyin. |
+| Windows/NSSM | `nssm install LLMManager 'C:\Program Files\nodejs\node.exe'`; AppDirectory host, AppParameters paketin mutlak CLI yolu. Boşluklu yolu tırnaklayın, servis hesabı/ACL ve otomatik başlangıç ayarlayın. Ek ortam için AppEnvironmentExtra mevcut sistem ortamını korur. |
+
+CLI/örnek SIGINT/SIGTERM kapanışı en fazla **10 saniye** sürer; servis yöneticisi daha uzun süre tanımalıdır. Programatik bağımsız sunucuda `handleSignals: true`, gömülü host kapanışında `await instance.close()` kullanın. `close()` aktif işi/motoru/köprüyü iptal eder, sahipli geçici kopyaları temizler; arşivi silmez. Windows zorla sonlandırmada cleanup çalışmayabilir; POSIX süreç grubu SIGTERM sonrası SIGKILL ile, Windows çocukları taskkill /T /F ile kapatılır.
+
+## Geliştirme ve mimari
+
+| Konum | Sorumluluk |
+| --- | --- |
+| `src/core.js`, `src/index.js`, `src/server.js` | Framework bağımsız yönetici; Express adaptörü; ortak bağımsız sunucu |
+| `src/runtime.js`, `transports/`, `providerTransport.js` | OpenAI/Anthropic/Google dönüşümleri, retry/SSE, DNS/SSRF/proxy taşıması |
+| `src/profileStore.js`, `store/`, `assistant/` | Şifreli profil/geçmiş, kilit/revizyon, session API |
+| `src/project/` | Güvenli envanter/analiz/bağlam; workspace/process; relay/opencode/tasks; changes/commands |
+| `src/init/`, `bin/` | Proje algılama, şablon, journal/geri alma, doğrulama, CLI |
+| `public/` | Profil UI; chat-client, assistant-history-ui, project-ui. Betikler tek korumalı UI asset'inde birleşir. |
+| `types/`, `examples/`, `tests/`, `scripts/`, `.github/` | Tipler, çalışır örnekler, davranış testleri, isteğe bağlı araçlar, CI |
+| `docs/` | Bu tek kılavuz ve küçük tarihsel kabul betiği |
+| `data/`, `node_modules/`, `.git/` | Aktif veri/anahtarlar; bağımlılıklar; sürüm geçmişi. Geçici dosya sanıp silmeyin. |
+
+### Kalite doğrulama komutları
+
+```sh
+npm ci
+npm test
+npm run lint
+npm run typecheck
+npm run format:check
+npm run test:coverage
+npm audit --omit=dev
+```
+
+Seri koşuda seçenekler dosyalardan önce gelir: `node --test --test-concurrency=1 tests/*.test.js tests/**/*.test.js`. Kapsam eşikleri satır %80/dal %70; CI Linux/Windows/macOS × Node 22/24 matrisi tanımlar. Gerçek motor kabulü `scripts/check-project-assistant.mjs` ile sentetik kaynak/anahtar ve yerel sağlayıcı kullanır; araçlar ayrıca kurulu olmalıdır. Testler aktif veri yerine izole dizin kullanmalı; .NET SDK kontrollerinde `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` korunmalıdır.
+
+### Standart commit biçimi
+
+Bir görev bir commit; feat/fix/docs/test/refactor/chore ve kısa amaç başlığı, ör. `fix(store): geçmişi yeni anahtarla şifrele`. Önce davranış testi yazın; API değişince tipleri ve bu kılavuzu güncelleyin. Core Express bağımsız, araç importları gerektiğinde yüklenir kalmalı; yeni runtime bağımlılığı zorunluysa gerekçelendirin. Kullanıcı değişikliklerini koruyun. Test geçmesi commit/push/yayın/sürüm artırma yetkisi vermez. İstekte sorun, çözüm, doğrulama ve sınırları yazın; değişiklik/karar kayıtlarını bu belgenin sonunda tutun.
+
+### 2.0 geçişi ve alt yollar
+
+Eski `llm-manager` paketini kaldırın, scoped import kullanın ve dosya deposunu await edin. `detectProjectType`, `detectEntryFile`, `formatVerificationReport` 2.0'da kökten kaldırılmıştır; yerine:
 
 ```js
 import { detectProjectType, detectEntryFile, formatVerificationReport } from '@sirrakadembasti/llm-manager/init';
 ```
 
-Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration`, `injectIntoEntryFile` bir uyumluluk sürümü için deprecated sarmalayıcılardır; yeni kod `/init` kullanmalıdır.
+Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `verifyIntegration`, `injectIntoEntryFile` bir uyumluluk sürümü için deprecated köprülerdir. Eski purpose manager → diagnostic, production → default birer uyarıyla eşlenir; eski generate bayrakları iletilmez. `getErrorMessage` ikinci parametresi dili değiştirmez. CLI/veri/anahtar dosyaları korunur.
 
-Amaçlar `quick | diagnostic | default`; eski `manager` → `diagnostic`, `production` → `default` eşlemesi birer uyarı verir. MiMo auto'da `purpose: 'diagnostic'` ve `purpose: 'quick'` düşünmeyi kapatır; `purpose: 'default'` model varsayılanını korur. MiMo quick testi açık düşünme seçimini de kapatır. Başarılı test sağlayıcı hızını/üretim uygunluğunu garanti etmez; kota, izin, ağ, filtre ve kesilme ayrı kodlarla bildirilir. [Xiaomi açıklaması](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/other/deep-thinking).
+| İçe aktarma | Amaç |
+| --- | --- |
+| `@sirrakadembasti/llm-manager` | Express ve temel API |
+| `@sirrakadembasti/llm-manager/core` | Framework bağımsız çekirdek/depo |
+| `@sirrakadembasti/llm-manager/server` | Bağımsız sunucu |
+| `@sirrakadembasti/llm-manager/init` | Algılama, kurulum, doğrulama ve geri alma |
+| `@sirrakadembasti/llm-manager/setup` | Anahtar ve profil yedekleri |
+| `@sirrakadembasti/llm-manager/runtime` | Üretim ve hata sınıflandırma |
+| `@sirrakadembasti/llm-manager/transport` | Güvenli sağlayıcı HTTP taşıması |
+| `@sirrakadembasti/llm-manager/errors` | Tipli hatalar |
 
-MIT · [Lisans](../LICENSE) · [Değişiklikler](DEGISIKLIKLER.md) · [Güvenlik](GUVENLIK.md) · [Katkı](KATKI_REHBERI.md)
+## Geçmiş ve belge özetleri
 
+### Değişiklik özeti
 
-### Graphify ve belge destekli proje bağlamı (2026-10-28)
+| Tarih / durum | Sonuç |
+| --- | --- |
+| 2026-10-19 / 1.0.0 | İlk bağımsız core/Express/CLI, sağlayıcı kataloğu ve şifreli profiller. |
+| 2026-10-20–27 / 2.0 geliştirme | Çoklu framework init, async/host store, tipler, transportlar/SSE/retry/fallback, güvenlik/kota/loglar, dağıtım/CI; Türkçe arayüz. YH1/YH2 kartları kapatıldı. |
+| 2026-10-28 | Proje Asistanı, OpenCode, onaylı değişiklik/geri alma; birleşik sohbet ve şifreli kalıcı geçmiş. |
+| 2026-10-29 | Anahtar döndürmeye sohbet eklendi; normal yazma hatasında geri alma. Graphify değerlendirilip ek tarama maliyeti nedeniyle entegrasyonu, ayarları ve harita çıktıları kaldırıldı. Kaynak seçimi yerleşik analizi kullanır. |
+| Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
-Proje bilgileri → Bağlı proje → **Graphify ile daha güçlü proje analizi** alanında resmî depo, kurulum ve kullanım rehberi bulunur. Graphify hedef uygulamaya JavaScript bağımlılığı olarak değil, LLM Manager sürecinin çalıştığı sunucuya kurulur. Python 3.10+ gerekir; resmî paket `graphifyy`, CLI `graphify` adındadır: `uv tool install graphifyy` veya ayrı ortamda `python -m pip install graphifyy`. Kaynak: https://github.com/Graphify-Labs/graphify . Bu backend entegrasyonunda `graphify install` ve sohbette `/graphify` gerekmez.
+### Doğrulanmış durum ve açık işler
 
-Kurulumdan sonra **Projeyi tara** seçilir. Mutlak host PATH dizinlerindeki CLI yeniden aranır; açık `graphify.command` veya `LLM_GRAPHIFY_PYTHON` / `project.graphifyPython` ayarı önceliklidir. PATH değişikliği çalışan servise yansımıyorsa servis yeniden başlatılır. `project.graphifyAutoDetect: false` otomatik keşfi kapatır. Projeden araç veya kurulum betiği otomatik çalıştırılmaz. Kurulu araç doğrulanmış tarama çıktısı üretirse algılandı, bulunamazsa eksik, çalışmazsa hata durumu gösterilir. Kurulum/çalıştırma birbirinden farklıdır; keşif tek başına başarılı analiz sayılmaz.
+2026-10-29 commit öncesi tam seri (`node --test --test-concurrency=4 tests/*.test.js tests/**/*.test.js`): **479 test; 478 geçti, 0 başarısız, 1 platform testi atlandı**. Yerleşik tarama/SQL/import ilişkileri, kaynaklı sohbetin güncel içerik/revizyon denetimi, OpenCode plan/değişiklik akışları doğrulandı. Lint/typecheck/format ve 22 yerel dosya/bölüm bağlantısı kontrolü geçti; 94 dosyalık paket çıktısında kaldırılan araca ait dosya yok. API'deki grafik alanları ve eski araç seçenekleri kaldırıldı; bağımsız host kurulumu değiştirilmedi.
 
-Graphify yalnız filtrelenmiş geçici kaynak kopyasında `--code-only` çalışır. Güncel kaynak revizyonuyla eşleşen ilişkiler kaynaklı sohbetin dosya seçimini destekler; kaynak değişince eski harita kullanılmaz ve yeniden tarama istenir. README, kılavuz, `.md` ve `.txt` belgeleri ayrıca yerel okuyucuyla okunur; ilk üç uygun belge için bağlam payı ayrılır. Belgeler ve geçmiş mesajlar talimat/yetki sayılmaz. Seçili kaynaklar yalnız paylaşım onayı verilen kaynaklı sohbette etkin sağlayıcıya gönderilir. Model denemesi proje kaynaklarını kullanmaz.
+Son kapsam ölçümü 2026-10-28'de 446 testlik kaynakta satır %94,16/dal %85,96 idi; güncel kodun kapsam sonucu sayılmaz. Tam seri sonucu ile kapsam ölçümünü birbirinin yerine kullanmayın.
 
-Tarama kaynak/belge/dışlanan dosya sayılarını ve kısmi taramayı gösterir. Varsayılan sınırlar 2500 dosya, dosya başına 256 KiB, toplam 4 MiB; sohbet bağlamı 40000 karakterdir. Bu nedenle her belge veya bütün proje her istekte modele gönderilmez. Canlı DB, dış servis ve çalışma zamanı davranışları bu analizle doğrulanmış sayılmaz. Geliştirme motoru güncel filtrelenmiş çalışma kopyasını okuyabilir; dosya uygulama ve komut onayları korunur.
+Gerçek OpenCode 1.18.33 kabulü kontrollü sentetik kaynaklarla yapıldı; önceki sınırlı canlı sağlayıcı denemesi bütün hesapların garantisi değildir. Gerçek Docker build/run, uzak OS×Node matrisi, paketli framework/masaüstü E2E, native sinyal teslimi, pozitif proxy CONNECT ve kapsamlı canlı sağlayıcı/DB kabulü **henüz tamamlanmış değildir**. Tedarik zincirindeki planlanan kontroller de açık iştir. DBHub/canlı DB bağlantısı ertelidir; bu liste yayın yetkisi vermez.
 
-Repomix yeniden incelendi (https://repomix.com/guide/); mevcut güvenli okuyucu ve sınırlı kaynak seçimi korunarak zorunlu bağımlılık eklenmedi. Cline/Aider alternatif motor adayları; DBHub veritabanı bağlantısı ertelendiği için eklenmedi. Bunlar kurulmuş veya aktifmiş gibi gösterilmez.
+Docs altında tek Markdown dosyası vardır; 11 belgenin toplam metnine göre birleştirme sırasında yaklaşık **%79** kısaldı. [Küçük tarihsel kabul betiği](roadmap/dogrulama.mjs) tam test serisinin veya canlı dağıtımın yerine geçmez. Graphify'ın `project.graphify`, `project.graphifyPython`, `project.graphifyAutoDetect` seçenekleri ve `LLM_GRAPHIFY_PYTHON` ortam desteği kaldırıldı. Proje durumunda `graph`, sohbet yanıtında `graphUsed` alanları ve hata sözlüğünde `PROJECT_GRAPH_FAILED` / `PROJECT_GRAPH_INVALID` kodları yoktur; bunları kullanan istemciler güncellenmelidir. Bilgisayarda ayrı kurulu CLI, LLM Manager tarafından çağrılmaz. Paket açıklaması ve tip belgeleri de yerleşik analiz, kalıcı sohbet ve profil/geçmiş anahtar döndürme davranışıyla eşitlenmiştir.
 
-Sohbet görünümü mesajlara daha fazla dikey alan ayırır: masaüstünde en az 940 px, mobilde en az 800 px uzunluğundadır. Daha kısa ekranda yazma alanına sayfayı aşağı kaydırarak ulaşılır; mesajlar kendi alanında kaydırılır. Merkezde ayrı sohbet menüsü ve **Sohbet bağlamı ve kaynaklar** paneli bulunmaz. Başlık düzenleme, JSON dışa aktarma, silme ve kaydı tekrar deneme soldaki **Seçili sohbet** bölümündedir; mobilde **Sohbetler** düğmesiyle açılır. Yanıta ait metrik ve kaynak referansları, varsa mesajın **Yanıt ayrıntıları** içinde korunur.
+### Birleştirilen her belgenin kısa özeti
+
+| Önceki dosya | Güncellenmiş özeti / buradaki karşılığı |
+| --- | --- |
+| KULLANICI_KILAVUZU.md | Başlangıç, profil ve sohbet akışı; yeni okuyucu sırasına alındı, eski UI tarifleri temizlendi. |
+| TEKNIK_KILAVUZ.md | Core/adaptör, transport, proje ve geçmiş mimarisi; API/tip/sınırlar aynı konu altında toplandı. |
+| ENTEGRASYON.md | Init ve 10 ortamın süreç/kimlik sınırları; ortak örnek ve tek tabloya indirildi, host store sözleşmesi korundu. |
+| DAGITIM.md | Docker/servis, ortam ayarları, sağlık/kapanış; giriş noktalarının gerçekten okuduğu ayarlar ayrıldı. |
+| GUVENLIK.md | Sır koruma, destek ve özel açık bildirimi; aynı güvenlik bölümünde korundu. |
+| TEHDIT_MODELI.md | SSRF/CSRF, erişim, maliyet, bütünlük/tedarik zinciri; anahtar kurtarması profil+geçmiş+anahtar olarak güncellendi. |
+| KATKI_REHBERI.md | Kalite, commit, API/tip güncelleme ve test gizliliği; geliştirme bölümüne taşındı. |
+| KLASORLER.md | Çalışan kod/veri/araçların amacı; geçici olmayan veri ve anahtarların korunmasıyla tek tablo oldu. |
+| DEGISIKLIKLER.md | İlk sürüm ve yayımlanmamış değişiklikler; tekrar eden özellikler yerine tarihli kısa gelişim özeti oldu. |
+| roadmap/YOL_HARITASI.md | YH1/YH2/YH3 sonuçları, doğrulama ve açık işler; eski planlar güncel davranış gibi sunulmadan özetlendi. |
+| superpowers/plans/2026-10-29-rotation-docs-graphify.md | Tamamlanan anahtar/belge/harita planı; sonucu ve işletim sınırları ilgili bölümlere işlendi. |
+
+Ayrıntılı eski commit kayıtları Git geçmişindedir; bu dosya güncel kullanım kaynağıdır. [README](../README.md) · [MIT lisansı](../LICENSE)

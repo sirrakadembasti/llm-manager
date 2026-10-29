@@ -7,7 +7,6 @@ import { once } from 'node:events';
 import { createProjectWorkspace } from '../src/project/workspace.js';
 import { createProjectRelay } from '../src/project/relay.js';
 import { runOpenCode } from '../src/project/opencode.js';
-import { runGraphify } from '../src/project/graphify.js';
 
 const files = [
   { path: 'app.js', content: 'export const value = 1;\n' },
@@ -94,19 +93,6 @@ try {
       originalKeyPersisted: false
     })
   );
-  if (process.env.LLM_GRAPHIFY_PYTHON) {
-    const graph = await runGraphify({ files, command: process.env.LLM_GRAPHIFY_PYTHON });
-    assert.equal(graph.status, 'ready');
-    assert.ok(graph.nodes.some(n => n.path === 'db/schema.sql'));
-    console.log(
-      JSON.stringify({
-        graphify: graph.status,
-        nodes: graph.nodes.length,
-        links: graph.links.length,
-        sqlSourceFound: true
-      })
-    );
-  }
 } catch (error) {
   console.error(JSON.stringify({ acceptance: 'failed', code: error.code || error.name, providerRequests: requests }));
   throw error;

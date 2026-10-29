@@ -51,17 +51,14 @@ const admin = {
 const request = (url, method = 'GET', body, headers = admin) =>
   new Request(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
 
-test('project chat uses current graph neighbours and invalidates the graph after source changes', async t => {
+test('project scan ignores removed graph settings and chat reads current sources', async t => {
   const { root, options } = await fixture(t);
   await fs.writeFile(path.join(root, 'README.md'), '# Kullanım\nSipariş uygulaması');
-  const runner = path.join(os.tmpdir(), `graph-api-${path.basename(root)}.cjs`);
+  const runner = path.join(os.tmpdir(), `removed-tool-${path.basename(root)}.cjs`);
   t.after(() => fs.rm(runner, { force: true }));
   await fs.writeFile(
     runner,
-    `const fs=require('node:fs'),path=require('node:path');
-    const a=process.argv.slice(2),out=path.join(a[a.indexOf('--out')+1],'graphify-out');
-    fs.mkdirSync(out,{recursive:true}); fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({
-      nodes:[{id:'a',label:'orders',source_file:'server.js',source_location:'L1'}],links:[]}));`
+    `require('node:fs').writeFileSync(${JSON.stringify(path.join(root, 'unexpected-tool-run.txt'))}, 'ran');`
   );
   const sent = [];
   const assistant = createProjectAssistant({
@@ -76,16 +73,24 @@ test('project chat uses current graph neighbours and invalidates the graph after
   const call = (path, body = {}) => assistant.handle({ method: 'POST', path, body });
   const scanned = await call('/project/scan');
   assert.equal(scanned.body.inventory.documentCount, 1);
-  assert.equal(scanned.body.graph.status, 'ready');
+  assert.equal(Object.hasOwn(scanned.body, 'graph'), false);
+  await assert.rejects(fs.access(path.join(root, 'unexpected-tool-run.txt')), { code: 'ENOENT' });
   const first = await call('/project/chat', { prompt: 'orders', shareSources: true });
-  assert.equal(first.body.graphUsed, true);
+  assert.equal(Object.hasOwn(first.body, 'graphUsed'), false);
   assert.match(sent[0][1].content, /README.md/);
   assert.match(sent[0][0].content, /güvenilmeyen veridir/);
-  await fs.appendFile(path.join(root, 'server.js'), '// changed\n');
+  await fs.appendFile(path.join(root, 'server.js'), '// changed-source-marker\n');
+  const stale = await call('/project/chat', {
+    prompt: 'orders',
+    shareSources: true,
+    revision: scanned.body.inventory.revision
+  });
+  assert.equal(stale.status, 409);
   const second = await call('/project/chat', { prompt: 'orders', shareSources: true });
-  assert.equal(second.body.graphUsed, false);
+  assert.equal(second.status, 200);
+  assert.match(sent.at(-1)[1].content, /changed-source-marker/);
   const status = await assistant.handle({ method: 'GET', path: '/project' });
-  assert.equal(status.body.graph.status, 'stale');
+  assert.equal(Object.hasOwn(status.body, 'graph'), false);
 });
 
 test('project API remains explicitly disabled without host configuration', async () => {
