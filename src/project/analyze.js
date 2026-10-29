@@ -1,12 +1,67 @@
 import path from 'node:path';
 
 function role(name) {
+  if (/(?:^|\/)(?:tests?|__tests__)\/|\.(?:test|spec)\./.test(name)) return 'test';
   if (/(?:^|\/)(?:db|database|migrations|models)(?:\/|$)|\.(?:sql|prisma)$/.test(name)) return 'database';
   if (/(?:^|\/)(?:frontend|client|components|pages|views)(?:\/|$)|\.(?:jsx|tsx|vue|svelte)$/.test(name))
     return 'frontend';
   if (/(?:^|\/)(?:backend|server|api|controllers|services|routes)(?:\/|$)/i.test(name)) return 'backend';
-  if (/(?:^|\/)(?:tests?|__tests__)(?:\/|$)|\.test\./.test(name)) return 'test';
   return 'shared';
+}
+
+// JSON is validated before this walk. Record actual property locations without
+// confusing dependency names with identically named scripts or nested metadata.
+function dependencyLines(text) {
+  let offset = 0;
+  const positions = new Map();
+  const skip = () => {
+    while (/\s/.test(text[offset] || '') && offset < text.length) offset++;
+  };
+  const string = () => {
+    const start = offset++;
+    while (offset < text.length) {
+      if (text[offset++] === '\\') offset++;
+      else if (text[offset - 1] === '"') break;
+    }
+    return JSON.parse(text.slice(start, offset));
+  };
+  function value(keys) {
+    skip();
+    if (text[offset] === '{') {
+      offset++;
+      skip();
+      while (text[offset] !== '}') {
+        const start = offset;
+        const key = string();
+        if (keys.length === 1 && ['dependencies', 'devDependencies'].includes(keys[0]))
+          positions.set(`${keys[0]}:${key}`, text.slice(0, start).split('\n').length);
+        skip();
+        offset++;
+        value([...keys, key]);
+        skip();
+        if (text[offset] !== ',') break;
+        offset++;
+        skip();
+      }
+      offset++;
+    } else if (text[offset] === '[') {
+      offset++;
+      skip();
+      while (text[offset] !== ']') {
+        value([...keys, '[]']);
+        skip();
+        if (text[offset] !== ',') break;
+        offset++;
+        skip();
+      }
+      offset++;
+    } else if (text[offset] === '"') string();
+    else {
+      while (offset < text.length && !/[\s,}\]]/.test(text[offset])) offset++;
+    }
+  }
+  value([]);
+  return positions;
 }
 
 export function analyzeProject(files) {
@@ -23,11 +78,14 @@ export function analyzeProject(files) {
     if (/(?:^|\/)package\.json$/.test(name)) {
       try {
         const pkg = JSON.parse(content);
+        const locations = dependencyLines(content);
         const deps = { ...pkg.dependencies, ...pkg.devDependencies };
         for (const [dependency, version] of Object.entries(deps)) {
-          if (typeof version === 'string') stack.push({ name: dependency, version, path: name, line: 1 });
+          const section = Object.hasOwn(pkg.devDependencies || {}, dependency) ? 'devDependencies' : 'dependencies';
+          if (typeof version === 'string')
+            stack.push({ name: dependency, version, path: name, line: locations.get(`${section}:${dependency}`) || 1 });
         }
-        components.push({ name: path.posix.dirname(name), manifest: name, role: role(name) });
+        components.push({ name: path.posix.dirname(name), manifest: name, path: name, line: 1, role: role(name) });
       } catch {
         warnings.push({ path: name, message: 'Paket bildirimi ayrıştırılamadı.' });
       }
@@ -36,13 +94,25 @@ export function analyzeProject(files) {
       for (const m of content.matchAll(/^\s*([\w-]+)\s*(?:==|>=|~=|=)\s*["']?([\w.*+-]+)/gm)) {
         stack.push({ name: m[1], version: m[2], path: name, line: lineAt(content, m.index) });
       }
-      components.push({ name: path.posix.dirname(name), manifest: name, role: 'backend' });
+      components.push({ name: path.posix.dirname(name), manifest: name, path: name, line: 1, role: 'backend' });
     }
     if (name.endsWith('.csproj')) {
       for (const m of content.matchAll(/<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"/g)) {
         stack.push({ name: m[1], version: m[2], path: name, line: lineAt(content, m.index) });
       }
-      components.push({ name: path.posix.dirname(name), manifest: name, role: 'backend' });
+      components.push({ name: path.posix.dirname(name), manifest: name, path: name, line: 1, role: 'backend' });
+    }
+    if (/\.[cm]?[jt]sx?$/.test(name) && role(name) !== 'test') {
+      for (const m of content.matchAll(/\b(setupLLMManagement|setupLLM|mountLLMManagement)\s*\(/g)) {
+        if (/\bfunction\s*$/.test(content.slice(Math.max(0, m.index - 20), m.index))) continue;
+        components.push({
+          name: m[1],
+          path: name,
+          line: lineAt(content, m.index),
+          role: role(name),
+          kind: 'integration-call'
+        });
+      }
     }
     for (const m of content.matchAll(
       /\b(?:app|router|server)\.(get|post|put|patch|delete|options|head)\s*\(\s*['"`]([^'"`]+)['"`]/gi

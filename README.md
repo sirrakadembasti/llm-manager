@@ -4,6 +4,8 @@ LLM sağlayıcılarını, modellerini ve API anahtarlarını tek arayüzden yön
 
 **Gereksinim:** Node.js 22.12+. Docker ve veritabanı zorunlu değildir. Arayüz yalnız Türkçedir.
 
+Kaynaklı sohbetin temel/Graphify karşılaştırması, aynı revizyon ve boş geçmişle yapılır. İlk çiftteki satır atıf hataları sonrası yönerge sıkılaştırıldı; ikinci çiftte kapsam dışı atıf bulunmadı ve güncel LLM bağlantısı kapsandı. Bu sınırlı kabul, Graphify'nin her soruda üstün olduğu anlamına gelmez. [Ölçümler ve kabul sınırları](docs/KULLANICI_KILAVUZU.md#kaynaklı-yanıt-kalitesini-karşılaştırma).
+
 ## Başlatma
 
 İndirdiğiniz proje klasöründe PowerShell açın:
@@ -32,7 +34,7 @@ Express yönetici oturumuna bağlamak için `--auth host --auth-module ./llm-aut
 oturum adaptörü ve izinli roller açıkça yapılandırılır. [Giriş yöntemleri ve sınırlar](docs/KULLANICI_KILAVUZU.md#yönetim-yolu-ve-giriş).
 
 Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulama ve kurulum geri alma ilk kapsamı tamamlandı.
-Proje kökü düzeltmesi sonrası tam seride **502 test: 501 geçti, 1 platform testi atlandı**; Mimo Stok kabulünde **291/291 test** geçti.
+Altı adımlı kaynak kalitesi geliştirmesi sonrası son tam seride **571 test: 570 geçti, 1 platform testi atlandı**; yedi soru türünü iki yöntemle sınayan kalite kontrolleri **17/17** geçti. Hedef uygulamanın kabul sonuçları kendi README'sinde tutulur.
 Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
 Domainin `/llm`, arayüz betiği ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; `/stok/` altında kurulumda genel yol `/stok/llm` olur.
 Yerel HTTP proxy kabulü tamamlandı; gerçek Linux VPS, Windows Server/IIS, domain/HTTPS ve servis yeniden başlatma kabulü henüz tamamlanmadı.
@@ -45,9 +47,14 @@ Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başk
 
 Sohbet çalışma alanı model denemesini de içerir: proje bağlamadan kayıtlı profil seçebilir, sistem talimatı verebilir ve akışlı yanıtı süre/token bilgisiyle sınayabilirsiniz. Kaynaklı sohbet ve geliştirme türleri etkin profili kullanır. Soldaki listeden sohbet açılır/silinir; **Seçili sohbet** alanından başlık, dışa aktarma ve kayıt işlemleri yapılır. Mesajlar geniş dikey merkez alanda, proje bilgileri açılabilen sağ paneldedir. Mobilde **Sohbetler** düğmesi listeyi açar.
 
-Sunucuya `LLM_PROJECT_ROOT` verin veya CLI'da `llm-manager --project-root F:\uygulamalar\hedef` kullanın. Paket entegrasyonunda `project: { root: '/absolute/target' }` seçeneği vardır. Kaynak taraması yerleşiktir; ek analiz aracı kurulmaz. Plan ve değişiklik görevleri için OpenCode ayrıca kurulmalıdır; `LLM_OPENCODE_PATH` ile yolu seçebilirsiniz. [Bağlama ve kullanım](docs/KULLANICI_KILAVUZU.md#proje-asistanı).
+Sunucuya `LLM_PROJECT_ROOT` verin veya CLI'da `llm-manager --project-root F:\uygulamalar\hedef` kullanın. Paket entegrasyonunda `project: { root: '/absolute/target' }` seçeneği vardır. Temel kaynak taraması yerleşiktir. Hedef uygulama için isteğe bağlı Graphify ilişki analizi, **Proje bilgileri** panelinden seçilir; kurulum rehberi aynı yerdedir. Plan ve değişiklik görevleri için OpenCode ayrıca kurulmalıdır; `LLM_OPENCODE_PATH` ile yolu seçebilirsiniz. [Bağlama ve kullanım](docs/KULLANICI_KILAVUZU.md#proje-asistanı).
 
 Express helper hedef `.env` dosyasındaki proje kökünü okur; göreli yol helper klasörüne göredir. `backend/llm.js` için `LLM_PROJECT_ROOT=..` uygulama kökünü bağlar. Kök tanımlı değilse **Projeyi tara** pasiftir; genel bakış ilk yerel taramadan sonra oluşur.
+
+Kaynaklı sohbette güncel README/kılavuz ve bileşen manifestleri önceliklidir. Arşiv ve planlar tarihçe/plan sorularında, rollerini belirten uyarılarla dahil edilir. Özel belge rolleri sunucuda `project.documentRoles` ile ayarlanır; bu eşleme gizlilik filtresini aşamaz.
+Genel tanıtımda frontend/backend/yetki/entegrasyon/veritabanı kaynaklarına pay ayrılır; aynı taramadan üretilmiş dosya/satır kanıtlı mimari özeti modele aktarılır. Genel soru sözcükleri rastgele alt dize eşleşmeleri üretmez. Özet ve kaynaklar toplam 40.000 karakterle sınırlıdır; statik bulgular başarılı çalışma/test garantisi değildir.
+Graphify seçilirse aynı bütçeye en fazla 20 dosya/satır referanslı ilişki ve sınırlı kaynak satırları eklenir. Ek dosya veya ilişki kanıtı yoksa `graphUsed`/`graphContributed` false olur. Sohbet ve geliştirme görevleri aynı seçim/revizyon kontrolünü kullanır; ilişki izi Yanıt ayrıntılarında ve şifreli geçmişte korunur.
+Gizlilik filtresi boş Vue reactive ifadelerini parola sanmaz; gerçek literal kimlik bilgileri çalışma kopyasına alınmaz. **Dışlanan kaynaklar ve nedenleri** paneli güvenli göreli yollar ve neden kodlarını gösterir; ham sır içermez. Özet sınırlıdır ve dizinler tek kayıtla gösterilebilir; DB URL örnekleri güvenle ayrıştırılamazsa dosya dışlanır.
 
 Görevler geçici kaynak kopyasında hazırlanır; hedef dosyalar ayrı onayla değişir. Sohbetler ve iş çıktısı özetleri mevcut anahtarla şifreli kalıcı kaydedilir; kayıtlı sohbet açılıp sürdürülebilir. Canlı diff/geri alma kayıtları sunucu belleğindedir; kapanışta silinir. Geçmiş kaydı dosyaları otomatik uygulamaz. Kaynak taraması gerçek veritabanına bağlanmaz.
 

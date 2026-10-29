@@ -64,6 +64,137 @@ test('stale session updates and deletion cannot erase another tab changes', asyn
   assert.equal((await call('GET', '/' + session.id)).status, 404);
 });
 
+test('message retrieval traces survive encrypted restart with allowlisted fields', async t => {
+  const { make, call } = await fixture(t);
+  const retrieval = {
+    requestedMode: 'graphify',
+    effectiveMode: 'graphify',
+    reason: 'graph-ready',
+    sourceRevision: 'a'.repeat(64),
+    graphRevision: 'a'.repeat(64),
+    graphReady: true,
+    graphContributed: true,
+    graphAddedFiles: ['src/related.js'],
+    graphEvidence: [
+      {
+        fromPath: 'src/orders.js',
+        fromLine: 2,
+        toPath: 'src/related.js',
+        toLine: 3,
+        kind: 'calls',
+        confidence: 'unknown'
+      }
+    ]
+  };
+  const saved = await call('POST', '', {
+    mode: 'chat',
+    retrievalMode: 'graphify',
+    messages: [
+      {
+        role: 'assistant',
+        content: 'Answer',
+        status: 'completed',
+        retrieval: { ...retrieval, command: 'must-not-persist', rawContext: 'private' }
+      }
+    ]
+  });
+  assert.equal(saved.status, 201);
+  const next = make();
+  t.after(() => next.close());
+  const restored = await next.handle({ method: 'GET', path: '/assistant/sessions/' + saved.body.id, principal: admin });
+  assert.deepEqual(restored.body.messages[0].retrieval, retrieval);
+  assert.equal(restored.body.retrievalMode, 'graphify');
+  assert.ok(!JSON.stringify(restored.body).includes('must-not-persist'));
+  const old = await call('POST', '', {
+    mode: 'chat',
+    messages: [{ role: 'assistant', content: 'Old', status: 'completed' }]
+  });
+  assert.equal(old.status, 201);
+  assert.equal(Object.hasOwn(old.body.messages[0], 'retrieval'), false);
+});
+
+test('history rejects unsafe or oversized relation evidence and strips unknown relation fields', async t => {
+  const { call } = await fixture(t);
+  const edge = {
+    fromPath: 'src/orders.js',
+    fromLine: 1,
+    toPath: 'src/related.js',
+    toLine: 2,
+    kind: 'calls',
+    confidence: 'unknown'
+  };
+  const retrieval = {
+    requestedMode: 'graphify',
+    effectiveMode: 'graphify',
+    reason: 'graph-ready',
+    sourceRevision: 'a'.repeat(64),
+    graphRevision: 'a'.repeat(64),
+    graphReady: true,
+    graphContributed: true,
+    graphAddedFiles: []
+  };
+  for (const graphEvidence of [
+    null,
+    {},
+    Array(21).fill(edge),
+    [{ ...edge, fromPath: '../.env' }],
+    [{ ...edge, toLine: 0 }],
+    [{ ...edge, fromLine: 1.5 }],
+    [{ ...edge, kind: 'x'.repeat(81) }],
+    [{ ...edge, confidence: 'x'.repeat(41) }]
+  ]) {
+    const saved = await call('POST', '', {
+      mode: 'chat',
+      messages: [{ role: 'assistant', content: 'x', status: 'completed', retrieval: { ...retrieval, graphEvidence } }]
+    });
+    assert.equal(saved.status, 400);
+  }
+  const saved = await call('POST', '', {
+    mode: 'chat',
+    messages: [
+      {
+        role: 'assistant',
+        content: 'x',
+        status: 'completed',
+        retrieval: { ...retrieval, graphEvidence: [{ ...edge, rawSource: 'private', command: 'private' }] }
+      }
+    ]
+  });
+  assert.equal(saved.status, 201);
+  assert.deepEqual(saved.body.messages[0].retrieval.graphEvidence, [edge]);
+});
+
+test('history rejects malformed, oversized and unsafe retrieval fields', async t => {
+  const { call } = await fixture(t);
+  const valid = {
+    requestedMode: 'basic',
+    effectiveMode: 'basic',
+    reason: 'basic-selected',
+    sourceRevision: 'a'.repeat(64),
+    graphRevision: null,
+    graphReady: false,
+    graphContributed: false,
+    graphAddedFiles: []
+  };
+  for (const change of [
+    { requestedMode: 'auto' },
+    { sourceRevision: 'x'.repeat(10000) },
+    { graphReady: 'yes' },
+    { reason: 'unknown' },
+    { graphAddedFiles: ['../.env'] },
+    { graphAddedFiles: ['C:/private/file.js'] },
+    { graphAddedFiles: Array(101).fill('src/app.js') },
+    { graphAddedFiles: ['a'.repeat(513) + '.js'] }
+  ]) {
+    const response = await call('POST', '', {
+      mode: 'chat',
+      messages: [{ role: 'assistant', content: 'x', status: 'completed', retrieval: { ...valid, ...change } }]
+    });
+    assert.equal(response.status, 400, JSON.stringify(change).slice(0, 120));
+  }
+  assert.equal((await call('GET')).body.sessions.length, 0);
+});
+
 test('history rejects invalid messages and exposes unsupported persistence without losing profiles', async t => {
   const { make, call } = await fixture(t);
   const { body: session } = await call('POST', '', { mode: 'model' });

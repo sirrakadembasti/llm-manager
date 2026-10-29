@@ -23,7 +23,12 @@ export async function createProjectWorkspace(files) {
     for (const file of files) {
       projectPath(file.path);
       if (hasProjectSecret(file.content))
-        throw projectError('PROJECT_SECRET_DETECTED', 'Sır içerebilecek dosya çalışma kopyasına alınamaz.', 403);
+        throw projectError(
+          'PROJECT_SECRET_DETECTED',
+          'Sır içerebilecek dosya çalışma kopyasına alınamaz.',
+          403,
+          'secret'
+        );
       const target = path.join(root, ...file.path.split('/'));
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, file.content, { flag: 'wx', mode: 0o600 });

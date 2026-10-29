@@ -35,6 +35,7 @@ function createLLMProjectUI({
     setBusy: value => lock(value),
     capture: () => ({
       mode: el('project-mode').value || 'model',
+      retrievalMode: el('project-use-graphify').checked ? 'graphify' : 'basic',
       profileId: el('project-profile').value || '',
       system: el('project-system').value,
       contextId,
@@ -70,6 +71,29 @@ function createLLMProjectUI({
     const scroll = el('assistant-messages');
     return (scroll.scrollHeight || 0) - (scroll.scrollTop || 0) - (scroll.clientHeight || 0) < 80;
   }
+  function retrievalSummary(value) {
+    if (!value) return 'Analiz yöntemi: bilinmiyor (bu kayıtta analiz izi yok).';
+    const mode = name => (name === 'graphify' ? 'Graphify' : 'Temel');
+    const reason =
+      {
+        'basic-selected': 'Temel analiz seçildi; Graphify kullanılmadı.',
+        'graph-ready': 'Güncel harita ek dosya veya kaynak satırlı ilişki kanıtı kattı.',
+        'graph-unavailable': 'Graphify haritası kullanılamıyor; temel analize geçildi.',
+        'graph-stale': 'Harita eski; temel analize geçildi.',
+        'graph-disabled': 'Graphify sunucuda kapalı; temel analize geçildi.',
+        'no-graph-contribution': 'Güncel harita değerlendirildi; ek dosya veya ilişki kanıtı katkısı yok.'
+      }[value.reason] || 'Analiz nedeni bilinmiyor.';
+    const relations = value.graphEvidence?.length
+      ? '\nGraphify ilişki kanıtları:\n' +
+        value.graphEvidence
+          .map(
+            edge =>
+              `${edge.fromPath}:${edge.fromLine} → ${edge.toPath}:${edge.toLine} · ${edge.kind} (${edge.confidence})`
+          )
+          .join('\n')
+      : '';
+    return `Seçim: ${mode(value.requestedMode)} · Yöntem: ${mode(value.effectiveMode)}\n${reason}\nKaynak revizyonu: ${value.sourceRevision}\nHarita revizyonu: ${value.graphRevision || 'yok'}\nHarita hazır: ${value.graphReady ? 'evet' : 'hayır'} · Ek kaynak katkısı: ${value.graphContributed ? 'evet' : 'hayır'}${value.graphAddedFiles?.length ? '\nGraphify ile eklenen dosyalar: ' + value.graphAddedFiles.join(', ') : ''}${relations}`;
+  }
   function renderTranscript(forceScroll = true) {
     const scroll = el('assistant-messages'),
       previousTop = scroll.scrollTop || 0,
@@ -101,6 +125,11 @@ function createLLMProjectUI({
             `${m.at ? new Date(m.at).toLocaleString('tr-TR') : ''} · ${status}${m.meta ? '\n' + m.meta : ''}${m.sources ? '\nKaynaklar: ' + m.sources : ''}`
           )
         );
+        if (
+          m.role === 'assistant' &&
+          (m.retrieval || m.label === 'Kaynaklı sohbet' || el('project-mode').value === 'chat')
+        )
+          details.append(textNode('pre', retrievalSummary(m.retrieval), 'project-answer'));
         article.append(details);
         return article;
       })
@@ -117,6 +146,7 @@ function createLLMProjectUI({
     el('project-system').value = value.system || '';
     el('project-prompt').value = '';
     el('project-share').checked = false;
+    el('project-use-graphify').checked = value.retrievalMode === 'graphify';
     modelSession = value.modelContext || '';
     const completed = completedContext();
     (modelMode() ? modelHistory : history).push(...completed.slice(-10));
@@ -231,6 +261,7 @@ function createLLMProjectUI({
     busy = value;
     historyUI.lock(value);
     el('project-scan').disabled = busy || !state.enabled;
+    el('project-use-graphify').disabled = busy || !state.enabled || state.capabilities?.graphify === false;
     el('project-send').disabled = busy || (modelMode() ? !el('project-profile').value : !state.enabled);
     el('project-cancel').disabled = !busy || !controller;
     el('project-prompt').disabled = busy || (!modelMode() && !state.enabled);
@@ -314,8 +345,21 @@ function createLLMProjectUI({
           'Proje asistanı yapılandırılmadı. Sunucuda LLM_PROJECT_ROOT veya project.root seçeneğiyle kaynak dizinini bağlayın.'
         )
       : inventory
-        ? `${inventory.fileCount} kaynak dosyası · ${inventory.documentCount || 0} belge · ${inventory.excluded || 0} dosya dışlandı · ${inventory.partial ? 'Tarama sınırlı' : 'İzin verilen kaynaklar tarandı'} · ${new Date(inventory.scannedAt).toLocaleString('tr-TR')}`
+        ? `${inventory.fileCount} kaynak dosyası · ${inventory.documentCount || 0} belge · ${inventory.excluded || 0} dosya/dizin dışlandı · ${inventory.partial ? 'Tarama sınırlı' : 'İzin verilen kaynaklar tarandı'} · ${new Date(inventory.scannedAt).toLocaleString('tr-TR')}`
         : tr('scan_first', 'Mimari özeti oluşturmak için projeyi tarayın.');
+    el('project-graph-status').textContent =
+      next.capabilities?.graphify === false
+        ? 'Graphify bu sunucuda kapalı; temel analiz kullanılabilir.'
+        : {
+            ready: `Graphify hazır · ${next.graph?.nodes?.length || 0} öğe, ${next.graph?.links?.length || 0} ilişki. Seçenek açıksa kaynaklı sohbette kullanılabilir.`,
+            stale:
+              'Kaynaklar değişti; Graphify seçeneğini işaretleyip projeyi tekrar tarayın. Temel analiz kullanılabilir.',
+            unavailable:
+              'Graphify bulunamadı. Kurulum rehberini açın; kurduktan sonra projeyi tekrar tarayın. Temel analiz kullanılabilir.',
+            error:
+              'Graphify çalıştırılamadı veya uyumsuz çıktı üretti. Kurulumu kontrol edin; temel analiz kullanılabilir.',
+            'not-scanned': 'İsteğe bağlı: Graphify seçeneğini işaretleyip Projeyi tara düğmesine basın.'
+          }[next.graph?.status] || 'Graphify için önce hedef projeyi bağlayın.';
     const analysis = next.analysis;
     el('project-stack').replaceChildren(
       ...(analysis?.stack || []).slice(0, 30).map(s => textNode('li', `${s.name} ${s.version} · ${s.path}`))
@@ -346,6 +390,36 @@ function createLLMProjectUI({
         .map(r => textNode('li', `${r.from} → ${r.to} (${r.kind === 'http' ? 'HTTP' : tr('import', 'içe aktarma')})`))
     );
     el('project-inventory').replaceChildren(...(inventory?.files || []).slice(0, 100).map(f => textNode('li', f.path)));
+    const reasonLabels = {
+      secret: 'Sır şüphesi; içerik paylaşılmadı',
+      'private-path': 'Özel ayar/anahtar/veri dosyası',
+      directory: 'Üretilmiş veya özel dizin',
+      'unsafe-path': 'Güvenli olmayan yol',
+      'unsupported-type': 'Desteklenmeyen dosya türü',
+      ignored: 'Git/ignore kuralı',
+      symlink: 'Sembolik bağlantı',
+      binary: 'İkili içerik',
+      encoding: 'UTF-8 olmayan içerik',
+      'file-size': 'Dosya boyutu sınırı',
+      'total-size': 'Toplam boyut sınırı',
+      'file-count': 'Dosya sayısı sınırı',
+      'scan-limit': 'Dizin tarama sınırı',
+      unreadable: 'Okunamayan kaynak'
+    };
+    el('project-exclusions').replaceChildren(
+      ...(inventory?.exclusions || []).map(item =>
+        textNode('li', `${item.path} — ${reasonLabels[item.reason] || 'Dışlandı'}`)
+      )
+    );
+    el('project-exclusions-status').textContent = !inventory
+      ? 'Tarama sonrası gösterilir.'
+      : inventory.exclusions === undefined
+        ? 'Bu kayıtta neden ayrıntısı yok.'
+        : `${
+            Object.entries(inventory.exclusionCounts || {})
+              .map(([reason, count]) => `${reasonLabels[reason] || 'Dışlandı'}: ${count}`)
+              .join(' · ') || 'Dışlanan kaynak yok.'
+          }${inventory.exclusionsTruncated ? ' · Ayrıntı listesi sınırlı; bazı yollar gösterilmedi.' : ''} Dizin kayıtları içlerindeki tüm dosyalar sayılmadan gösterilebilir.`;
     el('project-task-select').replaceChildren(
       textNode('option', tr('choose_task', 'Görev seçin')),
       ...(next.tasks || []).map(task => {
@@ -532,10 +606,12 @@ function createLLMProjectUI({
                 prompt,
                 history: completedContext(),
                 revision: state.inventory?.revision,
-                shareSources: true
+                shareSources: true,
+                retrievalMode: el('project-use-graphify').checked ? 'graphify' : 'basic'
               })
             });
             answer.content = task.content || 'Görev çıktısı hazır.';
+            answer.retrieval = task.retrieval;
             history.push(
               { role: 'user', content: prompt },
               { role: 'assistant', content: answer.content.slice(0, 10000) }
@@ -569,12 +645,17 @@ function createLLMProjectUI({
               prompt,
               history: completedContext(),
               revision: state.inventory?.revision,
-              shareSources: true
+              shareSources: true,
+              retrievalMode: el('project-use-graphify').checked ? 'graphify' : 'basic'
             })
           });
           answer.content = reply.content || '';
+          answer.retrieval = reply.retrieval;
           answer.sources = (reply.sources || [])
-            .map(s => `${s.path}:${s.startLine}–${s.endLine}`)
+            .map(
+              s =>
+                `${s.path}:${s.startLine}–${s.endLine}${s.role ? ' [' + ({ canonical: 'Güncel belge adayı', manifest: 'Bağımlılık bildirimi', historical: 'Tarihsel kayıt', plan: 'Plan; uygulanma durumu doğrulanmalı', code: 'Kaynak kod', test: 'Test' }[s.role] || 'Kaynak') + ']' : ''}`
+            )
             .join(', ')
             .slice(0, 12000);
           history.push(
@@ -747,7 +828,12 @@ function createLLMProjectUI({
     }
     el('project-scan').addEventListener('click', () =>
       perform(tr('scanning', 'Proje yerel olarak taranıyor…'), async () => {
-        render(await request('/project/scan', { method: 'POST', body: '{}' }));
+        render(
+          await request('/project/scan', {
+            method: 'POST',
+            body: JSON.stringify({ graphify: el('project-use-graphify').checked })
+          })
+        );
       })
     );
     el('project-cancel').addEventListener('click', async () => {

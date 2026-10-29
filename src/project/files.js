@@ -3,7 +3,14 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { projectError, projectPath, hasProjectSecret, isWithin, skipDirectory } from './policy.js';
+import {
+  projectError,
+  projectPath,
+  hasProjectSecret,
+  isWithin,
+  skipDirectory,
+  diagnosticProjectPath
+} from './policy.js';
 import { isProjectIgnored, gitIgnoredPaths } from './ignore.js';
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -38,7 +45,7 @@ export function createProjectFiles({
       current = path.join(current, part);
       const stat = await fs.lstat(current);
       if (stat.isSymbolicLink() || !isWithin(base, await fs.realpath(current))) {
-        throw projectError('PROJECT_PATH_DENIED', 'Bağlantılı veya kök dışındaki kaynak okunamaz.', 403);
+        throw projectError('PROJECT_PATH_DENIED', 'Bağlantılı veya kök dışındaki kaynak okunamaz.', 403, 'symlink');
       }
     }
     return current;
@@ -48,14 +55,15 @@ export function createProjectFiles({
     signal?.throwIfAborted();
     const absolute = await resolveFile(relativePath);
     if (await isProjectIgnored(await rootPath(), relativePath, { git: !gitChecked })) {
-      throw projectError('PROJECT_PATH_DENIED', 'Git tarafından dışlanan dosya bağlama alınmaz.', 403);
+      throw projectError('PROJECT_PATH_DENIED', 'Git tarafından dışlanan dosya bağlama alınmaz.', 403, 'ignored');
     }
     const handle = await fs.open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     try {
       const before = await handle.stat();
-      if (!before.isFile()) throw projectError('PROJECT_PATH_DENIED', 'Yalnız kaynak dosyaları okunabilir.', 403);
+      if (!before.isFile())
+        throw projectError('PROJECT_PATH_DENIED', 'Yalnız kaynak dosyaları okunabilir.', 403, 'unreadable');
       if (before.size > maxFileBytes)
-        throw projectError('PROJECT_FILE_TOO_LARGE', 'Kaynak dosyası boyut sınırını aşıyor.', 413);
+        throw projectError('PROJECT_FILE_TOO_LARGE', 'Kaynak dosyası boyut sınırını aşıyor.', 413, 'file-size');
       const bytes = Buffer.alloc(Math.min(before.size + 1, maxFileBytes + 1));
       const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
       const after = await handle.stat();
@@ -65,10 +73,15 @@ export function createProjectFiles({
       }
       signal?.throwIfAborted();
       const data = bytes.subarray(0, bytesRead);
-      if (data.includes(0)) throw projectError('PROJECT_PATH_DENIED', 'İkili dosyalar bağlama alınmaz.', 403);
-      const content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data);
+      if (data.includes(0)) throw projectError('PROJECT_PATH_DENIED', 'İkili dosyalar bağlama alınmaz.', 403, 'binary');
+      let content;
+      try {
+        content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data);
+      } catch {
+        throw projectError('PROJECT_PATH_DENIED', 'UTF-8 olmayan kaynak bağlama alınmaz.', 403, 'encoding');
+      }
       if (hasProjectSecret(content))
-        throw projectError('PROJECT_SECRET_DETECTED', 'Sır içerebilecek kaynak dosyası dışlandı.', 403);
+        throw projectError('PROJECT_SECRET_DETECTED', 'Sır içerebilecek kaynak dosyası dışlandı.', 403, 'secret');
       return { path: relativePath, content, hash: digest(data), bytes: bytesRead };
     } finally {
       await handle.close();
@@ -78,6 +91,20 @@ export function createProjectFiles({
   async function scan({ signal } = {}) {
     signal?.throwIfAborted();
     const base = await rootPath();
+    const exclusions = [],
+      exclusionCounts = {},
+      excludedPaths = new Set();
+    let excluded = 0,
+      diagnosticsLimited = false;
+    const exclude = (name, reason) => {
+      if (name && excludedPaths.has(name)) return;
+      if (name) excludedPaths.add(name);
+      excluded++;
+      exclusionCounts[reason] = (exclusionCounts[reason] || 0) + 1;
+      const safePath = diagnosticProjectPath(name);
+      if (safePath && exclusions.length < 200) exclusions.push({ path: safePath, reason });
+      else diagnosticsLimited = true;
+    };
     let candidates;
     let gitAware = false;
     try {
@@ -96,6 +123,27 @@ export function createProjectFiles({
       );
       candidates = [...new Set(stdout.split('\0').filter(Boolean))].sort();
       gitAware = true;
+      try {
+        const { stdout: ignored } = await exec(
+          'git',
+          ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z', '--', '.'],
+          { cwd: base, encoding: 'utf8', timeout: 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal }
+        );
+        for (const item of ignored.split('\0').filter(Boolean)) {
+          const name = item.replace(/\/$/, '');
+          let reason = 'ignored';
+          try {
+            if (!item.endsWith('/')) projectPath(name);
+            else if (skipDirectory(path.posix.basename(name))) reason = 'directory';
+          } catch (error) {
+            reason = error.exclusionReason || 'unsafe-path';
+          }
+          exclude(name, reason);
+        }
+      } catch {
+        signal?.throwIfAborted();
+        diagnosticsLimited = true;
+      }
     } catch {
       signal?.throwIfAborted();
     }
@@ -108,10 +156,18 @@ export function createProjectFiles({
           signal?.throwIfAborted();
           if (++visited > maxFiles * 10) {
             walkLimited = true;
+            exclude(prefix.replace(/\/$/, '') || null, 'scan-limit');
             return;
           }
-          if (entry.isSymbolicLink() || skipDirectory(entry.name)) continue;
           const relative = prefix + entry.name;
+          if (entry.isSymbolicLink()) {
+            exclude(relative, 'symlink');
+            continue;
+          }
+          if (entry.isDirectory() && skipDirectory(entry.name)) {
+            exclude(relative, 'directory');
+            continue;
+          }
           if (entry.isDirectory()) await walk(path.join(directory, entry.name), `${relative}/`);
           else if (entry.isFile()) candidates.push(relative);
         }
@@ -130,23 +186,25 @@ export function createProjectFiles({
     candidates.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
     const files = [];
     let bytes = 0;
-    let excluded = 0;
     let partial = walkLimited;
     const gitIgnored = candidates.length ? await gitIgnoredPaths(base, candidates) : new Set();
     for (const name of candidates) {
       signal?.throwIfAborted();
-      if (files.length >= maxFiles) {
-        partial = true;
-        break;
-      }
       try {
+        projectPath(name);
         if (gitIgnored?.has(name)) {
-          excluded++;
+          exclude(name, 'ignored');
+          continue;
+        }
+        if (files.length >= maxFiles) {
+          partial = true;
+          exclude(name, 'file-count');
           continue;
         }
         const file = await read(name, { signal, gitChecked: true });
         if (bytes + file.bytes > maxTotalBytes) {
           partial = true;
+          exclude(name, 'total-size');
           continue;
         }
         files.push(file);
@@ -155,7 +213,7 @@ export function createProjectFiles({
         signal?.throwIfAborted();
         if (error.code === 'PROJECT_FILE_TOO_LARGE') partial = true;
         if (error.code === 'PROJECT_CONFLICT') throw error;
-        excluded++;
+        exclude(name, error.exclusionReason || 'unreadable');
       }
     }
     return {
@@ -163,6 +221,9 @@ export function createProjectFiles({
       files,
       bytes,
       excluded,
+      exclusions,
+      exclusionCounts,
+      exclusionsTruncated: diagnosticsLimited,
       partial,
       gitAware,
       revision: digest(files.map(f => `${f.path}:${f.hash}`).join('\n')),

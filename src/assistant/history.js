@@ -1,8 +1,89 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { projectError } from '../project/policy.js';
+import { projectError, projectPath } from '../project/policy.js';
 
 const invalid = () => projectError('ASSISTANT_INVALID', 'Sohbet kaydı biçimi veya boyut sınırları geçersiz.');
+function cleanRetrieval(value) {
+  const modes = ['basic', 'graphify'];
+  const reasons = [
+    'basic-selected',
+    'graph-ready',
+    'graph-unavailable',
+    'graph-stale',
+    'graph-disabled',
+    'no-graph-contribution'
+  ];
+  if (
+    !value ||
+    !modes.includes(value.requestedMode) ||
+    !modes.includes(value.effectiveMode) ||
+    !reasons.includes(value.reason) ||
+    typeof value.sourceRevision !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(value.sourceRevision) ||
+    (value.graphRevision !== null &&
+      (typeof value.graphRevision !== 'string' || !/^[a-f0-9]{64}$/.test(value.graphRevision))) ||
+    typeof value.graphReady !== 'boolean' ||
+    typeof value.graphContributed !== 'boolean' ||
+    !Array.isArray(value.graphAddedFiles) ||
+    value.graphAddedFiles.length > 100
+  )
+    throw invalid();
+  const graphAddedFiles = value.graphAddedFiles.map(file => {
+    if (typeof file !== 'string' || file.length > 512) throw invalid();
+    try {
+      return projectPath(file);
+    } catch {
+      throw invalid();
+    }
+  });
+  let graphEvidence;
+  if (value.graphEvidence !== undefined) {
+    if (!Array.isArray(value.graphEvidence) || value.graphEvidence.length > 20) throw invalid();
+    graphEvidence = value.graphEvidence.map(edge => {
+      if (
+        !edge ||
+        !Number.isSafeInteger(edge.fromLine) ||
+        edge.fromLine < 1 ||
+        !Number.isSafeInteger(edge.toLine) ||
+        edge.toLine < 1 ||
+        typeof edge.kind !== 'string' ||
+        !edge.kind.length ||
+        edge.kind.length > 80 ||
+        typeof edge.confidence !== 'string' ||
+        !edge.confidence.length ||
+        edge.confidence.length > 40
+      )
+        throw invalid();
+      for (const file of [edge.fromPath, edge.toPath]) {
+        if (typeof file !== 'string' || file.length > 512) throw invalid();
+        try {
+          projectPath(file);
+        } catch {
+          throw invalid();
+        }
+      }
+      return {
+        fromPath: edge.fromPath,
+        fromLine: edge.fromLine,
+        toPath: edge.toPath,
+        toLine: edge.toLine,
+        kind: edge.kind,
+        confidence: edge.confidence
+      };
+    });
+  }
+  return {
+    requestedMode: value.requestedMode,
+    effectiveMode: value.effectiveMode,
+    reason: value.reason,
+    sourceRevision: value.sourceRevision,
+    graphRevision: value.graphRevision,
+    graphReady: value.graphReady,
+    graphContributed: value.graphContributed,
+    graphAddedFiles,
+    ...(graphEvidence === undefined ? {} : { graphEvidence })
+  };
+}
 function clean(input) {
   if (!input || !['model', 'chat', 'plan', 'change'].includes(input.mode)) throw invalid();
   const string = (v, max) => {
@@ -11,11 +92,13 @@ function clean(input) {
   };
   const messages = input.messages ?? [];
   const outputs = input.outputs ?? [];
+  if (input.retrievalMode !== undefined && !['basic', 'graphify'].includes(input.retrievalMode)) throw invalid();
   if (!Array.isArray(messages) || messages.length > 100 || !Array.isArray(outputs) || outputs.length > 20)
     throw invalid();
   const result = {
     title: string(input.title || 'Yeni sohbet', 120),
     mode: input.mode,
+    ...(input.retrievalMode === undefined ? {} : { retrievalMode: input.retrievalMode }),
     profileId: string(input.profileId || '', 160),
     system: string(input.system || '', 10000),
     contextId: string(input.contextId || '', 80),
@@ -34,7 +117,8 @@ function clean(input) {
         at: string(m.at || '', 40),
         label: string(m.label || '', 240),
         meta: string(m.meta || '', 240),
-        sources: string(m.sources || '', 12000)
+        sources: string(m.sources || '', 12000),
+        ...(m.retrieval === undefined ? {} : { retrieval: cleanRetrieval(m.retrieval) })
       };
     }),
     outputs: outputs.map(o => ({

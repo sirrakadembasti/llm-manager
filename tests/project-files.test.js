@@ -9,6 +9,48 @@ import { promisify } from 'node:util';
 const { createProjectFiles } = await import('../src/project/files.js').catch(() => ({}));
 const exec = promisify(execFile);
 
+test('scan reports safe exclusion reasons and preserves reactive Vue code without exposing secrets', async t => {
+  const { root, write } = await fixture(t);
+  const secret = 'synthetic-private-password-value';
+  await write(
+    'frontend/Admin.vue',
+    "<script setup>\nconst newPassword = ref('');\nconst showModalPassword = ref(false);\n</script>"
+  );
+  await write('src/private.js', `const password = "${secret}";`);
+  await write('docs/db.md', 'postgresql://user:synthetic-db-password@localhost/db');
+  await write('.env', 'TOKEN=private');
+  await write('key.pem', 'PRIVATE');
+  await write('db.sqlite', 'PRIVATE');
+  await write('src/binary.js', Buffer.from([0, 1]));
+  await write('src/encoding.js', Buffer.from([255, 254]));
+  const snapshot = await createProjectFiles({ root }).scan();
+  assert.ok(snapshot.files.some(file => file.path === 'frontend/Admin.vue'));
+  const reasons = new Map(snapshot.exclusions.map(item => [item.path, item.reason]));
+  assert.equal(reasons.get('src/private.js'), 'secret');
+  assert.equal(reasons.get('docs/db.md'), 'secret');
+  for (const file of ['.env', 'key.pem', 'db.sqlite']) assert.equal(reasons.get(file), 'private-path');
+  assert.equal(reasons.get('src/binary.js'), 'binary');
+  assert.equal(reasons.get('src/encoding.js'), 'encoding');
+  assert.doesNotMatch(JSON.stringify(snapshot.exclusions), new RegExp(secret + '|synthetic-db-password'));
+  assert.ok(snapshot.exclusions.every(item => Object.keys(item).sort().join(',') === 'path,reason'));
+  assert.equal(snapshot.exclusionCounts.secret, 2);
+});
+
+test('ignored files and bounded diagnostics disclose omitted scope without exposing key-shaped filenames', async t => {
+  const { root, write } = await fixture(t);
+  await write('.gitignore', 'private-src/\n');
+  await write('private-src/hidden.js', 'const hidden=1;');
+  await write('src/app.js', 'const app=1;');
+  await write('sk-syntheticprivatevalue123456789.js', 'const password="private";');
+  for (let i = 0; i < 205; i++) await write(`private${i}.pem`, 'PRIVATE');
+  await exec('git', ['init', '--quiet'], { cwd: root });
+  const snapshot = await createProjectFiles({ root }).scan();
+  assert.ok(snapshot.exclusions.length <= 200);
+  assert.equal(snapshot.exclusionsTruncated, true);
+  assert.ok(snapshot.exclusionCounts.ignored >= 1);
+  assert.doesNotMatch(JSON.stringify(snapshot.exclusions), /sk-syntheticprivatevalue123456789/);
+});
+
 test('ignore character classes and zero-directory globstars exclude tracked and fallback sources', async t => {
   const { root, write } = await fixture(t);
   await write('private.json', '{}');
