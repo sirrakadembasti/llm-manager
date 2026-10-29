@@ -5,6 +5,7 @@ import { readEnv } from './envFile.js';
 import { mountLLMManagement } from './index.js';
 import { chooseManagementPaths, validateManagementPath } from './integration/paths.js';
 import { ensureLLMEncryptionKey } from './setup.js';
+import { projectOptionsFromEnv } from './project/options.js';
 
 function routeExists(stack, candidate, depth = 0) {
   if (depth > 20) throw new Error('Router derinliği otomatik yol seçimi için çok büyük.');
@@ -121,6 +122,7 @@ export function mountLLMIntegration(
       : undefined);
   const manager = mountLLMManagement(app, {
     ...options,
+    project: options.project ?? projectOptionsFromEnv(env, cwd),
     ...publicPaths,
     dataDir,
     filePath,

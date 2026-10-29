@@ -65,6 +65,8 @@ Profil/model/sistem talimatı değişince model bağlamı yenilenir; kayıtlı m
 
 Kaynak kökünü sunucuda `LLM_PROJECT_ROOT` veya `project.root` ile açıkça belirtin; CLI karşılığı `--project-root`. `project: false` ortamla etkinleştirmeyi de kapatır. Tarayıcı kök/motor/komut seçemez.
 
+Express entegrasyonu hedef `.env` dosyasındaki `LLM_PROJECT_ROOT` değerini de okur; göreli yol helper'ın bulunduğu `cwd` klasörüne göredir. Örneğin helper `backend/llm.js` ise `LLM_PROJECT_ROOT=..`, frontend ve belgeler dahil uygulama kökünü bağlar. Açık `project.root` ayarı önceliklidir. Kök bağlanmadığında tarama düğmesi pasiftir ve genel bakış oluşmaz; bağladıktan sonra sunucuyu yeniden başlatıp **Projeyi tara** seçin. Tarama LLM isteği göndermez; kaynak paylaşımı ayrıca onaylanır.
+
 1. İlk sekmede profili etkinleştirin; **Proje bilgileri → Projeyi tara** seçin.
 2. Teknoloji, API, SQL kolonları ve dosya ilişkilerini dosya/satır kanıtlarıyla inceleyin. Tarama manifest çalıştırmaz ve gerçek DB'ye bağlanmaz.
 3. Kaynak paylaşımını onaylayıp sohbet/plan/değişiklik isteyin. Sohbette seçili parçalar, motor görevinde kopyadan okunan dosyalar sağlayıcıya gönderilir.
@@ -167,6 +169,8 @@ Express ilk kapsamı tamamlanmıştır: menüsüz bağlantı, ayrı Basic veya m
 Paket yükseltmesinden önce hedef `.env`, bağlantı dosyaları ve profil/geçmiş/anahtar üçlüsünü koruyun. Mevcut helper otomatik olarak ezilmez; inceleyip gerektiğinde `init --force` kullanın. Kurulum sırasında hata veya ret varsa journal yaptığı dosya değişikliklerini geri alır; npm kurulumu ve daha sonra ortaya çıkan çalışma hataları bu transaction kapsamında değildir. Başarılı paket güncellemesinden sonra hedef sunucuyu yeniden başlatın ve oturumlu/oturumsuz erişimi tekrar deneyin.
 
 Özel proxy için sayfa kadar betiği, API'yi ve profil kaydını da doğrulayın. Mimo Stok kabulünde bunlar öneki koruyan ve soyan yerel HTTP proxy ile sınandı; bütün adayları yakalayan önceden kayıtlı dinamik rotada otomatik ekleme durduruldu. Native masaüstü paketleme ve kurumsal TLS/proxy kabulü ayrı dağıtım çalışmasıdır.
+
+VPS veya kurum sunucusunda domainin `/llm`, `/llm/llm-ui.js` ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; seçilmiş özel/numaralı yollar ve alt adres öneki de korunur. Domain zaten bütün istekleri backend'e aktarıyorsa ek kural gerekmeyebilir. Paket kurulumu proxy veya Windows/Linux servis kaydını kendiliğinden oluşturmaz. Dağıtım kabulünde HTTPS/çerez ayarları, admin/normal kullanıcı/oturumsuz erişim, tarama, profil kaydı, servis yeniden açılışı ve yükseltme/geri dönüş ayrıca denenir. Gerçek Linux VPS, Windows Server/IIS ve domain/HTTPS kabulü henüz yapılmadı; yerel test sonucu bu senaryolar için garanti değildir.
 
 ### Özel depo
 
@@ -396,14 +400,15 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-10-20–27 / 2.0 geliştirme | Çoklu framework init, async/host store, tipler, transportlar/SSE/retry/fallback, güvenlik/kota/loglar, dağıtım/CI; Türkçe arayüz. YH1/YH2 kartları kapatıldı. |
 | 2026-10-28 / `29066dc`, `b73f5d6` | Proje Asistanı, OpenCode, onaylı değişiklik/geri alma; birleşik sohbet ve şifreli kalıcı geçmiş. |
 | 2026-10-29 / `6acce05` | Anahtar döndürmeye sohbet eklendi; normal yazma hatasında geri alma. Graphify değerlendirilip ek tarama maliyeti nedeniyle entegrasyonu, ayarları ve harita çıktıları kaldırıldı. Kaynak seçimi yerleşik analizi kullanır. |
-| 2026-10-29 entegrasyon güncellemesi | Menüsüz kurulum; `/llm`, `/llm1`, `/llm2` yol seçimi; ayrı parola veya açık Express yönetici oturumu; mevcut ayarları koruma ve geri alma. |
+| 2026-10-29 / `7a7d531` | Menüsüz kurulum; `/llm`, `/llm1`, `/llm2` yol seçimi; ayrı parola veya açık Express yönetici oturumu; mevcut ayarları koruma ve geri alma. Mimo Stok bağlantısı hedef depoda `ffdb82b` ile kaydedildi. |
+| 2026-10-29 proje kökü düzeltmesi | Express hedef `.env` proje ayarı aktarılır; göreli kök helper klasörüne göre çözülür. Stokta frontend/backend/belgeleri içeren kök bağlandı; pasif düğmenin bekleme imleci düzeltildi. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
 
-2026-10-29 entegrasyon güncellemesi ve stok kabulü sonrası tam seri (`node --test --test-concurrency=4 tests/*.test.js tests/**/*.test.js`): **499 test; 498 geçti, 0 başarısız, 1 platform testi atlandı**. Önceki profil/sohbet/proje akışlarına ek olarak numaralı yol seçimi, Express 4/5 iç içe router çakışmaları, önekli Router bağlantısı, basic/host yetkileri, tekrar kurulum, geri alma ve eksik anahtarda veriyi koruma sınandı. Lint/typecheck/format kontrolleri geçti; 98 dosyalık pakette yeni entegrasyon girişleri var, gerçek `.env`, anahtar ve profil verisi yok.
+2026-10-29 proje kökü düzeltmesi sonrası tam seri (`node --test --test-concurrency=4 tests/*.test.js tests/**/*.test.js`): **502 test; 501 geçti, 0 başarısız, 1 platform testi atlandı**. Önceki profil/sohbet/proje akışlarına ek olarak numaralı yol seçimi, Express 4/5 iç içe router çakışmaları, önekli Router bağlantısı, basic/host yetkileri, tekrar kurulum, geri alma ve eksik anahtarda veriyi koruma sınandı. Yeni testler hedef `.env` kökünün helper klasörüne göre çözülmesini, açık ayarın önceliğini ve `project: false` seçimini doğrular. Lint/typecheck/format kontrolleri geçti; 98 dosyalık pakette yeni entegrasyon girişleri var, gerçek `.env`, anahtar ve profil verisi yok.
 
-Mimo Stok kabulünde güncel paket kuruldu; **290/290 test** geçti. Gerçek aktif admin oturumuyla canlı `/llm`, betik ve API erişimi; ayrıca öneki koruyan/silen yerel HTTP reverse proxy, yetkisiz erişim, özel yol ve kurulum geri alma sınandı. Bu sonuç bütün IIS/Nginx/TLS dağıtımlarının veya paketli masaüstü uygulamalarının kabulü anlamına gelmez.
+Mimo Stok kabulünde güncel paket kuruldu; geçici kopyadaki tam seride **291/291 test** geçti. Gerçek aktif admin oturumuyla canlı `/llm`, betik ve API erişimi; ayrıca öneki koruyan/silen yerel HTTP reverse proxy, yetkisiz erişim, özel yol ve kurulum geri alma sınandı. Proje kökü bağlandıktan sonra canlıda 114 dosya/12 belge tarandı, genel bakış oluştu; mevcut dört LLM veri dosyası ve `.env` değişmedi. Dosya sayısı sonraki geliştirmelerde değişebilir. Bu sonuç bütün IIS/Nginx/TLS dağıtımlarının veya paketli masaüstü uygulamalarının kabulü anlamına gelmez.
 
 Son kapsam ölçümü 2026-10-28'de 446 testlik kaynakta satır %94,16/dal %85,96 idi; güncel kodun kapsam sonucu sayılmaz. Tam seri sonucu ile kapsam ölçümünü birbirinin yerine kullanmayın.
 

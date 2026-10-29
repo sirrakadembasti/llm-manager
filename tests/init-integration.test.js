@@ -13,9 +13,50 @@ import {
   probeAndOpenBrowser
 } from '../src/init.js';
 import { createStandaloneServer } from '../src/server.js';
+import { mountLLMIntegration } from '../src/integration.js';
 
 const require = createRequire(import.meta.url);
 const express = require('express');
+
+for (const mode of ['env', 'disabled', 'override']) {
+  test(`integration resolves target env project root relative to cwd (${mode})`, async t => {
+    const cwd = fixture(t);
+    fs.mkdirSync(path.join(cwd, 'sources'));
+    fs.writeFileSync(path.join(cwd, 'sources/README.md'), '# Target application');
+    fs.writeFileSync(path.join(cwd, 'sources/.env'), 'PRIVATE_FIXTURE_SECRET=do-not-read');
+    fs.mkdirSync(path.join(cwd, 'override'));
+    fs.writeFileSync(path.join(cwd, 'override/other.js'), 'export const target = true;');
+    fs.writeFileSync(path.join(cwd, '.env'), 'LLM_PROJECT_ROOT=./sources\n');
+    const previous = process.env.LLM_PROJECT_ROOT;
+    delete process.env.LLM_PROJECT_ROOT;
+    t.after(() => {
+      if (previous === undefined) delete process.env.LLM_PROJECT_ROOT;
+      else process.env.LLM_PROJECT_ROOT = previous;
+    });
+    const manager = mountLLMIntegration(express(), {
+      cwd,
+      adminPassword: 'FixturePassword123',
+      ...(mode === 'disabled' ? { project: false } : {}),
+      ...(mode === 'override' ? { project: { root: path.join(cwd, 'override') } } : {})
+    });
+    t.after(() => manager.close());
+    const headers = {
+      Authorization: 'Basic ' + Buffer.from('admin:FixturePassword123').toString('base64'),
+      'X-LLM-CSRF': '1'
+    };
+    const status = await (await manager.fetch(new Request('http://host/api/llm/project', { headers }))).json();
+    assert.equal(status.enabled, mode !== 'disabled');
+    if (mode === 'disabled') return;
+    const response = await manager.fetch(new Request('http://host/api/llm/project/scan', { method: 'POST', headers }));
+    assert.equal(response.status, 200);
+    const scanned = await response.json();
+    assert.deepEqual(
+      scanned.inventory.files.map(file => file.path),
+      [mode === 'override' ? 'other.js' : 'README.md']
+    );
+    assert.ok(scanned.analysis);
+  });
+}
 function fixture(t, source = '') {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-integration-'));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));

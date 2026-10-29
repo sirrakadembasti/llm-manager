@@ -32,8 +32,10 @@ Express yönetici oturumuna bağlamak için `--auth host --auth-module ./llm-aut
 oturum adaptörü ve izinli roller açıkça yapılandırılır. [Giriş yöntemleri ve sınırlar](docs/KULLANICI_KILAVUZU.md#yönetim-yolu-ve-giriş).
 
 Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulama ve kurulum geri alma ilk kapsamı tamamlandı.
-LLM Manager serisinde **499 test: 498 geçti, 1 platform testi atlandı**; Mimo Stok kabulünde **290/290 test** geçti.
+Proje kökü düzeltmesi sonrası tam seride **502 test: 501 geçti, 1 platform testi atlandı**; Mimo Stok kabulünde **291/291 test** geçti.
 Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
+Domainin `/llm`, arayüz betiği ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; `/stok/` altında kurulumda genel yol `/stok/llm` olur.
+Yerel HTTP proxy kabulü tamamlandı; gerçek Linux VPS, Windows Server/IIS, domain/HTTPS ve servis yeniden başlatma kabulü henüz tamamlanmadı.
 
 Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başka bir projedir. Yerel 2.0.0 sürümü henüz **yayımlanmamış** durumundadır.
 
@@ -44,6 +46,8 @@ Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başk
 Sohbet çalışma alanı model denemesini de içerir: proje bağlamadan kayıtlı profil seçebilir, sistem talimatı verebilir ve akışlı yanıtı süre/token bilgisiyle sınayabilirsiniz. Kaynaklı sohbet ve geliştirme türleri etkin profili kullanır. Soldaki listeden sohbet açılır/silinir; **Seçili sohbet** alanından başlık, dışa aktarma ve kayıt işlemleri yapılır. Mesajlar geniş dikey merkez alanda, proje bilgileri açılabilen sağ paneldedir. Mobilde **Sohbetler** düğmesi listeyi açar.
 
 Sunucuya `LLM_PROJECT_ROOT` verin veya CLI'da `llm-manager --project-root F:\uygulamalar\hedef` kullanın. Paket entegrasyonunda `project: { root: '/absolute/target' }` seçeneği vardır. Kaynak taraması yerleşiktir; ek analiz aracı kurulmaz. Plan ve değişiklik görevleri için OpenCode ayrıca kurulmalıdır; `LLM_OPENCODE_PATH` ile yolu seçebilirsiniz. [Bağlama ve kullanım](docs/KULLANICI_KILAVUZU.md#proje-asistanı).
+
+Express helper hedef `.env` dosyasındaki proje kökünü okur; göreli yol helper klasörüne göredir. `backend/llm.js` için `LLM_PROJECT_ROOT=..` uygulama kökünü bağlar. Kök tanımlı değilse **Projeyi tara** pasiftir; genel bakış ilk yerel taramadan sonra oluşur.
 
 Görevler geçici kaynak kopyasında hazırlanır; hedef dosyalar ayrı onayla değişir. Sohbetler ve iş çıktısı özetleri mevcut anahtarla şifreli kalıcı kaydedilir; kayıtlı sohbet açılıp sürdürülebilir. Canlı diff/geri alma kayıtları sunucu belleğindedir; kapanışta silinir. Geçmiş kaydı dosyaları otomatik uygulamaz. Kaynak taraması gerçek veritabanına bağlanmaz.
 
