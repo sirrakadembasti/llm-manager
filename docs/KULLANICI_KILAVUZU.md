@@ -1,6 +1,6 @@
 # LLM Manager kullanıcı kılavuzu
 
-Sağlayıcı, model ve API anahtarlarını yönetin; modelleri deneyin, bağlı projenizi inceleyin ve onayladığınız değişiklikleri uygulayın. Bu belge kullanım, entegrasyon, işletim ve geliştirme bilgilerinin tek kaynağıdır. Son düzenleme: **2026-11-05**.
+Sağlayıcı, model ve API anahtarlarını yönetin; modelleri deneyin, bağlı projenizi inceleyin ve onayladığınız değişiklikleri uygulayın. Bu belge kullanım, entegrasyon, işletim ve geliştirme bilgilerinin tek kaynağıdır. Son düzenleme: **2026-11-06**.
 
 **Gereksinimler:** Node.js **22.12+**. Paket `@sirrakadembasti/llm-manager`, CLI `llm-manager`; npm'deki çıplak `llm-manager` başka projedir. Yerel **2.0.0 yayımlanmamış** geliştirme sürümüdür. Arayüz yalnız Türkçedir. Docker ve veritabanı zorunlu değildir. Express adaptörü/CLI için Express **4.19.2+ veya 5.x** gerekir; `/core` Express gerektirmez.
 
@@ -139,7 +139,7 @@ Framework bağımsız kullanım: `import { createLLMManager } from '@sirrakademb
 
 ### Kaynaklı yanıt kalitesini karşılaştırma
 
-Türkçe giriş/yetki, talep onayı ve teslim tutanağı soruları yaygın İngilizce kod adlarıyla eşleştirilir. Bu, kaynak bulmayı iyileştirir; yanıt doğruluğunu garanti etmez. Genel tanıtımda güncel belge/manifest ve LLM bağlantısı, tarihçe sorusunda etiketlenmiş eski belgeler beklenir.
+Türkçe soru sözcükleri, alana bağlı olmayan genel bir sözlükle yaygın İngilizce kod adlarına eşlenir: kimlik/yetki (giriş → login, auth), iş akışı (talep → request, onay → approve), ticaret/stok (fatura → invoice, sipariş → order), uygulama katmanları (veritabanı → database, schema ve yaygın ORM adları; kontrolcü → controller) ve veri işlemleri (güncelle → update, sil → delete). Eşleme yalnız sorudaki sözcüğün karşılığını ekler; projenin teknoloji yığınını veya alanını tahmin etmez. Türkçe ekler tanınır, `sil`/`silah` gibi benzer sözcükler eşlenmez. Bu, kaynak bulmayı iyileştirir; yanıt doğruluğunu garanti etmez. Genel tanıtımda güncel belge/manifest ve LLM bağlantısı, tarihçe sorusunda etiketlenmiş eski belgeler beklenir.
 
 Kontrollü A/B denemesinde aynı kaynak revizyonu, profil/model ve üretim ayarları kullanılır; geçmiş iki istekte de boştur. Kabul kaydı soru, yöntem, kaynak/profil revizyonu, kaynaklar, yöntem izi, sağlayıcının bildirdiği giriş/çıkış tokenleri ve süreyi taşır. Anahtar kaydedilmez. Ücretli çağrı kapsamı ayrıca onaylanır; bu kabulde otomatik tekrar ve yedek profil kapatılmıştır. Normal sohbetin tekrar politikası bu deney için değiştirilmez.
 
@@ -443,6 +443,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-10-29 ilişki, gizlilik ve kalite kabulü | En fazla 20 ilişki kanıtı, ortak revizyon denetimi, güvenli dışlama nedenleri ve literal sır ayrımı. Dört onaylı canlı çağrının ikinci çiftinde atıf/kapsam kabulü; 17 kalite testi. |
 | 2026-11-05 / `a6a83af` ve belge düzeltmesi | `LLM_ALLOWED_PRIVATE_HOSTS` ortam değişkeni koddan kaldırıldı; LAN izni yalnız `allowedPrivateHosts` ile verilir. Doğrulama komutunun geçici kopyada çalıştığı, görev bağlam bütçesi, Graphify Python yolu ve yedek parolası kaynağı kodla eşitlendi. |
 | 2026-11-05 tarama kapsamı | `data`, `build`, `out` dizin engeli proje köküyle sınırlandı; iç içe kaynak klasörleri tarama, sohbet ve onaylı değişiklik kapsamına girer. |
+| 2026-11-06 genel Türkçe kod sözlüğü | Hedef uygulamaya özgü kavram eşlemeleri (talep → prisma/schema, teslim → print) kaldırıldı; yerine alandan bağımsız Türkçe → İngilizce yazılım sözlüğü geldi. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
