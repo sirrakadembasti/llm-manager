@@ -106,6 +106,25 @@ test('project scanner excludes credentials, profile data, generated code and bin
   await assert.rejects(files.read('src/config.js'), { code: 'PROJECT_SECRET_DETECTED' });
 });
 
+test('nested data/build/out source folders are scanned while root folders and generated names stay excluded', async t => {
+  const sources = ['src/data/products.js', 'app/build/routes.ts', 'server/out/handler.js'];
+  const blocked = ['data/seed.sql', 'build/app.js', 'out/app.js', 'pkg/node_modules/a.js', 'pkg/dist/a.js'];
+  for (const git of [false, true]) {
+    const { root, write } = await fixture(t);
+    for (const name of [...sources, ...blocked]) await write(name, 'export const value = 1;\n');
+    if (git) {
+      await exec('git', ['init', '-q'], { cwd: root });
+      await exec('git', ['add', '-A'], { cwd: root });
+    }
+    const files = createProjectFiles({ root });
+    const scan = await files.scan();
+    assert.equal(scan.gitAware, git);
+    assert.deepEqual(scan.files.map(f => f.path).sort(), [...sources].sort(), `gitAware=${git}`);
+    for (const name of sources) assert.match((await files.read(name)).content, /value = 1/);
+    for (const name of blocked) await assert.rejects(files.read(name), { code: 'PROJECT_PATH_DENIED' });
+  }
+});
+
 test('project reader rejects traversal and cross-platform absolute paths', async t => {
   const { root, write } = await fixture(t);
   await write('src/app.js', 'export const value = 1;');

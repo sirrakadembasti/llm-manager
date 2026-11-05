@@ -12,10 +12,7 @@ const blockedDirectories = new Set([
   '.claude',
   '.opencode',
   'node_modules',
-  'data',
   'dist',
-  'build',
-  'out',
   'coverage',
   '.next',
   '.nuxt',
@@ -26,6 +23,14 @@ const blockedDirectories = new Set([
   'obj',
   'graphify-out'
 ]);
+// Common source-folder names (e.g. src/data, app/build) are live data or build
+// output only at the project root; nested generated copies are normally ignored.
+const rootOnlyDirectories = new Set(['data', 'build', 'out']);
+
+function blockedDirectory(name, depth) {
+  const lower = name.toLowerCase();
+  return blockedDirectories.has(lower) || (depth === 0 && rootOnlyDirectories.has(lower));
+}
 const extensions = new Set([
   '.js',
   '.mjs',
@@ -100,18 +105,18 @@ export function projectPath(value) {
   const parts = value.split('/');
   if (
     parts.some(
-      p =>
+      (p, i) =>
         !p ||
         /[.\s]$/.test(p) ||
         /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p) ||
-        blockedDirectories.has(p.toLowerCase())
+        (i < parts.length - 1 && blockedDirectory(p, i))
     )
   ) {
     throw projectError(
       'PROJECT_PATH_DENIED',
       'Bu kaynak yoluna erişim izni yok.',
       403,
-      parts.some(p => blockedDirectories.has(p.toLowerCase())) ? 'directory' : 'unsafe-path'
+      parts.some((p, i) => i < parts.length - 1 && blockedDirectory(p, i)) ? 'directory' : 'unsafe-path'
     );
   }
   const name = parts.at(-1).toLowerCase();
@@ -176,6 +181,8 @@ export function isWithin(root, target) {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-export function skipDirectory(name) {
-  return blockedDirectories.has(name.toLowerCase());
+/** @param {string} relativeDirectory POSIX path of a directory relative to the project root. */
+export function skipDirectory(relativeDirectory) {
+  const parts = relativeDirectory.replace(/\/+$/, '').split('/');
+  return blockedDirectory(parts.at(-1), parts.length - 1);
 }

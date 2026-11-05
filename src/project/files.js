@@ -134,7 +134,7 @@ export function createProjectFiles({
           let reason = 'ignored';
           try {
             if (!item.endsWith('/')) projectPath(name);
-            else if (skipDirectory(path.posix.basename(name))) reason = 'directory';
+            else if (skipDirectory(name)) reason = 'directory';
           } catch (error) {
             reason = error.exclusionReason || 'unsafe-path';
           }
@@ -164,7 +164,7 @@ export function createProjectFiles({
             exclude(relative, 'symlink');
             continue;
           }
-          if (entry.isDirectory() && skipDirectory(entry.name)) {
+          if (entry.isDirectory() && skipDirectory(relative)) {
             exclude(relative, 'directory');
             continue;
           }
