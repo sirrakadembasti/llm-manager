@@ -33,12 +33,8 @@ export function validateProviderUrl(value, { allowLocalHttp = false, allowedPriv
   if (url.username || url.password) throw new Error('API adresinde kimlik bilgisi bulunamaz.');
   if (url.search || url.hash) throw new Error('API adresinde sorgu veya parça bulunamaz.');
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  const privateList = [
-    ...(allowedPrivateHosts || []),
-    ...(process.env.LLM_ALLOWED_PRIVATE_HOSTS ? process.env.LLM_ALLOWED_PRIVATE_HOSTS.split(',') : [])
-  ]
-    .map(h => h.trim().toLowerCase())
-    .filter(Boolean);
+  // LAN access is an explicit programmatic option only; no environment variable widens it.
+  const privateList = (allowedPrivateHosts || []).map(h => h.trim().toLowerCase()).filter(Boolean);
 
   const isAllowedPrivate = privateList.some(h => h === url.host.toLowerCase() || h === host.toLowerCase());
 
