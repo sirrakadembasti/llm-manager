@@ -1,6 +1,6 @@
 # LLM Manager kullanıcı kılavuzu
 
-Sağlayıcı, model ve API anahtarlarını yönetin; modelleri deneyin, bağlı projenizi inceleyin ve onayladığınız değişiklikleri uygulayın. Bu belge kullanım, entegrasyon, işletim ve geliştirme bilgilerinin tek kaynağıdır. Son düzenleme: **2026-10-29**.
+Sağlayıcı, model ve API anahtarlarını yönetin; modelleri deneyin, bağlı projenizi inceleyin ve onayladığınız değişiklikleri uygulayın. Bu belge kullanım, entegrasyon, işletim ve geliştirme bilgilerinin tek kaynağıdır. Son düzenleme: **2026-11-05**.
 
 **Gereksinimler:** Node.js **22.12+**. Paket `@sirrakadembasti/llm-manager`, CLI `llm-manager`; npm'deki çıplak `llm-manager` başka projedir. Yerel **2.0.0 yayımlanmamış** geliştirme sürümüdür. Arayüz yalnız Türkçedir. Docker ve veritabanı zorunlu değildir. Express adaptörü/CLI için Express **4.19.2+ veya 5.x** gerekir; `/core` Express gerektirmez.
 
@@ -81,7 +81,7 @@ Express entegrasyonu hedef `.env` dosyasındaki `LLM_PROJECT_ROOT` değerini de 
 
 Aynı kaynak görüntüsünden çıkarılan `stack`, `components`, `api`, `database`, `limitations` alanlı mimari özeti sohbet modeline gönderilir. Olgular dosya/satır taşır; npm sürümleri bağımlılık bildirimi olarak etiketlenir ve çalışan sürüm sayılmaz. Özet, numaralı kaynak parçaları ve varsa Graphify ilişki kanıtları birlikte 40.000 karakter sınırına uyar; kesilen özet alanları ve kısmi kapsam belirtilir. Graphify kanıtı en fazla 6.000 karakter ve toplam bütçenin dörtte biridir; bu yüzden 20'den az ilişki sığabilir. Model çıktılarının kontrollü A/B değerlendirmesi ayrı görevdir.
 
-[Resmî Graphify rehberine](https://github.com/Graphify-Labs/graphify) göre sunucuda Python 3.10+ ile `uv tool install graphifyy` veya `pipx install graphifyy` kullanılır. Tarayıcının bulunduğu bilgisayar yerine LLM Manager servisinin çalıştığı makineye kurun. Servisin PATH'inde `graphify` aranır; gerekirse Graphify kurulu Python yorumlayıcısını `LLM_GRAPHIFY_PYTHON` ile belirtin. PATH/ayar değişince servisi yeniden başlatın. Bu bağlantı için `graphify install` ve sohbet içinde / komutu gerekmez.
+[Resmî Graphify rehberine](https://github.com/Graphify-Labs/graphify) göre sunucuda Python 3.10+ ile `uv tool install graphifyy` veya `pipx install graphifyy` kullanılır. Tarayıcının bulunduğu bilgisayar yerine LLM Manager servisinin çalıştığı makineye kurun. Servisin PATH'inde `graphify` aranır; gerekirse Graphify kurulu Python yorumlayıcısını `LLM_GRAPHIFY_PYTHON` ile belirtin. Bu değere mutlak yol verin: göreli değer çalışma dizinine (Express entegrasyonunda helper klasörüne) göre çözülür; `python` gibi yalın komut adı PATH'te aranmaz. PATH/ayar değişince servisi yeniden başlatın. Bu bağlantı için `graphify install` ve sohbet içinde / komutu gerekmez.
 
 Yalnız izin verilen kaynakların geçici kopyası `extract --code-only` ile taranır; canlı hedefe harita dosyası yazılmaz, model çağrısı yapılmaz. Harita sunucu belleğinde tutulur ve yeniden başlatmada kaybolur. Sunucu `project.graphify: false` ile aracı kapatabilir; `graphifyAutoDetect: false` PATH aramasını kapatır. Açık `graphify: { command, args }` veya `graphifyPython` yalnız sunucuda yapılandırılır; tarayıcı komut/yol seçemez. Graphify desteği hedef uygulama içindir; LLM Manager'ın kendi geliştirme haritaları geri eklenmedi.
 
@@ -89,7 +89,7 @@ Yalnız izin verilen kaynakların geçici kopyası `extract --code-only` ile tar
 2. Teknoloji, API, SQL kolonları ve dosya ilişkilerini dosya/satır kanıtlarıyla inceleyin. Tarama manifest çalıştırmaz ve gerçek DB'ye bağlanmaz.
 3. Kaynak paylaşımını onaylayıp sohbet/plan/değişiklik isteyin. Sohbette seçili parçalar, motor görevinde kopyadan okunan dosyalar sağlayıcıya gönderilir.
 4. Değişiklikte önce/sonra içeriklerini inceleyin; işlem onayını verip uygulayın. Onay her işlemden sonra sıfırlanır. Kaynak değişmişse `PROJECT_CONFLICT` ile durur.
-5. Varsa hostun tanımladığı doğrulamayı ayrı onayla çalıştırın; gerçek çıkış kodunu kontrol edin. Başarısız doğrulama dosyaları otomatik geri almaz. Geri alma da dosya sürümü eşleşmesi ister.
+5. Varsa hostun tanımladığı doğrulamayı ayrı onayla çalıştırın. Komut hedef klasörde değil, hazırlanan farkı içeren geçici kopyada çalışır; `node_modules`, `.env` ve canlı veri bulunmadığından bağımlılık isteyen kontroller başarısız olabilir. Uygulamadan önce veya sonra çalıştırılabilir; hedef dosyaların görev sürümüyle eşleşmesi gerekir. Gerçek çıkış kodunu kontrol edin. Bu kontrol hedefe uygulanmış dosyaları çalıştırmaz; başarısız doğrulama dosyaları otomatik geri almaz. Geri alma da dosya sürümü eşleşmesi ister.
 
 Dosya farkları ve geri alma kayıtları **sunucu belleğindedir**; en fazla 10 görev tutulur. Sunucu kapanınca veya **Görev kaydını kapat** seçilince uygulanmış dosyalar kalır, geri alma kaydı gider. Sohbetteki iş çıktısı öneri/dosya listesi/son bilinen etki/doğrulama/işlem izini korur. **Canlı görevi aç** mevcut sunucu kaydını yeniden denetler; geçmişi açmak dosya yazmaz veya komut çalıştırmaz. Yanıt alınamadığında işlem etkisi belirsizdir; otomatik yeniden uygulamayın.
 
@@ -99,7 +99,7 @@ Uygulama yalnız kaynak dosyalarını değiştirir; paket kurulumu, migration, s
 
 Kaynak taraması ve bağlam seçimi yerleşiktir; Python veya harici analiz aracı gerektirmez. OpenCode yalnız plan/değişiklik görevleri için ayrı kurulmalıdır; `LLM_OPENCODE_PATH` / `project.opencodePath` ile yolu verilebilir. Eksikse model denemesi, tarama ve kaynaklı sohbet çalışır; motor görevleri hata verir.
 
-`.env*`, anahtarlar, `data`, bağlantılı/ikili/üretilmiş dosyalar ve Git ignore kapsamı dışlanır. Varsayılan tarama: **2500 dosya, dosya başına 256 KiB, toplam 4 MiB**. Kısmi taramayla sohbet yapılır, motor görevi hazırlanmaz. Sohbet kaynak bütçesi **40000 karakter**; ilk üç uygun README/kılavuz/metin için sınırlı pay ayrılır. Bütün proje her istekte gönderilmez; sır algılayıcı kusursuz değildir.
+`.env*`, anahtarlar, `data`, bağlantılı/ikili/üretilmiş dosyalar ve Git ignore kapsamı dışlanır. Varsayılan tarama: **2500 dosya, dosya başına 256 KiB, toplam 4 MiB**. Kısmi taramayla sohbet yapılır, motor görevi hazırlanmaz. Sohbet kaynak bütçesi **40000 karakter**; ilk üç uygun README/kılavuz/metin için sınırlı pay ayrılır. Plan/değişiklik görevlerinde seçim bütçesi **12000 karakter**dir; API/DB işaretleriyle motora verilen yerel bağlam en fazla 20000 karakterdir. Bütün proje her istekte gönderilmez; sır algılayıcı kusursuz değildir.
 
 **Dışlanan kaynaklar ve nedenleri** bölümünde gizlilik, ignore, bağlantı, tür/kodlama veya boyut/sayı sınırı nedeniyle alınmayan kaynakları görebilirsiniz. Dizin kaydı içindeki tüm dosyaların sayıldığı anlamına gelmez. API envanteri `exclusions: [{ path, reason }]`, `exclusionCounts` ve `exclusionsTruncated` döndürür; ayrıntı listesi en fazla 200 kayıttır. Yollar göreli tutulur; güvenli gösterilemeyen veya anahtar biçimi içeren yollar listelenmez. Eşleşen sırın içeriği ve ham sistem hata metni bu özette bulunmaz. Eski kayıtta ayrıntı yoksa panel bunu belirtir.
 
@@ -318,7 +318,7 @@ npx llm-manager import yedek.json --password yedek-parolasi
 
 **Döndürmeden önce** bütün depo süreçlerini durdurun ve üç dosyayı yedekleyin. Profil/geçmiş kilitlenip yazmadan önce çözülür; ikisi yeni anahtarla şifrelenir. Eski veriler `.bak`, eski anahtar `llm-encryption.key.old-<tarih>-<kimlik>` olur. Bozuk geçmiş işlemi durdurur; normal yazma hatasında veriler geri alınır. Sistem çökmesinde çok dosyalı atomiklik yoktur; profil/geçmiş yedeklerini eşleşen eski anahtarla birlikte geri yükleyin.
 
-Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup legacy `.env` anahtarını dosyaya taşır; `.env` değişmez. `writeEnv: true` eski uyumluluk yoludur. Döndürme sonrasında açık/env anahtarını yeni değere güncelleyip süreçleri yeniden başlatın; CLI `.env` dosyasını güncellemez. Export/import yalnız **profil** taşır, sohbet arşivini içermez.
+Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup legacy `.env` anahtarını dosyaya taşır; `.env` değişmez. `writeEnv: true` eski uyumluluk yoludur. Döndürme sonrasında açık/env anahtarını yeni değere güncelleyip süreçleri yeniden başlatın; CLI `.env` dosyasını güncellemez. Export/import yalnız **profil** taşır, sohbet arşivini içermez. Yedek parolası `--password`, yoksa `LLM_BACKUP_PASSWORD`, o da yoksa `LLM_ADMIN_PASSWORD` değerinden alınır; yönetici parolasından ayrı yedek parolası için `LLM_BACKUP_PASSWORD` tanımlayın.
 
 | Belirti / kod | Yapılacak işlem |
 | --- | --- |
@@ -346,7 +346,8 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 | LLM_CONFIG_PATH / LLM_CONFIG_KEY_PATH / LLM_CONFIG_ENCRYPTION_KEY | Açık dosya yolları / 32 bayt hex veya base64 anahtar |
 | LLM_CHAT_TOKENS / LLM_ALLOWED_ORIGINS | Chat Bearer listesi / açık CORS origin listesi |
 | LLM_ALLOW_LOCAL_HTTP / LLM_HTTPS_PROXY / LLM_USAGE_LOG | true ile yerel HTTP istisnası / proxy / true ile kullanım kaydı |
-| LLM_PROJECT_ROOT / LLM_OPENCODE_PATH / LLM_GRAPHIFY_PYTHON | Kaynak kökü / OpenCode motor yolu / isteğe bağlı Graphify kurulu Python yorumlayıcısı |
+| LLM_PROJECT_ROOT / LLM_OPENCODE_PATH / LLM_GRAPHIFY_PYTHON | Kaynak kökü / OpenCode motor yolu / isteğe bağlı Graphify kurulu Python yorumlayıcısının mutlak yolu |
+| LLM_BACKUP_PASSWORD | CLI export/import yedek parolası; yoksa LLM_ADMIN_PASSWORD kullanılır |
 
 Her giriş noktası her değişkeni otomatik okumaz. CLI bayrakları `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`, `--project-root`; tümü için `--help`.
 
@@ -440,6 +441,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-10-29 ilk P0 görevi | Kaynaklı sohbette açık temel/Graphify seçimi; yanıt bazında yöntem, geçiş nedeni, revizyon ve ek dosya katkısı; şifreli geçmişte izinli alanlarla kalıcılık. |
 | 2026-10-29 kaynak otoritesi ve mimari | Altı kaynak rolü, güncel belge/manifest önceliği, soru amacı ve Türkçe kod kavramları; toplam bütçe içinde kaynaklı mimari özeti. |
 | 2026-10-29 ilişki, gizlilik ve kalite kabulü | En fazla 20 ilişki kanıtı, ortak revizyon denetimi, güvenli dışlama nedenleri ve literal sır ayrımı. Dört onaylı canlı çağrının ikinci çiftinde atıf/kapsam kabulü; 17 kalite testi. |
+| 2026-11-05 / `a6a83af` ve belge düzeltmesi | `LLM_ALLOWED_PRIVATE_HOSTS` ortam değişkeni koddan kaldırıldı; LAN izni yalnız `allowedPrivateHosts` ile verilir. Doğrulama komutunun geçici kopyada çalıştığı, görev bağlam bütçesi, Graphify Python yolu ve yedek parolası kaynağı kodla eşitlendi. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
