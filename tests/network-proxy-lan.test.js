@@ -67,6 +67,25 @@ test('YH1-C9: validateProviderUrl allows private IPs and LAN hosts only when lis
   assert.equal(url2, 'http://ollama.lan:11434/v1');
 });
 
+test('LLM_ALLOWED_PRIVATE_HOSTS environment does not widen the private host allowlist', async () => {
+  const previous = process.env.LLM_ALLOWED_PRIVATE_HOSTS;
+  process.env.LLM_ALLOWED_PRIVATE_HOSTS = '192.168.1.50:11434,ollama.lan';
+  try {
+    assert.throws(
+      () => validateProviderUrl('http://192.168.1.50:11434/v1'),
+      /Yerel API adresi kapalıdır|IP adresine doğrudan bağlantı kapalıdır/
+    );
+    assert.throws(() => validateProviderUrl('http://ollama.lan:11434/v1'), /HTTPS/);
+    await assert.rejects(
+      providerFetch('http://192.168.1.50:11434/v1/models', { proxyUrl: '', signal: AbortSignal.timeout(50) }),
+      err => err.code === ErrorCodes.LLM_DNS_BLOCKED
+    );
+  } finally {
+    if (previous === undefined) delete process.env.LLM_ALLOWED_PRIVATE_HOSTS;
+    else process.env.LLM_ALLOWED_PRIVATE_HOSTS = previous;
+  }
+});
+
 test('YH1-C9: Ollama catalog entry exists with default models and LAN note', () => {
   const ollama = PROVIDERS.find(p => p.id === 'ollama');
   assert.ok(ollama, 'Ollama provider must exist in catalog');

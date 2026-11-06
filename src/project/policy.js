@@ -12,10 +12,7 @@ const blockedDirectories = new Set([
   '.claude',
   '.opencode',
   'node_modules',
-  'data',
   'dist',
-  'build',
-  'out',
   'coverage',
   '.next',
   '.nuxt',
@@ -26,6 +23,14 @@ const blockedDirectories = new Set([
   'obj',
   'graphify-out'
 ]);
+// Common source-folder names (e.g. src/data, app/build) are live data or build
+// output only at the project root; nested generated copies are normally ignored.
+const rootOnlyDirectories = new Set(['data', 'build', 'out']);
+
+function blockedDirectory(name, depth) {
+  const lower = name.toLowerCase();
+  return blockedDirectories.has(lower) || (depth === 0 && rootOnlyDirectories.has(lower));
+}
 const extensions = new Set([
   '.js',
   '.mjs',
@@ -72,32 +77,47 @@ const extensions = new Set([
   '.txt'
 ]);
 
-export function projectError(code, message, status = 400) {
-  return new LLMError(code, message, { status, retryable: false });
+function hasControlCharacters(value) {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
+export function projectError(code, message, status = 400, exclusionReason) {
+  const error = new LLMError(code, message, { status, retryable: false });
+  if (exclusionReason) error.exclusionReason = exclusionReason;
+  return error;
 }
 
 export function projectPath(value) {
   if (
     typeof value !== 'string' ||
     !value ||
-    value.includes('\0') ||
+    hasControlCharacters(value) ||
     value.includes('\\') ||
     value.includes(':') ||
     path.posix.isAbsolute(value)
   ) {
-    throw projectError('PROJECT_PATH_DENIED', 'Bu kaynak yoluna erişim izni yok.', 403);
+    throw projectError('PROJECT_PATH_DENIED', 'Bu kaynak yoluna erişim izni yok.', 403, 'unsafe-path');
   }
   const parts = value.split('/');
   if (
     parts.some(
-      p =>
+      (p, i) =>
         !p ||
         /[.\s]$/.test(p) ||
         /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p) ||
-        blockedDirectories.has(p.toLowerCase())
+        (i < parts.length - 1 && blockedDirectory(p, i))
     )
   ) {
-    throw projectError('PROJECT_PATH_DENIED', 'Bu kaynak yoluna erişim izni yok.', 403);
+    throw projectError(
+      'PROJECT_PATH_DENIED',
+      'Bu kaynak yoluna erişim izni yok.',
+      403,
+      parts.some((p, i) => i < parts.length - 1 && blockedDirectory(p, i)) ? 'directory' : 'unsafe-path'
+    );
   }
   const name = parts.at(-1).toLowerCase();
   if (
@@ -106,25 +126,54 @@ export function projectPath(value) {
     ) ||
     name === '.gitignore'
   ) {
-    throw projectError('PROJECT_PATH_DENIED', 'Sır veya veri dosyaları proje bağlamına alınmaz.', 403);
+    throw projectError('PROJECT_PATH_DENIED', 'Sır veya veri dosyaları proje bağlamına alınmaz.', 403, 'private-path');
   }
   if (!extensions.has(path.posix.extname(name)) && !['dockerfile', 'makefile', 'gemfile'].includes(name)) {
-    throw projectError('PROJECT_PATH_DENIED', 'Bu dosya türü kaynak taraması dışında.', 403);
+    throw projectError('PROJECT_PATH_DENIED', 'Bu dosya türü kaynak taraması dışında.', 403, 'unsupported-type');
   }
   return value;
 }
 
 export function hasProjectSecret(content) {
-  return (
+  if (
     /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|\bAIza[\w-]{20,}|\bsk-(?:proj-)?[\w-]{16,}|\bgh[pousr]_[\w]{20,}|\bAKIA[A-Z0-9]{16}\b/i.test(
       content
     ) ||
-    /(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|encryption[_-]?key)\s*[:=]\s*["'`][^"'`\r\n]{16,}["'`]/i.test(
-      content
-    ) ||
-    /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s:/]+:[^\s@]+@/i.test(content) ||
-    /(?:Password|Pwd)\s*=\s*[^;"'\s][^;"']{2,}/i.test(content)
-  );
+    /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s:/]+:[^\s@]+@/i.test(content)
+  )
+    return true;
+  // Only a direct literal (including a reactive initializer) is a credential.
+  // Empty literals are allowed; quoted JSON keys and short passwords are covered.
+  const literals =
+    /\b[\w$]*(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|pwd|encryption[_-]?key)["']?\s*[:=]\s*(?:(?:ref|shallowRef)\s*(?:<[^>\r\n]+>)?\s*\(\s*)?(["'`])((?:\\.|(?!\1)[^\\\r\n])*)\1/gi;
+  for (const match of content.matchAll(literals)) if (match[2].length) return true;
+  for (const match of content.matchAll(/\b(?:password|pwd)\s*=\s*([^;\r\n]+)/gi)) {
+    const value = match[1].trim();
+    if (!value || /^(["'`])\1\s*[,}]?$/.test(value)) continue;
+    const prefix = content.slice(Math.max(0, match.index - 120), match.index);
+    const code = /(?:\b(?:const|let|var)\s+|[\w$]+\.\s*)$/i.test(prefix);
+    const emptyRef =
+      /^(?:ref|shallowRef)\s*(?:<[^>]+>)?\s*\(\s*(?:''|""|false|true|null|undefined|0)?\s*\)\s*[,}]?$/.test(value);
+    const reference = /^(?:[\w$]+(?:\.[\w$]+)*(?:\(\s*\))?)\s*[,}]?$/.test(value);
+    if (code && (emptyRef || reference)) continue;
+    return true;
+  }
+  return false;
+}
+
+export function diagnosticProjectPath(value) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 512 ||
+    hasControlCharacters(value) ||
+    value.includes('\\') ||
+    value.includes(':') ||
+    path.posix.isAbsolute(value) ||
+    value.split('/').some(p => !p || p === '.' || p === '..') ||
+    hasProjectSecret(value)
+  )
+    return null;
+  return value;
 }
 
 export function isWithin(root, target) {
@@ -132,6 +181,8 @@ export function isWithin(root, target) {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-export function skipDirectory(name) {
-  return blockedDirectories.has(name.toLowerCase());
+/** @param {string} relativeDirectory POSIX path of a directory relative to the project root. */
+export function skipDirectory(relativeDirectory) {
+  const parts = relativeDirectory.replace(/\/+$/, '').split('/');
+  return blockedDirectory(parts.at(-1), parts.length - 1);
 }

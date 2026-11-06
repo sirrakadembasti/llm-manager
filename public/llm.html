@@ -490,6 +490,17 @@
               <h2 data-i18n="project.connected">Bağlı proje</h2><strong id="project-name">—</strong>
               <p id="project-status" class="muted" aria-live="polite"></p>
               <button id="project-scan" type="button" class="secondary" disabled data-i18n="project.scan">Projeyi tara</button>
+              <label style="display: flex; gap: 8px; align-items: center; margin-top: 12px;"><input id="project-use-graphify" type="checkbox" disabled style="width: auto;"> Graphify ile ilişki analizi</label>
+              <p id="project-graph-status" class="muted" aria-live="polite"></p>
+              <details style="font-size: 12px; line-height: 1.7; overflow-wrap: anywhere;">
+                <summary>Graphify ne sağlar, nasıl kurulur?</summary>
+                <p>İsteğe bağlı Graphify analizi kod ilişkilerini çıkarır; kaynaklı sohbet ve geliştirme görevlerinde ilgili dosyaları seçmeye yardımcı olur. Temel proje taraması Graphify olmadan da çalışır.</p>
+                <p>Bu kutu kaynaklı sohbetin analiz yöntemini de seçer. Kapalıyken hazır harita olsa bile temel analiz kullanılır. Yanıt ayrıntıları seçimi, kullanılan yöntemi, kaynak/harita revizyonunu ve temel seçime göre ek dosya katkısını gösterir; eski kayıtlarda bu bilgi bilinmiyor olarak görünür. Önceki mesajlar sohbet geçmişinde kalır; temiz karşılaştırma için ayrı yeni sohbetler açın.</p>
+                <p><a href="https://github.com/Graphify-Labs/graphify" target="_blank" rel="noopener noreferrer">Graphify resmî deposu ve kurulum rehberi</a></p>
+                <p>LLM Manager'ın çalıştığı sunucuda Python 3.10+ ile <code>uv tool install graphifyy</code> veya <code>pipx install graphifyy</code> kullanın. Paket adı çift y içerir. Tarayıcının bulunduğu bilgisayara kurmak uzak sunucu için yeterli değildir.</p>
+                <p>Sunucu PATH'inde <code>graphify</code> aranır. Bulunamazsa yönetici <code>LLM_GRAPHIFY_PYTHON</code> ile Graphify kurulu Python yorumlayıcısının tam yolunu belirtir. PATH/ayar değişince backend servisini yeniden başlatın.</p>
+                <p>Seçeneği işaretleyip <strong>Projeyi tara</strong> düğmesine basın. Bu bağlantı <code>graphify install</code> veya sohbet içinde / komutu gerektirmez. İzin verilen kaynakların geçici kopyası code-only modunda yerel taranır; model çağrısı yapılmaz. Kaynakları modele göndermek ayrıca paylaşım onayı gerektirir.</p>
+              </details>
             </div>
             <div class="project-info-group">
               <h3 data-i18n="project.active">Etkin profil ve model</h3><strong id="project-active-model">—</strong>
@@ -503,6 +514,7 @@
               <details><summary data-i18n="project.database">Veritabanı ve şema</summary><ul id="project-database" class="project-list"></ul></details>
               <details><summary data-i18n="project.relationships">Katman ilişkileri</summary><ul id="project-relationships" class="project-list"></ul></details>
               <details><summary data-i18n="project.inventory">Taranan kaynaklar</summary><ul id="project-inventory" class="project-list"></ul></details>
+              <details><summary>Dışlanan kaynaklar ve nedenleri</summary><p id="project-exclusions-status"></p><ul id="project-exclusions" class="project-list"></ul></details>
             </div>
           </section>
         </aside>

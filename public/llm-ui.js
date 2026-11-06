@@ -75,7 +75,7 @@ function message(text, error = false, details = {}) {
 }
 
 async function request(path, options = {}) {
-  const { timeoutMs = 330000, ...fetchOptions } = options;
+  const { timeoutMs = 330000, signal: callerSignal, ...fetchOptions } = options;
   const method = String(fetchOptions.method || 'GET').toUpperCase();
   const controller = new AbortController();
   let timer;
@@ -99,7 +99,7 @@ async function request(path, options = {}) {
         const response = await fetch(`${apiBase}${path}`, {
           credentials: 'same-origin',
           ...fetchOptions,
-          signal: controller.signal,
+          signal: callerSignal ? AbortSignal.any([controller.signal, callerSignal]) : controller.signal,
           headers: {
             'content-type': 'application/json',
             ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? { 'X-LLM-CSRF': '1' } : {}),

@@ -124,12 +124,8 @@ export async function providerFetch(url, options = {}) {
   } = options;
   const target = new URL(url);
 
-  const privateList = [
-    ...allowedPrivateHosts,
-    ...(process.env.LLM_ALLOWED_PRIVATE_HOSTS ? process.env.LLM_ALLOWED_PRIVATE_HOSTS.split(',') : [])
-  ]
-    .map(h => h.trim().toLowerCase())
-    .filter(Boolean);
+  // LAN access is an explicit programmatic option only; no environment variable widens it.
+  const privateList = allowedPrivateHosts.map(h => h.trim().toLowerCase()).filter(Boolean);
 
   const isAllowedPrivate = privateList.some(
     h => h === target.host.toLowerCase() || h === target.hostname.toLowerCase()

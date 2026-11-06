@@ -192,10 +192,39 @@ void publicContract;
 import type { ProjectOptions } from '@sirrakadembasti/llm-manager/core';
 const projectOptions: ProjectOptions = {
   root: 'C:/example/application',
+  documentRoles: { 'docs/current/INSTITUTION.md': 'canonical', 'docs/archive/old.md': 'historical' },
   commands: { test: { command: 'node', args: ['--test'], timeoutMs: 60000 } }
 };
 const projectManager = createLLMManager({ project: projectOptions });
 void projectManager.close();
+
+import type { AssistantMessage, ProjectRetrievalTrace, ProjectGraphEvidence } from '@sirrakadembasti/llm-manager';
+const graphEvidence: ProjectGraphEvidence = {
+  fromPath: 'src/app.js',
+  fromLine: 1,
+  toPath: 'src/service.js',
+  toLine: 2,
+  kind: 'calls',
+  confidence: 'unknown'
+};
+void graphEvidence;
+const retrievalTrace: ProjectRetrievalTrace = {
+  requestedMode: 'basic',
+  effectiveMode: 'basic',
+  reason: 'basic-selected',
+  sourceRevision: 'a'.repeat(64),
+  graphRevision: null,
+  graphReady: false,
+  graphContributed: false,
+  graphAddedFiles: []
+};
+const tracedMessage: AssistantMessage = {
+  role: 'assistant',
+  content: 'Answer',
+  status: 'completed',
+  retrieval: retrievalTrace
+};
+void tracedMessage;
 
 // Public Basic-auth config and normalized diagnostic data contracts.
 import { createBasicAuth } from '@sirrakadembasti/llm-manager';

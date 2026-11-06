@@ -57,8 +57,7 @@ function fixture(request, chatClient) {
         'project-meta',
         'project-context-status',
         'project-source-details',
-        'project-clear',
-        'project-graph-status'
+        'project-clear'
       ].includes(id)
     )
       throw new Error(`Removed chat control accessed: ${id}`);
@@ -94,12 +93,47 @@ const ready = {
   capabilities: {}
 };
 
-test('scan information shows source coverage without external analysis setup', async () => {
-  const report = { ...ready, inventory: { ...ready.inventory, documentCount: 1 } };
-  const { ui, element } = fixture(async () => report);
+test('inventory exposes exclusion explanations and truncation using safe text nodes', async () => {
+  const { ui, element } = fixture(async () => ({
+    ...ready,
+    inventory: {
+      ...ready.inventory,
+      files: [],
+      excluded: 3,
+      exclusions: [
+        { path: 'src/private.js', reason: 'secret' },
+        { path: 'docs/db.md', reason: 'secret' }
+      ],
+      exclusionCounts: { secret: 3 },
+      exclusionsTruncated: true
+    }
+  }));
+  await ui.init();
+  assert.match(element('project-exclusions').textContent, /src\/private\.js/);
+  assert.match(element('project-exclusions').textContent, /Sır/);
+  assert.match(element('project-exclusions-status').textContent, /sınırlı/);
+});
+
+test('Graphify scan is opt-in and explains unavailable, ready and stale graphs', async () => {
+  let report = { ...ready, graph: { status: 'unavailable' }, inventory: { ...ready.inventory, documentCount: 1 } };
+  const sent = [];
+  const { ui, element } = fixture(async (url, options) => {
+    sent.push({ url, options });
+    return report;
+  });
   await ui.init();
   assert.match(element('project-status').textContent, /1 belge/);
-  assert.doesNotMatch(fs.readFileSync('public/llm.html', 'utf8'), /graphify|project-graph-status/i);
+  assert.match(element('project-graph-status').textContent, /bulunamadı/);
+  assert.equal(element('project-use-graphify').checked, false);
+  element('project-use-graphify').checked = true;
+  await element('project-scan').listeners.click();
+  assert.equal(JSON.parse(sent.find(item => item.url === '/project/scan').options.body).graphify, true);
+  report = { ...report, graph: { status: 'ready', nodes: [{}], links: [] } };
+  await ui.refresh();
+  assert.match(element('project-graph-status').textContent, /1 öğe/);
+  report = { ...report, graph: { status: 'stale' } };
+  await ui.refresh();
+  assert.match(element('project-graph-status').textContent, /tekrar tarayın/);
 });
 
 test('project tabs preserve management as default and support keyboard navigation', async () => {
@@ -194,6 +228,37 @@ test('model stream cancellation aborts locally and never sends a project cancell
   assert.equal(element('project-send').disabled, false);
 });
 
+test('sourced chat cancellation aborts its own request and never cancels shared project work', async () => {
+  const paths = [];
+  let chatSignal;
+  let started;
+  const chatStarted = new Promise(resolve => {
+    started = resolve;
+  });
+  const { ui, element } = fixture(async (url, options = {}) => {
+    paths.push(url);
+    if (url === '/project/chat')
+      return new Promise((_, reject) => {
+        chatSignal = options.signal;
+        started();
+        options.signal?.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+      });
+    return ready;
+  });
+  await ui.init();
+  element('project-mode').value = 'chat';
+  element('project-mode').listeners.change?.();
+  element('project-share').checked = true;
+  element('project-prompt').value = 'Uygulamayı açıkla';
+  const pending = element('project-chat-form').listeners.submit({ preventDefault() {} });
+  await chatStarted;
+  await element('project-cancel').listeners.click();
+  await pending;
+  assert.equal(chatSignal?.aborted, true);
+  assert.ok(!paths.includes('/project/cancel'));
+  assert.equal(element('project-send').disabled, false);
+});
+
 test('project chat requires source consent and renders model output and citations as text', async () => {
   const calls = [];
   const { ui, element } = fixture(async (url, options) => {
@@ -201,7 +266,7 @@ test('project chat requires source consent and renders model output and citation
     if (url.endsWith('/chat'))
       return {
         content: '<script>unsafe()</script>',
-        sources: [{ path: 'src/app.js', startLine: 2, endLine: 4 }],
+        sources: [{ path: 'src/app.js', startLine: 2, endLine: 4, role: 'code' }],
         revision: 'one'
       };
     return ready;
@@ -218,6 +283,104 @@ test('project chat requires source consent and renders model output and citation
   const transcript = element('project-conversation');
   assert.ok(transcript.children.some(n => n.textContent.includes('<script>unsafe()</script>')));
   assert.match(transcript.textContent, /src\/app.js:2/);
+  assert.match(transcript.textContent, /Kaynak kod/);
+});
+
+test('chat sends the selected retrieval mode and restores per-answer traces from history', async () => {
+  let saved;
+  const sent = [];
+  const trace = {
+    requestedMode: 'graphify',
+    effectiveMode: 'basic',
+    reason: 'graph-stale',
+    sourceRevision: 'a'.repeat(64),
+    graphRevision: 'b'.repeat(64),
+    graphReady: false,
+    graphContributed: false,
+    graphAddedFiles: []
+  };
+  const { ui, element } = fixture(async (url, options = {}) => {
+    if (url === '/project/chat') {
+      const body = JSON.parse(options.body);
+      sent.push(body);
+      return {
+        content: 'Answer',
+        sources: [],
+        retrieval:
+          body.retrievalMode === 'graphify' ? trace : { ...trace, requestedMode: 'basic', reason: 'basic-selected' }
+      };
+    }
+    if (url === '/assistant/sessions' && !options.method) return { available: true, sessions: [] };
+    if (url.startsWith('/assistant/sessions') && ['POST', 'PUT'].includes(options.method)) {
+      saved = { ...JSON.parse(options.body), id: 'saved', revision: 'r' };
+      return saved;
+    }
+    if (url === '/assistant/sessions/saved') return saved;
+    if (url === '/assistant/sessions/old')
+      return {
+        mode: 'chat',
+        messages: [{ role: 'assistant', content: 'Old answer', label: 'Kaynaklı sohbet', status: 'completed' }]
+      };
+    return { ...ready, graph: { status: 'ready', nodes: [], links: [] } };
+  });
+  await ui.init();
+  element('project-share').checked = true;
+  element('project-use-graphify').checked = true;
+  element('project-prompt').value = 'First';
+  await element('project-chat-form').listeners.submit({ preventDefault() {} });
+  assert.equal(sent[0].retrievalMode, 'graphify');
+  assert.deepEqual(saved.messages.at(-1).retrieval, trace);
+  assert.match(element('project-conversation').textContent, /Harita eski/);
+  assert.match(element('project-conversation').textContent, /a{64}/);
+  await ui.openConversation('saved');
+  assert.equal(element('project-use-graphify').checked, true);
+  assert.match(element('project-conversation').textContent, /Harita eski/);
+  element('project-share').checked = true;
+  element('project-use-graphify').checked = false;
+  element('project-prompt').value = 'Second';
+  await element('project-chat-form').listeners.submit({ preventDefault() {} });
+  assert.equal(sent[1].retrievalMode, 'basic');
+  assert.equal(saved.messages.at(-1).retrieval.requestedMode, 'basic');
+  await ui.openConversation('old');
+  assert.match(element('project-conversation').textContent, /bilinmiyor/i);
+  assert.equal(element('project-use-graphify').checked, false);
+});
+
+test('plan submission carries the graph selection and renders and persists relation evidence', async () => {
+  let saved, input;
+  const trace = {
+    requestedMode: 'graphify',
+    effectiveMode: 'graphify',
+    reason: 'graph-ready',
+    sourceRevision: 'a'.repeat(64),
+    graphRevision: 'a'.repeat(64),
+    graphReady: true,
+    graphContributed: true,
+    graphAddedFiles: [],
+    graphEvidence: [
+      { fromPath: 'orders.js', fromLine: 1, toPath: 'service.js', toLine: 2, kind: 'calls', confidence: 'unknown' }
+    ]
+  };
+  const { ui, element } = fixture(async (url, options = {}) => {
+    if (url === '/assistant/sessions' && !options.method) return { available: true, sessions: [] };
+    if (url.startsWith('/assistant/sessions') && options.method)
+      return (saved = { ...JSON.parse(options.body), id: 's', revision: 'r' });
+    if (url === '/project/tasks') {
+      input = JSON.parse(options.body);
+      return { id: 't', revision: 'r', mode: 'plan', state: 'planned', content: 'Plan', files: [], retrieval: trace };
+    }
+    return ready;
+  });
+  await ui.init();
+  element('project-mode').value = 'plan';
+  element('project-share').checked = true;
+  element('project-use-graphify').checked = true;
+  element('project-prompt').value = 'Planla';
+  await element('project-chat-form').listeners.submit({ preventDefault() {} });
+  assert.equal(input.retrievalMode, 'graphify');
+  assert.deepEqual(saved.messages.at(-1).retrieval, trace);
+  assert.match(element('project-conversation').textContent, /orders\.js:1.*service\.js:2/);
+  assert.match(element('project-conversation').textContent, /calls/);
 });
 
 test('project controller locks duplicate actions while allowing cancellation', async () => {

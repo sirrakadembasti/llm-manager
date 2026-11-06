@@ -1,5 +1,17 @@
 import { LLMErrorCode, LLMError, ErrorCodes } from './errors.js';
-export type { ProjectOptions, ProjectSource, ProjectInventory, ProjectTask, ProjectCommandResult } from './project.js';
+import type { ProjectRetrievalMode, ProjectRetrievalTrace } from './project.js';
+export type {
+  ProjectOptions,
+  ProjectSource,
+  ProjectInventory,
+  ProjectTask,
+  ProjectCommandResult,
+  ProjectRetrievalMode,
+  ProjectRetrievalTrace,
+  ProjectSourceRole,
+  ProjectGraphEvidence,
+  ProjectExclusionReason
+} from './project.js';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -263,6 +275,7 @@ export interface AssistantMessage {
   label?: string;
   meta?: string;
   sources?: string;
+  retrieval?: ProjectRetrievalTrace;
 }
 export interface AssistantOutput {
   taskId: string;
@@ -281,6 +294,7 @@ export interface AssistantSession {
   createdAt: string;
   updatedAt: string;
   mode: 'model' | 'chat' | 'plan' | 'change';
+  retrievalMode?: ProjectRetrievalMode;
   profileId: string;
   system: string;
   contextId: string;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createProjectWorkspace } from './workspace.js';
 import { createProjectFiles } from './files.js';
 import { analyzeProject } from './analyze.js';
-import { selectProjectContext } from './context.js';
+import { projectRetrievalMode, retrieveProjectContext } from './retrieval.js';
 import { createProjectChanges } from './changes.js';
 import { createProjectRelay } from './relay.js';
 import { runOpenCode } from './opencode.js';
@@ -36,6 +36,8 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       profile: task.profile,
       createdAt: task.createdAt,
       engineVersion: task.engineVersion,
+      retrieval: task.retrieval,
+      graphUsed: task.graphUsed,
       commandResult: task.commandResult || null
     };
   }
@@ -54,11 +56,12 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     });
   }
 
-  async function prepare(body, signal) {
+  async function prepare(body, signal, context = {}) {
     if (tasks.size >= 10)
       throw projectError('PROJECT_TASK_LIMIT', 'Yeni görevden önce eski görev kayıtlarından birini kapatın.', 409);
     if (body?.shareSources !== true)
       throw projectError('PROJECT_SHARING_REQUIRED', 'Görev için kaynak paylaşımını onaylayın.');
+    const mode = projectRetrievalMode(body.retrievalMode, context.retrievalMode);
     const history = body.history || [];
     if (
       !Array.isArray(history) ||
@@ -88,6 +91,13 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       );
     if (body.revision && before.revision !== body.revision)
       throw projectError('PROJECT_CONFLICT', 'Proje değişti; yeniden tarayın.', 409);
+    const retrieved = retrieveProjectContext(before, body.prompt, {
+      graph: context.graph,
+      mode,
+      enabled: options.graphify !== false,
+      budget: 12000,
+      documentRoles: options.documentRoles
+    });
     const profile = await getActiveProfile();
     if (!profile) throw projectError('ACTIVE_PROFILE_MISSING', 'Önce bir profil etkinleştirin.');
     const workspace = await createProjectWorkspace(before.files);
@@ -96,11 +106,19 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     try {
       relay = await createProjectRelay({ profile, networkOptions, signal });
       const currentAnalysis = analyzeProject(before.files);
-      const structuralContext = JSON.stringify({
-        sources: selectProjectContext(before.files, body.prompt, 12000).text,
+      const signals = {
         api: currentAnalysis.api.slice(0, 30),
         database: currentAnalysis.database.slice(0, 20)
-      }).slice(0, 20000);
+      };
+      const signalHeader = '\n[API/DB İŞARETLERİ — statik kaynaklar]\n';
+      // Preserve the complete, already bounded relation block. Drop supplemental
+      // records rather than slicing a serialized JSON object in the middle.
+      while (retrieved.context.text.length + signalHeader.length + JSON.stringify(signals).length > 20000) {
+        if (signals.database.length) signals.database.pop();
+        else if (signals.api.length) signals.api.pop();
+        else break;
+      }
+      const structuralContext = retrieved.context.text + signalHeader + JSON.stringify(signals);
       const engine = await runOpenCode({
         workspace,
         relay,
@@ -137,6 +155,8 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
         content: engine.content,
         createdAt: new Date().toISOString(),
         engineVersion: engine.version,
+        retrieval: retrieved.retrieval,
+        graphUsed: retrieved.context.graphUsed,
         profile: { id: profile.id, name: profile.name, provider: profile.provider, model: profile.model }
       });
       retained = true;

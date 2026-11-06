@@ -9,6 +9,48 @@ import { promisify } from 'node:util';
 const { createProjectFiles } = await import('../src/project/files.js').catch(() => ({}));
 const exec = promisify(execFile);
 
+test('scan reports safe exclusion reasons and preserves reactive Vue code without exposing secrets', async t => {
+  const { root, write } = await fixture(t);
+  const secret = 'synthetic-private-password-value';
+  await write(
+    'frontend/Admin.vue',
+    "<script setup>\nconst newPassword = ref('');\nconst showModalPassword = ref(false);\n</script>"
+  );
+  await write('src/private.js', `const password = "${secret}";`);
+  await write('docs/db.md', 'postgresql://user:synthetic-db-password@localhost/db');
+  await write('.env', 'TOKEN=private');
+  await write('key.pem', 'PRIVATE');
+  await write('db.sqlite', 'PRIVATE');
+  await write('src/binary.js', Buffer.from([0, 1]));
+  await write('src/encoding.js', Buffer.from([255, 254]));
+  const snapshot = await createProjectFiles({ root }).scan();
+  assert.ok(snapshot.files.some(file => file.path === 'frontend/Admin.vue'));
+  const reasons = new Map(snapshot.exclusions.map(item => [item.path, item.reason]));
+  assert.equal(reasons.get('src/private.js'), 'secret');
+  assert.equal(reasons.get('docs/db.md'), 'secret');
+  for (const file of ['.env', 'key.pem', 'db.sqlite']) assert.equal(reasons.get(file), 'private-path');
+  assert.equal(reasons.get('src/binary.js'), 'binary');
+  assert.equal(reasons.get('src/encoding.js'), 'encoding');
+  assert.doesNotMatch(JSON.stringify(snapshot.exclusions), new RegExp(secret + '|synthetic-db-password'));
+  assert.ok(snapshot.exclusions.every(item => Object.keys(item).sort().join(',') === 'path,reason'));
+  assert.equal(snapshot.exclusionCounts.secret, 2);
+});
+
+test('ignored files and bounded diagnostics disclose omitted scope without exposing key-shaped filenames', async t => {
+  const { root, write } = await fixture(t);
+  await write('.gitignore', 'private-src/\n');
+  await write('private-src/hidden.js', 'const hidden=1;');
+  await write('src/app.js', 'const app=1;');
+  await write('sk-syntheticprivatevalue123456789.js', 'const password="private";');
+  for (let i = 0; i < 205; i++) await write(`private${i}.pem`, 'PRIVATE');
+  await exec('git', ['init', '--quiet'], { cwd: root });
+  const snapshot = await createProjectFiles({ root }).scan();
+  assert.ok(snapshot.exclusions.length <= 200);
+  assert.equal(snapshot.exclusionsTruncated, true);
+  assert.ok(snapshot.exclusionCounts.ignored >= 1);
+  assert.doesNotMatch(JSON.stringify(snapshot.exclusions), /sk-syntheticprivatevalue123456789/);
+});
+
 test('ignore character classes and zero-directory globstars exclude tracked and fallback sources', async t => {
   const { root, write } = await fixture(t);
   await write('private.json', '{}');
@@ -62,6 +104,25 @@ test('project scanner excludes credentials, profile data, generated code and bin
   assert.match((await files.read('src/app.js')).content, /version = 1/);
   await assert.rejects(files.read('.env'), { code: 'PROJECT_PATH_DENIED' });
   await assert.rejects(files.read('src/config.js'), { code: 'PROJECT_SECRET_DETECTED' });
+});
+
+test('nested data/build/out source folders are scanned while root folders and generated names stay excluded', async t => {
+  const sources = ['src/data/products.js', 'app/build/routes.ts', 'server/out/handler.js'];
+  const blocked = ['data/seed.sql', 'build/app.js', 'out/app.js', 'pkg/node_modules/a.js', 'pkg/dist/a.js'];
+  for (const git of [false, true]) {
+    const { root, write } = await fixture(t);
+    for (const name of [...sources, ...blocked]) await write(name, 'export const value = 1;\n');
+    if (git) {
+      await exec('git', ['init', '-q'], { cwd: root });
+      await exec('git', ['add', '-A'], { cwd: root });
+    }
+    const files = createProjectFiles({ root });
+    const scan = await files.scan();
+    assert.equal(scan.gitAware, git);
+    assert.deepEqual(scan.files.map(f => f.path).sort(), [...sources].sort(), `gitAware=${git}`);
+    for (const name of sources) assert.match((await files.read(name)).content, /value = 1/);
+    for (const name of blocked) await assert.rejects(files.read(name), { code: 'PROJECT_PATH_DENIED' });
+  }
 });
 
 test('project reader rejects traversal and cross-platform absolute paths', async t => {

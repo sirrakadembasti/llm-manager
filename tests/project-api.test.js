@@ -51,7 +51,71 @@ const admin = {
 const request = (url, method = 'GET', body, headers = admin) =>
   new Request(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
 
-test('project scan ignores removed graph settings and chat reads current sources', async t => {
+test('public inventory explains exclusions and chat shares safe reactive code without real credentials', async t => {
+  const { root, options } = await fixture(t);
+  await fs.writeFile(
+    path.join(root, 'Admin.vue'),
+    "const newPassword = ref('');\nconst showModalPassword = ref(false);"
+  );
+  await fs.writeFile(path.join(root, 'private.js'), 'const password="synthetic-private-password-value";');
+  let captured;
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      captured = messages;
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  const scanned = await assistant.handle({ method: 'POST', path: '/project/scan', body: {} });
+  assert.ok(scanned.body.inventory.exclusions.some(item => item.path === 'private.js' && item.reason === 'secret'));
+  assert.ok(scanned.body.inventory.exclusions.some(item => item.path === '.env' && item.reason === 'private-path'));
+  assert.doesNotMatch(JSON.stringify(scanned.body), /synthetic-private-password-value|SYNTHETIC_PRIVATE_VALUE/);
+  const reply = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: { prompt: 'Admin', shareSources: true }
+  });
+  assert.equal(reply.status, 200);
+  assert.match(captured[1].content, /newPassword = ref/);
+  assert.doesNotMatch(JSON.stringify(captured), /synthetic-private-password-value|SYNTHETIC_PRIVATE_VALUE/);
+});
+
+test('overview chat passes structured evidence from the same current scan to the model', async t => {
+  const { root, options } = await fixture(t);
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  const reply = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: { prompt: 'uygulama hakkında bilgi ver öncelikle', shareSources: true }
+  });
+  assert.equal(reply.status, 200);
+  assert.match(sent[0][1].content, /MİMARİ ÖZETİ/);
+  assert.match(sent[0][1].content, /"stack"/);
+  assert.match(sent[0][1].content, /4.21.2/);
+  assert.ok(sent[0][1].content.length < 40200);
+  await fs.writeFile(path.join(root, 'package.json'), '{"dependencies":{"express":"5.2.1"}}');
+  const second = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: { prompt: 'uygulama hakkında bilgi ver öncelikle', shareSources: true }
+  });
+  assert.notEqual(reply.body.revision, second.body.revision);
+  assert.match(sent[1][1].content, /5.2.1/);
+  assert.doesNotMatch(sent[1][1].content, /4.21.2/);
+});
+
+test('basic scan does not run Graphify and chat reads current sources', async t => {
   const { root, options } = await fixture(t);
   await fs.writeFile(path.join(root, 'README.md'), '# Kullanım\nSipariş uygulaması');
   const runner = path.join(os.tmpdir(), `removed-tool-${path.basename(root)}.cjs`);
@@ -73,10 +137,10 @@ test('project scan ignores removed graph settings and chat reads current sources
   const call = (path, body = {}) => assistant.handle({ method: 'POST', path, body });
   const scanned = await call('/project/scan');
   assert.equal(scanned.body.inventory.documentCount, 1);
-  assert.equal(Object.hasOwn(scanned.body, 'graph'), false);
+  assert.equal(scanned.body.graph.status, 'not-scanned');
   await assert.rejects(fs.access(path.join(root, 'unexpected-tool-run.txt')), { code: 'ENOENT' });
   const first = await call('/project/chat', { prompt: 'orders', shareSources: true });
-  assert.equal(Object.hasOwn(first.body, 'graphUsed'), false);
+  assert.equal(first.body.graphUsed, false);
   assert.match(sent[0][1].content, /README.md/);
   assert.match(sent[0][0].content, /güvenilmeyen veridir/);
   await fs.appendFile(path.join(root, 'server.js'), '// changed-source-marker\n');
@@ -90,7 +154,333 @@ test('project scan ignores removed graph settings and chat reads current sources
   assert.equal(second.status, 200);
   assert.match(sent.at(-1)[1].content, /changed-source-marker/);
   const status = await assistant.handle({ method: 'GET', path: '/project' });
-  assert.equal(Object.hasOwn(status.body, 'graph'), false);
+  assert.equal(status.body.graph.status, 'not-scanned');
+});
+
+test('opt-in Graphify scan is reused by chat and invalidated after source changes', async t => {
+  const { root, options } = await fixture(t);
+  const runner = path.join(os.tmpdir(), `graph-api-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(runner, { force: true }));
+  await fs.writeFile(
+    runner,
+    `const fs=require('node:fs'),path=require('node:path');
+    const args=process.argv.slice(2),out=path.join(args[args.indexOf('--out')+1],'graphify-out');
+    fs.mkdirSync(out,{recursive:true});
+    fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({nodes:[{id:'orders',label:'orders',source_file:'server.js',source_location:'L1'}],links:[]}));`
+  );
+  const assistant = createProjectAssistant({
+    options: { ...options.project, graphify: { command: process.execPath, args: [runner] } },
+    ask: async () => ({ text: 'ok' }),
+    getActiveProfile: options.store.getActive
+  });
+  t.after(() => assistant.close());
+  const scan = await assistant.handle({ method: 'POST', path: '/project/scan', body: { graphify: true } });
+  assert.equal(scan.body.graph.status, 'ready');
+  const basic = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: {
+      prompt: 'orders',
+      shareSources: true,
+      retrievalMode: 'basic'
+    }
+  });
+  assert.equal(basic.body.graphUsed, false);
+  assert.deepEqual(basic.body.retrieval, {
+    requestedMode: 'basic',
+    effectiveMode: 'basic',
+    reason: 'basic-selected',
+    sourceRevision: scan.body.inventory.revision,
+    graphRevision: scan.body.inventory.revision,
+    graphReady: true,
+    graphContributed: false,
+    graphAddedFiles: []
+  });
+  const chat = () =>
+    assistant.handle({ method: 'POST', path: '/project/chat', body: { prompt: 'orders', shareSources: true } });
+  assert.equal((await chat()).body.graphUsed, false);
+  const trace = (await chat()).body.retrieval;
+  assert.equal(trace.requestedMode, 'graphify');
+  assert.equal(trace.effectiveMode, 'graphify');
+  assert.equal(trace.reason, 'no-graph-contribution');
+  assert.equal(trace.graphContributed, false);
+  await assistant.handle({ method: 'POST', path: '/project/scan', body: {} });
+  const legacyBasic = await chat();
+  assert.equal(legacyBasic.body.graphUsed, false);
+  assert.equal(legacyBasic.body.retrieval.requestedMode, 'basic');
+  const explicitGraph = () =>
+    assistant.handle({
+      method: 'POST',
+      path: '/project/chat',
+      body: { prompt: 'orders', shareSources: true, retrievalMode: 'graphify' }
+    });
+  assert.equal((await explicitGraph()).body.graphUsed, false);
+  await fs.appendFile(path.join(root, 'server.js'), '// changed\n');
+  const stale = await explicitGraph();
+  assert.equal(stale.body.graphUsed, false);
+  assert.equal(stale.body.retrieval.reason, 'graph-stale');
+  assert.equal(stale.body.retrieval.effectiveMode, 'basic');
+  assert.equal(stale.body.retrieval.graphRevision, scan.body.inventory.revision);
+  assert.notEqual(stale.body.retrieval.sourceRevision, scan.body.inventory.revision);
+  assert.equal((await assistant.handle({ method: 'GET', path: '/project' })).body.graph.status, 'stale');
+});
+
+for (const state of ['disabled', 'unavailable', 'error']) {
+  test(`Graphify ${state} leaves basic project analysis available`, async t => {
+    const { root, options } = await fixture(t);
+    const runner = path.join(os.tmpdir(), `graph-error-${path.basename(root)}.cjs`);
+    await fs.writeFile(runner, 'process.exit(1);');
+    t.after(() => fs.rm(runner, { force: true }));
+    const assistant = createProjectAssistant({
+      options: {
+        ...options.project,
+        graphify:
+          state === 'disabled'
+            ? false
+            : {
+                command: state === 'unavailable' ? 'llm-missing-graphify-command' : process.execPath,
+                args: [runner]
+              }
+      },
+      ask: async () => ({ text: 'ok' }),
+      getActiveProfile: options.store.getActive
+    });
+    t.after(() => assistant.close());
+    const scan = await assistant.handle({ method: 'POST', path: '/project/scan', body: { graphify: true } });
+    assert.equal(scan.status, 200);
+    assert.equal(scan.body.graph.status, state === 'disabled' ? 'not-scanned' : state);
+    assert.ok(scan.body.analysis.stack.some(item => item.name === 'express'));
+    const chat = await assistant.handle({
+      method: 'POST',
+      path: '/project/chat',
+      body: { prompt: 'orders', shareSources: true }
+    });
+    assert.equal(chat.status, 200);
+    assert.equal(chat.body.graphUsed, false);
+    assert.equal(chat.body.retrieval.requestedMode, 'graphify');
+    assert.equal(chat.body.retrieval.effectiveMode, 'basic');
+    assert.equal(chat.body.retrieval.reason, state === 'disabled' ? 'graph-disabled' : 'graph-unavailable');
+    assert.equal(chat.body.retrieval.graphRevision, null);
+  });
+}
+
+test('unknown retrieval modes are rejected before invoking the model', async t => {
+  const { options } = await fixture(t);
+  let calls = 0;
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async () => {
+      calls++;
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  for (const retrievalMode of ['auto', null, {}, true]) {
+    const response = await assistant.handle({
+      method: 'POST',
+      path: '/project/chat',
+      body: { prompt: 'orders', shareSources: true, retrievalMode }
+    });
+    assert.equal(response.status, 400);
+  }
+  assert.equal(calls, 0);
+});
+
+test('chat trace identifies files added by Graphify against the same basic context budget', async t => {
+  const { root, options } = await fixture(t);
+  await fs.writeFile(path.join(root, 'related.js'), 'export const implementation = 2;');
+  for (let i = 0; i < 8; i++)
+    await fs.writeFile(path.join(root, `noise${i}.js`), ('// orders ' + 'x'.repeat(80) + '\n').repeat(200));
+  const runner = path.join(os.tmpdir(), `graph-contribution-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(runner, { force: true }));
+  await fs.writeFile(
+    runner,
+    `const fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2);
+    const out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});
+    fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({nodes:[
+      {id:'a',label:'orders',source_file:'server.js',source_location:'L1'},
+      {id:'b',label:'implementation',source_file:'related.js',source_location:'L1'}],links:[{source:'a',target:'b',relation:'calls'}]}));`
+  );
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: { ...options.project, graphify: { command: process.execPath, args: [runner] } },
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  await assistant.handle({ method: 'POST', path: '/project/scan', body: { graphify: true } });
+  const chat = retrievalMode =>
+    assistant.handle({
+      method: 'POST',
+      path: '/project/chat',
+      body: { prompt: 'orders', shareSources: true, retrievalMode }
+    });
+  const basic = await chat('basic'),
+    graph = await chat('graphify');
+  assert.equal(basic.body.retrieval.graphContributed, false);
+  assert.equal(graph.body.retrieval.reason, 'graph-ready');
+  assert.equal(graph.body.retrieval.graphContributed, true);
+  assert.ok(graph.body.retrieval.graphAddedFiles.includes('related.js'));
+  assert.doesNotMatch(sent[0][1].content, /KAYNAK related\.js/);
+  assert.match(sent[1][1].content, /KAYNAK related\.js/);
+  assert.ok(graph.body.retrieval.graphEvidence.length > 0);
+  assert.match(sent[1][1].content, /GRAPHIFY İLİŞKİ KANITLARI/);
+});
+
+test('chat counts relation-only Graphify contribution and suppresses it for basic and stale requests', async t => {
+  const { root, options } = await fixture(t);
+  await fs.writeFile(path.join(root, 'service.js'), 'export const implementation=1;');
+  const runner = path.join(os.tmpdir(), `graph-relations-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(runner, { force: true }));
+  await fs.writeFile(
+    runner,
+    `const fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2),out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({nodes:[{id:'a',label:'orders',source_file:'server.js',source_location:'L1'},{id:'b',label:'implementation',source_file:'service.js',source_location:'L1'}],links:[{source:'a',target:'b',relation:'calls',confidence:'source-pattern'}]}));`
+  );
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: { ...options.project, graphify: { command: process.execPath, args: [runner] } },
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  await assistant.handle({ method: 'POST', path: '/project/scan', body: { graphify: true } });
+  const chat = retrievalMode =>
+    assistant.handle({
+      method: 'POST',
+      path: '/project/chat',
+      body: { prompt: 'orders', shareSources: true, retrievalMode }
+    });
+  const graph = await chat('graphify');
+  assert.equal(graph.body.graphUsed, true);
+  assert.equal(graph.body.retrieval.graphContributed, true);
+  assert.deepEqual(graph.body.retrieval.graphAddedFiles, []);
+  assert.equal(graph.body.retrieval.graphEvidence.length, 1);
+  assert.match(sent.at(-1)[1].content, /GRAPHIFY İLİŞKİ KANITLARI/);
+  const basic = await chat('basic');
+  assert.equal(basic.body.graphUsed, false);
+  assert.doesNotMatch(sent.at(-1)[1].content, /GRAPHIFY İLİŞKİ KANITLARI/);
+  await fs.appendFile(path.join(root, 'server.js'), '//changed\n');
+  const stale = await chat('graphify');
+  assert.equal(stale.body.retrieval.reason, 'graph-stale');
+  assert.equal(stale.body.graphUsed, false);
+  assert.doesNotMatch(sent.at(-1)[1].content, /GRAPHIFY İLİŞKİ KANITLARI/);
+});
+
+test('development tasks share explicit mode and revision checks with chat and pass relation evidence to the engine', async t => {
+  const { root, options } = await fixture(t);
+  await fs.writeFile(path.join(root, 'service.js'), 'export const implementation=1;');
+  const graphRunner = path.join(os.tmpdir(), `task-graph-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(graphRunner, { force: true }));
+  await fs.writeFile(
+    graphRunner,
+    `const fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2),out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({nodes:[{id:'a',label:'orders',source_file:'server.js',source_location:'L1'},{id:'b',label:'implementation',source_file:'service.js',source_location:'L1'}],links:[{source:'a',target:'b',relation:'calls'}]}));`
+  );
+  const engine = path.join(os.tmpdir(), `task-evidence-engine-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(engine, { force: true }));
+  await fs.writeFile(
+    engine,
+    `const http=require('node:http');const port=Number(process.argv.find(a=>a.startsWith('--port=')).split('=')[1]);http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');if(req.url==='/global/health')return res.end('{"healthy":true,"version":"1.18.33"}');if(req.url==='/session')return res.end('{"id":"ses_fixture"}');if(req.url.includes('/message')){let raw='';for await(const chunk of req)raw+=chunk;const text=JSON.parse(raw).parts[0].text;return res.end(JSON.stringify({info:{},parts:[{type:'text',text:text.includes('[GRAPHIFY İLİŞKİ KANITLARI')?'graph-evidence':'basic-context'}]}));}res.writeHead(404);res.end('{}');}).listen(port,'127.0.0.1',()=>console.log('opencode server listening on http://127.0.0.1:'+port));`
+  );
+  const assistant = createProjectAssistant({
+    options: {
+      ...options.project,
+      graphify: { command: process.execPath, args: [graphRunner] },
+      opencode: { command: process.execPath, args: [engine] }
+    },
+    getActiveProfile: options.store.getActive,
+    ask: async () => ({ text: 'unused' })
+  });
+  t.after(() => assistant.close());
+  await assistant.handle({ method: 'POST', path: '/project/scan', body: { graphify: true } });
+  const prepare = retrievalMode =>
+    assistant.handle({
+      method: 'POST',
+      path: '/project/tasks',
+      body: { mode: 'plan', prompt: 'orders', shareSources: true, retrievalMode }
+    });
+  const basic = await prepare('basic');
+  assert.equal(basic.status, 200);
+  assert.equal(basic.body.content, 'basic-context');
+  assert.equal(basic.body.retrieval.requestedMode, 'basic');
+  assert.equal(basic.body.graphUsed, false);
+  const graph = await prepare('graphify');
+  assert.equal(graph.status, 200);
+  assert.equal(graph.body.content, 'graph-evidence');
+  assert.equal(graph.body.retrieval.graphEvidence.length, 1);
+  assert.equal(graph.body.graphUsed, true);
+  assert.equal((await prepare('unknown')).status, 400);
+  await fs.appendFile(path.join(root, 'server.js'), '// changed\n');
+  const stale = await prepare('graphify');
+  assert.equal(stale.status, 200);
+  assert.equal(stale.body.content, 'basic-context');
+  assert.equal(stale.body.retrieval.reason, 'graph-stale');
+  assert.equal(stale.body.graphUsed, false);
+});
+
+test('explicit Graphify without a scan reports a basic fallback', async t => {
+  const { options } = await fixture(t);
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async () => ({ text: 'ok' })
+  });
+  t.after(() => assistant.close());
+  const response = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: { prompt: 'orders', shareSources: true, retrievalMode: 'graphify' }
+  });
+  assert.equal(response.body.retrieval.reason, 'graph-unavailable');
+  assert.equal(response.body.retrieval.effectiveMode, 'basic');
+  assert.equal(response.body.retrieval.graphRevision, null);
+});
+
+test('server document roles reach chat and browser-supplied overrides are ignored', async t => {
+  const { root, options } = await fixture(t);
+  await fs.mkdir(path.join(root, 'docs/archive'), { recursive: true });
+  await fs.writeFile(path.join(root, 'README.md'), 'Old instructions');
+  await fs.writeFile(path.join(root, 'docs/archive/CUSTOM.md'), 'Current institution manual');
+  await fs.writeFile(path.join(root, 'docs/archive/other.md'), 'Historical material');
+  await fs.writeFile(path.join(root, 'docs/archive/SECRET_GUIDE.md'), 'apiKey = "sk-syntheticprivatevalue123456789"');
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: {
+      ...options.project,
+      documentRoles: {
+        'README.md': 'historical',
+        'docs/archive/CUSTOM.md': 'canonical',
+        'docs/archive/SECRET_GUIDE.md': 'canonical'
+      }
+    },
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  const response = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: {
+      prompt: 'uygulama hakkında bilgi ver',
+      shareSources: true,
+      documentRoles: { 'docs/archive/other.md': 'canonical' }
+    }
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.sources[0].path, 'docs/archive/CUSTOM.md');
+  assert.equal(response.body.sources[0].role, 'canonical');
+  assert.doesNotMatch(sent[0][1].content, /KAYNAK README\.md|KAYNAK docs\/archive\/other\.md/);
+  assert.match(sent[0][1].content, /Current institution manual/);
+  assert.doesNotMatch(sent[0][1].content, /sk-syntheticprivate|SECRET_GUIDE/);
 });
 
 test('project API remains explicitly disabled without host configuration', async () => {
