@@ -34,7 +34,7 @@ Express yönetici oturumuna bağlamak için `--auth host --auth-module ./llm-aut
 oturum adaptörü ve izinli roller açıkça yapılandırılır. [Giriş yöntemleri ve sınırlar](docs/KULLANICI_KILAVUZU.md#yönetim-yolu-ve-giriş).
 
 Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulama ve kurulum geri alma ilk kapsamı tamamlandı.
-2026-11-06 son tam seride **583 test: 582 geçti, 1 platform testi atlandı**; yedi soru türünü iki yöntemle sınayan kalite kontrolleri **17/17** geçti. Hedef uygulamanın kabul sonuçları kendi README'sinde tutulur.
+2026-11-06 son tam seride **584 test: 583 geçti, 1 platform testi atlandı**; yedi soru türünü iki yöntemle sınayan kalite kontrolleri **17/17** geçti. Hedef uygulamanın kabul sonuçları kendi README'sinde tutulur.
 Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
 Domainin `/llm`, arayüz betiği ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; `/stok/` altında kurulumda genel yol `/stok/llm` olur.
 Yerel HTTP proxy kabulü tamamlandı; gerçek Linux VPS, Windows Server/IIS, domain/HTTPS ve servis yeniden başlatma kabulü henüz tamamlanmadı.

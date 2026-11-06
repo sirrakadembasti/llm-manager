@@ -72,6 +72,34 @@ test('Graphify adapter invokes code-only extraction on a clean copy with isolate
   assert.equal(result.nodes[0].line, 1);
 });
 
+test('Graphify accepts results when the temporary directory is reached through a link or short name', async t => {
+  // macOS exposes /var through /private/var and Windows runners use 8.3 TEMP
+  // names; the workspace must compare real paths in both cases.
+  const runner = await fixture(
+    t,
+    `const fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2);const out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'graph.json'),'{"nodes":[],"links":[]}');`
+  );
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-graphify-linked-'));
+  t.after(() => fs.rm(base, { recursive: true, force: true }));
+  const real = path.join(base, 'real');
+  const linked = path.join(base, 'linked');
+  await fs.mkdir(real);
+  await fs.symlink(real, linked, process.platform === 'win32' ? 'junction' : 'dir');
+  const names = ['TMPDIR', 'TEMP', 'TMP'];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  for (const name of names) process.env[name] = linked;
+  try {
+    assert.equal(os.tmpdir(), linked);
+    const result = await runGraphify({ files: [{ path: 'src/app.js', content: 'export const app = 1;' }], ...runner });
+    assert.equal(result.status, 'ready');
+  } finally {
+    for (const name of names)
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+  }
+  assert.deepEqual(await fs.readdir(real), [], 'workspace is disposed through the real path');
+});
+
 test('Graphify adapter rejects graph references outside the source inventory', async t => {
   const runner = await fixture(
     t,

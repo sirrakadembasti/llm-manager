@@ -4,7 +4,9 @@ import path from 'node:path';
 import { projectPath, hasProjectSecret, projectError, isWithin } from './policy.js';
 
 export async function createProjectWorkspace(files) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-project-work-'));
+  // Resolve links and short names (macOS /var → /private/var, Windows 8.3
+  // TEMP) so containment checks against realpath() results stay exact.
+  const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'llm-project-work-')));
   const root = path.join(directory, 'source');
   const runtime = path.join(directory, 'runtime');
   const dispose = async () => {
