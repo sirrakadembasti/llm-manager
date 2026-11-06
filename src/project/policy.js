@@ -146,15 +146,27 @@ export function hasProjectSecret(content) {
   // Empty literals are allowed; quoted JSON keys and short passwords are covered.
   const literals =
     /\b[\w$]*(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|pwd|encryption[_-]?key)["']?\s*[:=]\s*(?:(?:ref|shallowRef)\s*(?:<[^>\r\n]+>)?\s*\(\s*)?(["'`])((?:\\.|(?!\1)[^\\\r\n])*)\1/gi;
-  for (const match of content.matchAll(literals)) if (match[2].length) return true;
+  for (const match of content.matchAll(literals)) {
+    if (!match[2].length) continue;
+    // Namespaced UI keys ("form.api_key": "API anahtarı") hold human text;
+    // tokens and keys never contain whitespace.
+    if (content[match.index - 1] === '.' && /\s/.test(match[2])) continue;
+    return true;
+  }
   for (const match of content.matchAll(/\b(?:password|pwd)\s*=\s*([^;\r\n]+)/gi)) {
     const value = match[1].trim();
     if (!value || /^(["'`])\1\s*[,}]?$/.test(value)) continue;
+    // A computed value (call, await, logical fallback) is code, unless it
+    // falls back to a non-empty literal such as `env.X || 'default-secret'`.
+    const computed = /^(?:await\s+)?[\w$.]*[\w$]\s*\(/.test(value) || /\|\||\?\?|&&/.test(value);
+    const fallbackLiteral = /(?:\|\||\?\?)\s*(["'`])(?!\1)/.test(value);
+    if (computed && !fallbackLiteral) continue;
     const prefix = content.slice(Math.max(0, match.index - 120), match.index);
-    const code = /(?:\b(?:const|let|var)\s+|[\w$]+\.\s*)$/i.test(prefix);
+    // Declarations, member assignments and destructuring/parameter defaults.
+    const code = /(?:\b(?:const|let|var)\s+|[\w$]+\.\s*|[{(,]\s*|[\w$]+\s*:\s*)$/i.test(prefix);
     const emptyRef =
       /^(?:ref|shallowRef)\s*(?:<[^>]+>)?\s*\(\s*(?:''|""|false|true|null|undefined|0)?\s*\)\s*[,}]?$/.test(value);
-    const reference = /^(?:[\w$]+(?:\.[\w$]+)*(?:\(\s*\))?)\s*[,}]?$/.test(value);
+    const reference = /^[\w$]+(?:\.[\w$]+)*(?:\(\s*\))?\s*(?:[,})]|$)/.test(value);
     if (code && (emptyRef || reference)) continue;
     return true;
   }
