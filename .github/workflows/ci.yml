@@ -49,4 +49,11 @@ jobs:
         run: npm audit --omit=dev
 
       - name: Run tests
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x') }}
         run: npm test
+
+      # One matrix entry enforces the line/branch thresholds from package.json
+      # (80% / 70%); coverage runs the same full suite.
+      - name: Run tests with coverage thresholds
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x' }}
+        run: npm run test:coverage

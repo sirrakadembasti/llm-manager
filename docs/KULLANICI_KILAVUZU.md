@@ -399,7 +399,7 @@ npm run test:coverage
 npm audit --omit=dev
 ```
 
-Seri koşuda seçenekler dosyalardan önce gelir: `node --test --test-concurrency=1 tests/*.test.js tests/**/*.test.js`. Kapsam eşikleri satır %80/dal %70; CI Linux/Windows/macOS × Node 22/24 matrisi tanımlar. Gerçek motor kabulü `scripts/check-project-assistant.mjs` ile sentetik kaynak/anahtar ve yerel sağlayıcı kullanır; araçlar ayrıca kurulu olmalıdır. Testler aktif veri yerine izole dizin kullanmalı; .NET SDK kontrollerinde `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` korunmalıdır.
+Seri koşuda seçenekler dosyalardan önce gelir: `node --test --test-concurrency=1 tests/*.test.js tests/**/*.test.js`. Kapsam eşikleri satır %80/dal %70; CI Linux/Windows/macOS × Node 22/24 matrisi tanımlar ve Ubuntu + Node 22 işinde testleri `npm run test:coverage` ile bu eşiklere göre çalıştırır, diğer işler `npm test` kullanır. Gerçek motor kabulü `scripts/check-project-assistant.mjs` ile sentetik kaynak/anahtar ve yerel sağlayıcı kullanır; araçlar ayrıca kurulu olmalıdır. Testler aktif veri yerine izole dizin kullanmalı; .NET SDK kontrollerinde `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false` korunmalıdır.
 
 ### Standart commit biçimi
 
@@ -447,6 +447,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-05 tarama kapsamı | `data`, `build`, `out` dizin engeli proje köküyle sınırlandı; iç içe kaynak klasörleri tarama, sohbet ve onaylı değişiklik kapsamına girer. |
 | 2026-11-06 genel Türkçe kod sözlüğü | Hedef uygulamaya özgü kavram eşlemeleri (talep → prisma/schema, teslim → print) kaldırıldı; yerine alandan bağımsız Türkçe → İngilizce yazılım sözlüğü geldi. |
 | 2026-11-06 eşzamanlı sohbet | Kaynaklı sohbet genel işlem kilidinden ayrıldı; özel işlemler sıralı kalır, iptal yalnız sahibinin işlemini durdurur. Arayüzde **Durdur** sohbet isteğini doğrudan keser. |
+| 2026-11-06 kapsam denetimi | Kapsam yeniden ölçüldü (satır %94,71 / dal %87,65); CI'nin Ubuntu + Node 22 işi %80/%70 eşiğini zorunlu denetler. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
@@ -457,7 +458,7 @@ Son Mimo Stok taramasında Graphify 0.9.97, filtrelenmiş 108 dosyalık code-onl
 
 Mimo Stok'ta güncel paketle LLM entegrasyonu **18/18**, gerçek veri içermeyen geçici kopyadaki tam seri **292/292** geçti. Canlı admin/birim/oturumsuz erişim, iki tarama yöntemi ve yerel sahte sağlayıcıyla sohbet izi doğrulandı; `.env` ve dört LLM veri dosyası korundu. Önceki yerel HTTP proxy kabulünde öneki koruyan/silen yönlendirme, özel yollar ve kurulum geri alma da sınandı. Kaynak serisindeki başlangıç ve bir hedef koşu/tarama zaman aşımı ardından ayrı kontroller ve son tam seriler geçti; ilk hatalar başarı sayılmadı. Bu sonuç bütün IIS/Nginx/TLS dağıtımlarının veya paketli masaüstü uygulamalarının kabulü anlamına gelmez.
 
-Son kapsam ölçümü 2026-10-28'de 446 testlik kaynakta satır %94,16/dal %85,96 idi; güncel kodun kapsam sonucu sayılmaz. Tam seri sonucu ile kapsam ölçümünü birbirinin yerine kullanmayın.
+Son kapsam ölçümü 2026-11-06'da 583 testlik kaynakta (Windows, `npm run test:coverage`) satır %94,71 / dal %87,65 / fonksiyon %92,68 oldu; eşikler geçti. En düşük satır kapsamı `src/init/probe.js` (%74), `src/rateLimit.js` (%80) ve `src/project/tasks.js` (%81; dal %66) dosyalarındadır. Kapsam, kodun çalıştırıldığını gösterir; davranışın doğruluğunu tek başına kanıtlamaz. Tam seri sonucu ile kapsam ölçümünü birbirinin yerine kullanmayın.
 
 Gerçek OpenCode 1.18.33 kabulü kontrollü sentetik kaynaklarla yapıldı; önceki sınırlı canlı sağlayıcı denemesi bütün hesapların garantisi değildir. Gerçek Docker build/run, uzak OS×Node matrisi, paketli framework/masaüstü E2E, native sinyal teslimi, pozitif proxy CONNECT ve kapsamlı canlı sağlayıcı/DB kabulü **henüz tamamlanmış değildir**. Tedarik zincirindeki planlanan kontroller de açık iştir. DBHub/canlı DB bağlantısı ertelidir; bu liste yayın yetkisi vermez.
 
