@@ -23,6 +23,9 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
   let graph = { status: 'not-scanned', nodes: [], links: [] };
   let retrievalMode = 'basic';
   let operation = null;
+  // Sourced chats only read files and call the model, so they run alongside
+  // each other and alongside the single exclusive operation.
+  const chats = new Set();
   let closed = false;
   let closePromise;
 
@@ -67,12 +70,15 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
     };
   }
 
-  async function run(name, signal, fn) {
+  const ownerOf = principal => (principal ? `${principal.kind || ''}:${principal.id || ''}` : 'host');
+
+  /** Exclusive: scan and task operations mutate the graph, workspaces or target files. */
+  async function run(name, signal, fn, owner = 'host') {
     if (closed) throw projectError('PROJECT_CLOSED', 'Proje asistanı kapatıldı.', 503);
     if (operation)
       throw projectError('PROJECT_BUSY', 'Önce devam eden proje işlemini tamamlayın veya iptal edin.', 409);
     const controller = new AbortController();
-    operation = { name, controller };
+    operation = { name, controller, owner };
     const combined = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
     const pending = fn(combined);
     operation.promise = pending;
@@ -80,6 +86,20 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       return await pending;
     } finally {
       if (operation?.controller === controller) operation = null;
+    }
+  }
+
+  /** Shared: a chat is cancelled by its own request signal or by close(). */
+  async function runChat(signal, fn) {
+    if (closed) throw projectError('PROJECT_CLOSED', 'Proje asistanı kapatıldı.', 503);
+    const entry = { controller: new AbortController() };
+    const combined = signal ? AbortSignal.any([entry.controller.signal, signal]) : entry.controller.signal;
+    chats.add(entry);
+    entry.promise = fn(combined);
+    try {
+      return await entry.promise;
+    } finally {
+      chats.delete(entry);
     }
   }
 
@@ -168,30 +188,35 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       return { status: 403, body: { code: 'FORBIDDEN', error: 'Yönetici yetkisi gerekli.' } };
     try {
       if (method === 'GET' && path === '/project') return { status: 200, body: await status() };
+      const owner = ownerOf(principal);
       if (method === 'POST' && path === '/project/cancel') {
-        operation?.controller.abort();
-        return { status: 200, body: { cancelled: Boolean(operation) } };
+        const cancelled = operation?.owner === owner;
+        if (cancelled) operation.controller.abort();
+        return { status: 200, body: { cancelled } };
       }
       if (method === 'POST' && path === '/project/scan')
-        return { status: 200, body: await run('scan', signal, s => scan(s, body?.graphify === true)) };
+        return { status: 200, body: await run('scan', signal, s => scan(s, body?.graphify === true), owner) };
       if (method === 'POST' && path === '/project/chat')
-        return { status: 200, body: await run('chat', signal, s => chat(body, s)) };
+        return { status: 200, body: await runChat(signal, s => chat(body, s)) };
       if (method === 'GET' && path === '/project/tasks') return { status: 200, body: { tasks: tasks.list() } };
       if (method === 'POST' && path === '/project/tasks')
         return {
           status: 200,
-          body: await run(body?.mode || 'change', signal, s => tasks.prepare(body, s, { graph, retrievalMode }))
+          body: await run(body?.mode || 'change', signal, s => tasks.prepare(body, s, { graph, retrievalMode }), owner)
         };
       const taskRoute = /^\/project\/tasks\/([\w-]+)(?:\/(apply|revert|commands|discard)(?:\/([\w-]+))?)?$/.exec(path);
       if (taskRoute) {
         const [, id, action, name] = taskRoute;
         if (method === 'GET' && !action) return { status: 200, body: tasks.get(id) };
         if (method === 'POST' && ['apply', 'revert'].includes(action))
-          return { status: 200, body: await run(action, signal, () => tasks.apply(id, body, action === 'revert')) };
+          return {
+            status: 200,
+            body: await run(action, signal, () => tasks.apply(id, body, action === 'revert'), owner)
+          };
         if (method === 'POST' && action === 'commands' && name)
-          return { status: 200, body: await run('command', signal, s => tasks.command(id, name, body, s)) };
+          return { status: 200, body: await run('command', signal, s => tasks.command(id, name, body, s), owner) };
         if (method === 'POST' && action === 'discard')
-          return { status: 200, body: await run('discard', signal, () => tasks.discard(id, body)) };
+          return { status: 200, body: await run('discard', signal, () => tasks.discard(id, body), owner) };
       }
       return null;
     } catch (error) {
@@ -221,8 +246,9 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
     if (closePromise) return closePromise;
     closed = true;
     operation?.controller.abort();
+    for (const entry of chats) entry.controller.abort();
     closePromise = (async () => {
-      await operation?.promise?.catch(() => {});
+      await Promise.allSettled([operation?.promise, ...[...chats].map(entry => entry.promise)]);
       inventory = null;
       analysis = null;
       graph = { status: 'not-scanned', nodes: [], links: [] };

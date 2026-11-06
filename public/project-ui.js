@@ -18,6 +18,7 @@ function createLLMProjectUI({
     activeId = null,
     controller = null,
     runningModel = false,
+    runningChat = false,
     modelSession = '';
   const history = [];
   const modelHistory = [];
@@ -570,6 +571,7 @@ function createLLMProjectUI({
     } finally {
       controller = null;
       runningModel = false;
+      runningChat = false;
       lock(false);
     }
   }
@@ -635,12 +637,14 @@ function createLLMProjectUI({
     await perform(
       tr('answering', 'Proje kaynakları inceleniyor…'),
       async signal => {
+        runningChat = true;
         const answer = await beginTurn(prompt, 'Kaynaklı sohbet');
         let failure;
         try {
           signal.throwIfAborted();
           const reply = await request('/project/chat', {
             method: 'POST',
+            signal,
             body: JSON.stringify({
               prompt,
               history: completedContext(),
@@ -839,7 +843,9 @@ function createLLMProjectUI({
     el('project-cancel').addEventListener('click', async () => {
       try {
         controller?.abort();
-        if (runningModel) {
+        // Model and sourced chats stop by closing their own request; the
+        // server cancel endpoint is only for this caller's exclusive work.
+        if (runningModel || runningChat) {
           return;
         }
         await request('/project/cancel', { method: 'POST', body: '{}' });

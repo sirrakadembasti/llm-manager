@@ -93,6 +93,8 @@ Yalnız izin verilen kaynakların geçici kopyası `extract --code-only` ile tar
 
 Dosya farkları ve geri alma kayıtları **sunucu belleğindedir**; en fazla 10 görev tutulur. Sunucu kapanınca veya **Görev kaydını kapat** seçilince uygulanmış dosyalar kalır, geri alma kaydı gider. Sohbetteki iş çıktısı öneri/dosya listesi/son bilinen etki/doğrulama/işlem izini korur. **Canlı görevi aç** mevcut sunucu kaydını yeniden denetler; geçmişi açmak dosya yazmaz veya komut çalıştırmaz. Yanıt alınamadığında işlem etkisi belirsizdir; otomatik yeniden uygulamayın.
 
+**Eşzamanlılık:** Kaynaklı sohbetler dosya yazmaz; birbirleriyle ve süren tarama/görev işlemleriyle aynı anda çalışır. Tarama, görev hazırlama, uygulama, geri alma, komut ve görev kaydını kapatma sunucuda tek seferde bir tanedir; biri sürerken yenisi `409 PROJECT_BUSY` döner. Sohbette **Durdur** yalnız kendi isteğini keser. `POST /project/cancel` yalnız aynı yönetici kimliğinin başlattığı özel işlemi iptal eder ve `{ cancelled }` döndürür; sohbetleri ve başka yöneticinin işini etkilemez. Eşzamanlı sohbetler aynı chat kotasını paylaşır.
+
 Uygulama yalnız kaynak dosyalarını değiştirir; paket kurulumu, migration, servis yeniden başlatma ve deployment ayrı süreçtir. Eski migration'ı değiştirmek yerine yeni dosya hazırlanabilir. Geçici kopyada `node_modules`, sırlar ve canlı veriler yoktur; çalışmayan kontrol başarı sayılmaz.
 
 ### Araçlar ve tarama kapsamı
@@ -147,7 +149,7 @@ Kontrollü A/B denemesinde aynı kaynak revizyonu, profil/model ve üretim ayarl
 
 2026-10-29 ilk canlı çift gösterilmeyen ara satırları kapsayan birer atıf nedeniyle kabul edilmedi. Tek satır atıflarına sıkılaştırılan yönergeyle, ayrıca onaylanan ikinci çiftte temel yanıtın 41 ve Graphify yanıtının 37 atfı gösterilmiş satırlarda kaldı. İkisi de güncel LLM bağlantısını kapsadı; tarihsel kaynak kullanmadı ve PostgreSQL çalışma garantisi vermedi. İkinci çiftte temel yöntem 13.746 giriş / 1.119 çıkış tokeni ve 20.278 ms; Graphify 13.856 / 1.319 ve 22.484 ms kullandı. Graphify 14 ek dosya ve 20 ilişki sağladı. Süre yalnız sağlayıcı çağrısıdır; harita çıkarımı dahil değildir. Toplam dört çağrı yapıldı. Bu sınırlı kabul başka soru/sağlayıcılar için doğruluk, fiyat veya hız üstünlüğü kanıtlamaz; parasal fiyat hesaplanmadı.
 
-Kalite testleri 17/17 geçti. Son tam kaynak koşusunda 571 testten 570'i geçti, başarısız test yok, 1 platform testi atlandı. Önceki koşudaki başlangıç zaman aşımı ayrı testte ve düşük eşzamanlılıklı tam koşuda tekrarlanmadı. Lint/typecheck/format geçti. Hedef uygulamanın tam testleri gerçek veriler yerine izole kopyada çalıştırılmalıdır; paket kurulumu ve hedef kabulü ayrıca doğrulanır.
+Kalite testleri 17/17 geçti. 2026-11-06 son tam kaynak koşusunda 583 testten 582'si geçti, başarısız test yok, 1 platform testi atlandı. Lint/typecheck/format geçti. Hedef uygulamanın tam testleri gerçek veriler yerine izole kopyada çalıştırılmalıdır; paket kurulumu ve hedef kabulü ayrıca doğrulanır.
 
 ### Desteklenen ortamlar
 
@@ -444,11 +446,12 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-05 / `a6a83af` ve belge düzeltmesi | `LLM_ALLOWED_PRIVATE_HOSTS` ortam değişkeni koddan kaldırıldı; LAN izni yalnız `allowedPrivateHosts` ile verilir. Doğrulama komutunun geçici kopyada çalıştığı, görev bağlam bütçesi, Graphify Python yolu ve yedek parolası kaynağı kodla eşitlendi. |
 | 2026-11-05 tarama kapsamı | `data`, `build`, `out` dizin engeli proje köküyle sınırlandı; iç içe kaynak klasörleri tarama, sohbet ve onaylı değişiklik kapsamına girer. |
 | 2026-11-06 genel Türkçe kod sözlüğü | Hedef uygulamaya özgü kavram eşlemeleri (talep → prisma/schema, teslim → print) kaldırıldı; yerine alandan bağımsız Türkçe → İngilizce yazılım sözlüğü geldi. |
+| 2026-11-06 eşzamanlı sohbet | Kaynaklı sohbet genel işlem kilidinden ayrıldı; özel işlemler sıralı kalır, iptal yalnız sahibinin işlemini durdurur. Arayüzde **Durdur** sohbet isteğini doğrudan keser. |
 | Bu belge düzenlemesi | 11 Markdown belgesi incelenip güncellendi; tekrarları kaldırılarak bu kılavuzda birleştirildi. Ayrı plan/politika/kılavuz kopyaları kaldırıldı. |
 
 ### Doğrulanmış durum ve açık işler
 
-2026-10-29 altıncı görev sonrası son tam seri (`node --test --test-concurrency=2 tests/*.test.js tests/**/*.test.js`): **571 test; 570 geçti, 0 başarısız, 1 platform testi atlandı**. Profil/sohbet/proje akışları, Express 4/5 ve basic/host yetkileri, kurulum/geri alma, anahtar/veri koruma, kaynak rolleri ve mimari kapsam, gerçek ilişki katkısı ve eski revizyon reddi sınandı. Güvenli reactive ifadeler/literal sır ayrımı ve aynı gizlilik filtresiyle kaynak/Graphify kopyası doğrulandı. Yedi soru türü × iki yöntem ile atıf/harita denetimleri **17/17** geçti. Lint/typecheck/format kontrolleri geçti; paket gerçek `.env`, anahtar ve profil verisi içermez.
+2026-11-06 son tam seri (`node --test --test-concurrency=2 tests/*.test.js tests/**/*.test.js`, Windows): **583 test; 582 geçti, 0 başarısız, 1 platform testi atlandı**. Eşzamanlı sohbet, sahibine bağlı iptal, iç içe kaynak klasörleri, genel Türkçe kod sözlüğü ve ortamdan okunmayan LAN izinleri de sınandı. Profil/sohbet/proje akışları, Express 4/5 ve basic/host yetkileri, kurulum/geri alma, anahtar/veri koruma, kaynak rolleri ve mimari kapsam, gerçek ilişki katkısı ve eski revizyon reddi sınandı. Güvenli reactive ifadeler/literal sır ayrımı ve aynı gizlilik filtresiyle kaynak/Graphify kopyası doğrulandı. Yedi soru türü × iki yöntem ile atıf/harita denetimleri **17/17** geçti. Lint/typecheck/format kontrolleri geçti; paket gerçek `.env`, anahtar ve profil verisi içermez.
 
 Son Mimo Stok taramasında Graphify 0.9.97, filtrelenmiş 108 dosyalık code-only kopyada **1.585 öğe ve 2.919 ilişki** üretti; kaynak ve harita revizyonları eşleşti. Bu tarama model çağrısı yapmadı ve hedefe harita dosyası yazmadı. Ayrı kontrollü A/B kabulünün dört sağlayıcı çağrısı ve sınırları [ilgili bölümde](#kaynaklı-yanıt-kalitesini-karşılaştırma) açıklanır. Dosya ve ilişki sayıları kaynak değiştikçe farklılaşabilir.
 

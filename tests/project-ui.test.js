@@ -228,6 +228,37 @@ test('model stream cancellation aborts locally and never sends a project cancell
   assert.equal(element('project-send').disabled, false);
 });
 
+test('sourced chat cancellation aborts its own request and never cancels shared project work', async () => {
+  const paths = [];
+  let chatSignal;
+  let started;
+  const chatStarted = new Promise(resolve => {
+    started = resolve;
+  });
+  const { ui, element } = fixture(async (url, options = {}) => {
+    paths.push(url);
+    if (url === '/project/chat')
+      return new Promise((_, reject) => {
+        chatSignal = options.signal;
+        started();
+        options.signal?.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+      });
+    return ready;
+  });
+  await ui.init();
+  element('project-mode').value = 'chat';
+  element('project-mode').listeners.change?.();
+  element('project-share').checked = true;
+  element('project-prompt').value = 'Uygulamayı açıkla';
+  const pending = element('project-chat-form').listeners.submit({ preventDefault() {} });
+  await chatStarted;
+  await element('project-cancel').listeners.click();
+  await pending;
+  assert.equal(chatSignal?.aborted, true);
+  assert.ok(!paths.includes('/project/cancel'));
+  assert.equal(element('project-send').disabled, false);
+});
+
 test('project chat requires source consent and renders model output and citations as text', async () => {
   const calls = [];
   const { ui, element } = fixture(async (url, options) => {
