@@ -16,6 +16,33 @@ test('safe reactive values and code references are not mistaken for connection p
     assert.equal(hasProjectSecret(source), false, source);
 });
 
+test('computed passwords, parameter defaults and namespaced UI labels are not credentials', () => {
+  for (const source of [
+    'let password = process.env.LLM_BACKUP_PASSWORD || process.env.LLM_ADMIN_PASSWORD;',
+    "else if (args[i] === '-w' || args[i] === '--password') password = String(args[++i] || '');",
+    "    password = readEnv(path.join(cwd, '.env')).LLM_ADMIN_PASSWORD;",
+    "const password = crypto.randomBytes(24).toString('hex');",
+    'function f({ adminPassword: password = adminPassword, user } = {}) {}',
+    'const handler = ({ password = defaults.password }) => password;',
+    'password = await vault.read(name);',
+    '"form.api_key": "API anahtarı",',
+    '"form.password_placeholder": "Parolanızı girin",'
+  ])
+    assert.equal(hasProjectSecret(source), false, source);
+});
+
+test('fallback literals, unquoted config values and dotted keys with token-like values stay excluded', () => {
+  for (const source of [
+    "const password = process.env.DB_PASSWORD || 'fallback-private-value';",
+    'let password = config.password ?? "fallback-private-value";',
+    'password = hunter2',
+    'Server=db;Password=actual.private.value;',
+    '{"db.password": "hunter2"}',
+    'config.apiKey = "sk-syntheticprivatevalue123456789";'
+  ])
+    assert.equal(hasProjectSecret(source), true, source);
+});
+
 test('literal credentials remain excluded, including short quoted values and connection strings', () => {
   for (const source of [
     'password = "synthetic-private-password-value"',
