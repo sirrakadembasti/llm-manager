@@ -78,6 +78,26 @@ test('runtime dependencies do not require a newer Node.js than the package suppo
   }
 });
 
+test('lockfile has no development dependency below a known security fix', () => {
+  const lock = JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8'));
+  // Paket adı -> açığın etkilediği büyük sürüm ve ilk yamalı sürüm.
+  const fixes = [
+    { name: 'minimatch', from: [7, 0, 0], patched: [11, 0, 1], advisory: 'GHSA-g3hv-75wg-m249' },
+    { name: 'body-parser', from: [1, 0, 0], patched: [1, 20, 9], below: [2, 0, 0], advisory: 'GHSA-27r3-jxmh-p828' }
+  ];
+  for (const [path, info] of Object.entries(lock.packages)) {
+    for (const fix of fixes) {
+      if (!path.endsWith(`node_modules/${fix.name}`)) continue;
+      const version = info.version.split('.').map(Number);
+      const affected =
+        compareVersions(version, fix.from) >= 0 &&
+        compareVersions(version, fix.patched) < 0 &&
+        (!fix.below || compareVersions(version, fix.below) < 0);
+      assert.ok(!affected, `${path}@${info.version} ${fix.advisory} açığından etkileniyor`);
+    }
+  }
+});
+
 test('dependabot does not propose major bumps that break supported Node or Express 4 tests', () => {
   const text = readFileSync(join(root, '.github', 'dependabot.yml'), 'utf8');
   for (const name of ['undici', 'express']) {

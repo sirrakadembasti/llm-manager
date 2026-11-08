@@ -48,6 +48,8 @@ npm run test:coverage     # eşik: satır 80, dal 70
   `tests/supply-chain.test.js` etiketle (`@v4`) yazılan eylemi reddeder. SHA'yı `gh api repos/<eylem>/commits/<etiket>`
   ile bulun; güncellemeleri Dependabot PR'ları getirir. Dependabot `undici` ve `express` büyük sürümlerini yok sayar
   (undici 8 Node 22.19+ ister; `express` Express 4 testleri içindir). `engines.node` yükseltilmeden undici 8'e geçilmez.
+- `package.json` `overrides.minimatch` eslint'in açıklı minimatch 10'unu 11'e çeker; eslint kendi bağımlılığını
+  ≥11.0.1'e yükseltene kadar kaldırılmaz. Geliştirme açıklarını `npm audit` (`--omit=dev` olmadan) ile denetleyin.
 - CI (`.github/workflows/ci.yml`): Ubuntu/Windows/macOS × Node 22/24; kapsam eşiği Ubuntu + Node 22 işinde
   denetlenir. macOS'ta geçici dizin bir symlink'tir (`/var` → `/private/var`); yol karşılaştırmalarında `realpath`
   kullanın.
