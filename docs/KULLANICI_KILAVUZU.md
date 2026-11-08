@@ -403,7 +403,7 @@ Seri koşuda seçenekler dosyalardan önce gelir: `node --test --test-concurrenc
 
 ### Standart commit biçimi
 
-Bir görev bir commit; feat/fix/docs/test/refactor/chore ve kısa amaç başlığı, ör. `fix(store): geçmişi yeni anahtarla şifrele`. Önce davranış testi yazın; API değişince tipleri ve bu kılavuzu güncelleyin. Core Express bağımsız, araç importları gerektiğinde yüklenir kalmalı; yeni runtime bağımlılığı zorunluysa gerekçelendirin. Kullanıcı değişikliklerini koruyun. Test geçmesi commit/push/yayın/sürüm artırma yetkisi vermez. İstekte sorun, çözüm, doğrulama ve sınırları yazın; değişiklik/karar kayıtlarını bu belgenin sonunda tutun.
+Bir görev bir commit; feat/fix/docs/test/refactor/chore ve kısa amaç başlığı, ör. `fix(store): geçmişi yeni anahtarla şifrele`. Önce davranış testi yazın; API değişince tipleri ve bu kılavuzu güncelleyin. Her commit/push öncesi README başta olmak üzere tüm Markdown belgelerini (`git ls-files "*.md"`) değişiklikle karşılaştırın; test sayıları, özellik açıklamaları ve doğrulanmış durum satırları güncel değilse önce belgeyi güncelleyin. Core Express bağımsız, araç importları gerektiğinde yüklenir kalmalı; yeni runtime bağımlılığı zorunluysa gerekçelendirin. Kullanıcı değişikliklerini koruyun. Test geçmesi commit/push/yayın/sürüm artırma yetkisi vermez. İstekte sorun, çözüm, doğrulama ve sınırları yazın; değişiklik/karar kayıtlarını bu belgenin sonunda tutun.
 
 ### 2.0 geçişi ve alt yollar
 

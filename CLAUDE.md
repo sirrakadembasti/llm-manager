@@ -21,6 +21,10 @@ Kullanıcıyla ve commit/PR metinlerinde **Türkçe** yazın. Ayrıntılı davra
 - Hata düzeltme ve özelliklerde önce **başarısız test** yazılır, sonra kod.
 - Davranış değişince `docs/KULLANICI_KILAVUZU.md` (ve gerekiyorsa `README.md`) aynı değişiklikte güncellenir;
   test sayıları/kapsam değerleri yalnız gerçekten koşturulan sonuçtan yazılır.
+- Her commit/push öncesi README başta olmak üzere tüm Markdown belgeleri (`git ls-files "*.md"`: `README.md`,
+  `docs/KULLANICI_KILAVUZU.md`, `CLAUDE.md`) değişiklikle karşılaştırılır: test sayıları, özellik açıklamaları,
+  kurulum notları ve doğrulanmış durum satırları güncel değilse önce belge güncellenir, sonra commit/push yapılır.
+  Yalnız kılavuzu güncellemek yetmez.
 
 ## Doğrulama komutları
 
