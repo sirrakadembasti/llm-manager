@@ -291,7 +291,11 @@ test('chat trace identifies files added by Graphify against the same basic conte
   const { root, options } = await fixture(t);
   await fs.writeFile(path.join(root, 'related.js'), 'export const implementation = 2;');
   for (let i = 0; i < 8; i++)
-    await fs.writeFile(path.join(root, `noise${i}.js`), ('// orders ' + 'x'.repeat(80) + '\n').repeat(200));
+    // Distinct contents: identical copies would be deduplicated as twins and free the budget.
+    await fs.writeFile(
+      path.join(root, `noise${i}.js`),
+      `// noise ${i}\n` + ('// orders ' + 'x'.repeat(80) + '\n').repeat(200)
+    );
   const runner = path.join(os.tmpdir(), `graph-contribution-${path.basename(root)}.cjs`);
   t.after(() => fs.rm(runner, { force: true }));
   await fs.writeFile(
@@ -694,4 +698,24 @@ test('project tasks stage engine changes and apply only after explicit review ap
   );
   assert.equal(reversal.status, 409);
   assert.match(await fs.readFile(path.join(root, 'server.js'), 'utf8'), /concurrent user edit/);
+});
+
+test('overview-only LLM integration instruction is sent only with general introduction questions', async t => {
+  const { options } = await fixture(t);
+  const sent = [];
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      sent.push(messages);
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  for (const prompt of ['uygulama hakkında bilgi ver öncelikle', 'orders rotası hangi dosyada?'])
+    await assistant.handle({ method: 'POST', path: '/project/chat', body: { prompt, shareSources: true } });
+  assert.equal(sent[0][0].role, 'system');
+  assert.match(sent[0][0].content, /Genel tanıtımda .*LLM entegrasyonunu/);
+  assert.doesNotMatch(sent[1][0].content, /LLM entegrasyonu/);
+  assert.match(sent[1][0].content, /Yalnız verilen kaynaklara dayan/);
 });

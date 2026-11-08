@@ -70,3 +70,20 @@ export function canonicalPriority(file, roles) {
   if (!file.includes('/')) return 2;
   return 3;
 }
+
+// A third-party tool shipped inside the repository (tools/pnpm, vendor/foo):
+// its own manifest under a tools/vendor-style directory plus a distribution
+// marker — a licence file, a bin/ or dist/ folder, or a manifest "bin" entry.
+// Its README, changelog and manifest describe that tool, not the project.
+export function packagedToolDirectories(paths) {
+  const dirs = new Map();
+  for (const path of paths) {
+    const match = /^((?:.*\/)?(?:tools|vendor|vendors|third[_-]?party|externals?)\/[^/]+)\/(.+)$/i.exec(path);
+    if (!match) continue;
+    const seen = dirs.get(match[1]) || { manifest: false, shipped: false };
+    if (!match[2].includes('/') && classifyProjectSource(path) === 'manifest') seen.manifest = true;
+    if (/^(?:(?:licen[cs]e|copying)(?:\.(?:md|txt))?|(?:bin|dist)\/.+)$/i.test(match[2])) seen.shipped = true;
+    dirs.set(match[1], seen);
+  }
+  return [...dirs].filter(([, seen]) => seen.manifest && seen.shipped).map(([dir]) => dir);
+}

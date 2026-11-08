@@ -6,15 +6,46 @@ import {
   classifyProjectSource,
   normalizeDocumentRoles,
   requestsHistoricalSources,
-  canonicalPriority
+  canonicalPriority,
+  packagedToolDirectories
 } from './sourcePolicy.js';
+
+// Byte-identical copies (a mirrored "sites-source/" tree) would spend the
+// budget twice; keep the shallowest path of each identical content. Copies
+// with different roles (an archived snapshot of live code) stay apart.
+function withoutTwins(files, roles) {
+  const preferred = new Map();
+  const key = file => `${roles.get(file.path)}\n${file.content}`;
+  const depth = path => path.split('/').length;
+  for (const file of files) {
+    if (!file.content.trim()) continue;
+    const current = preferred.get(key(file));
+    if (
+      !current ||
+      depth(file.path) < depth(current.path) ||
+      (depth(file.path) === depth(current.path) && file.path < current.path)
+    )
+      preferred.set(key(file), file);
+  }
+  return files.filter(file => !file.content.trim() || preferred.get(key(file)) === file);
+}
 
 export function selectProjectContext(files, question, budget = 40000, graph = null, documentRoles, sourceRevision) {
   const overrides = normalizeDocumentRoles(documentRoles);
   const roles = new Map(files.map(file => [file.path, classifyProjectSource(file.path, overrides)]));
   const historyRequested = requestsHistoricalSources(question);
-  const eligible = files.filter(file => historyRequested || !['historical', 'plan'].includes(roles.get(file.path)));
   const { terms, overview: isOverview } = projectQuery(question);
+  const packagedTools = packagedToolDirectories(files.map(file => file.path)).filter(
+    dir => !terms.includes(projectWords(dir.split('/').at(-1)).join(''))
+  );
+  const eligible = withoutTwins(
+    files.filter(
+      file =>
+        (historyRequested || !['historical', 'plan'].includes(roles.get(file.path))) &&
+        !packagedTools.some(dir => file.path.startsWith(dir + '/'))
+    ),
+    roles
+  );
   const contains = (value, term) => new Set(projectWords(value)).has(term);
   const scores = new Map(
     files.map(f => [
@@ -39,10 +70,14 @@ export function selectProjectContext(files, question, budget = 40000, graph = nu
   );
   const graphSelection = projectGraphSelection(eligible, graph, terms, overviewPaths, sourceRevision);
   if (graphSelection) for (const name of graphSelection.paths) scores.set(name, (scores.get(name) || 0) + 12);
+  // A relevant neighbour lends a file one fixed bonus. Summing it per import
+  // would push a helper imported from everywhere above the files that answer.
+  const related = new Set();
   for (const r of report.relationships) {
-    if ((scores.get(r.from) || 0) > 2) scores.set(r.to, (scores.get(r.to) || 0) + 3);
-    if ((scores.get(r.to) || 0) > 2) scores.set(r.from, (scores.get(r.from) || 0) + 3);
+    if ((scores.get(r.from) || 0) > 2) related.add(r.to);
+    if ((scores.get(r.to) || 0) > 2) related.add(r.from);
   }
+  for (const name of related) scores.set(name, (scores.get(name) || 0) + 3);
   const ranked = [...eligible].sort((a, b) => scores.get(b.path) - scores.get(a.path) || a.path.localeCompare(b.path));
   const guidance = ranked
     .filter(f => roles.get(f.path) === 'canonical')

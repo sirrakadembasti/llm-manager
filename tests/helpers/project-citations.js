@@ -25,7 +25,13 @@ export function auditProjectCitations(context, response) {
     }
   }
   const citations = [];
-  const pattern = /([\w./-]+\.[\w]+):(\d+(?:[-–]\d+)?(?:,\s*\d+(?:[-–]\d+)?)*)/gu;
+  // Folder segments may be Next.js dynamic "[id]", catch-all "[[...slug]]",
+  // route group "(shop)" or slot "@modal"; a bare "(" before a path is prose.
+  const segment = String.raw`(?:\[\[?(?:\.\.\.)?[\w-]+\]\]?|\([\w-]+\)|@?[\w.-]+)`;
+  const pattern = new RegExp(
+    String.raw`((?:${segment}\/)*[\w.\[\]-]+\.\w+):(\d+(?:[-–]\d+)?(?:,\s*\d+(?:[-–]\d+)?)*)`,
+    'gu'
+  );
   for (const match of String(response).matchAll(pattern)) {
     const path = match[1],
       missing = [];

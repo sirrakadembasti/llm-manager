@@ -342,3 +342,48 @@ test('Express SSE reports actual fallback identity', async t => {
   assert.match(text, /"profileId":"fallback"/);
   assert.match(text, /"fallbackUsed":true/);
 });
+
+for (const [name, body] of [
+  [
+    'empty content stream',
+    frame({ choices: [{ delta: { content: '' }, finish_reason: 'stop' }] }) + 'data: [DONE]\n\n'
+  ],
+  ['malformed JSON stream', 'data: {bozuk\n\n'],
+  ['no event stream', '']
+])
+  test(`${name} fails as LLM_EMPTY_RESPONSE instead of done`, async () => {
+    await assert.rejects(
+      () => collect(parseSseStream(new Response(body).body, getTransport('openai'))),
+      error => error.code === 'LLM_EMPTY_RESPONSE' && error.status === 502 && error.retryable === true
+    );
+  });
+
+test('accepted truncation without text still yields done', async () => {
+  const body = frame({ choices: [{ delta: {}, finish_reason: 'length' }] });
+  const chunks = await collect(
+    parseSseStream(new Response(body).body, getTransport('openai'), { acceptTruncated: true })
+  );
+  assert.equal(chunks.at(-1).type, 'done');
+  assert.equal(chunks.at(-1).truncated, true);
+});
+
+test('malformed stream from primary continues the fallback chain', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => (++calls === 1 ? new Response('data: {bozuk\n\n') : success()));
+  const { manager, records } = managerFixture(t, {
+    retry: false,
+    store: {
+      getActive: async () => ({ ...profile, fallbackProfileIds: ['fallback'] }),
+      get: async () => ({ ...profile, id: 'fallback' })
+    }
+  });
+  const chunks = await collect(manager.stream('hello'));
+  assert.equal(calls, 2);
+  assert.deepEqual(
+    chunks.filter(chunk => chunk.type === 'delta').map(chunk => chunk.text),
+    ['answer']
+  );
+  assert.equal(chunks.at(-1).profileId, 'fallback');
+  assert.equal(chunks.at(-1).fallbackUsed, true);
+  assert.equal(records.at(-1).code, 'OK');
+});

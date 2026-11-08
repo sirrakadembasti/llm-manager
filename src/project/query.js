@@ -4,6 +4,11 @@ const genericWords = new Set(
   )
 );
 
+// Turkish question scaffolding ("hangi dosyada var, nerede, kaynağını belirt")
+// carries no project vocabulary; matched on ASCII-folded whole words.
+const questionScaffolding =
+  /^(?:icin|hangi\w*|var(?:dir|mi|midir)?|nere\w*|belirt\w*|kaynak\w*|kaynag\w*|bu|bunun|buna|bunu|su|sunun|mi|mu|ne|neler|nelerdir)$/;
+
 const foldTurkish = word => word.replace(/[şğüöç]/g, c => ({ ş: 's', ğ: 'g', ü: 'u', ö: 'o', ç: 'c' })[c]);
 
 // General Turkish → English software vocabulary, matched on ASCII-folded
@@ -25,7 +30,7 @@ const concepts = [
   concept('sifirla\\w*', ['reset']),
   concept('grup\\w*', ['group']),
   // Workflow
-  concept('talep\\w*|taleb\\w*|istek\\w*', ['request']),
+  concept('talep\\w*|taleb\\w*|istek\\w*|isteg\\w*', ['request']),
   concept('onay\\w*', ['approve', 'approval', 'confirm']),
   concept('redd\\w*|ret|reti\\w*', ['reject']),
   concept('teslim\\w*', ['delivery', 'deliver']),
@@ -120,7 +125,11 @@ export function projectWords(value) {
 
 export function projectQuery(question) {
   const words = projectWords(question);
-  const terms = [...new Set(words.filter(word => word.length >= 2 && !genericWords.has(word)))];
+  const terms = [
+    ...new Set(
+      words.filter(word => word.length >= 2 && !genericWords.has(word) && !questionScaffolding.test(foldTurkish(word)))
+    )
+  ];
   // Bridge Turkish product questions to common English code identifiers.
   // Aliases translate the question word itself; they never infer a project's
   // stack or domain. Whole-word matching keeps "ver" away from "server".
