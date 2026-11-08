@@ -46,7 +46,8 @@ npm run test:coverage     # eşik: satır 80, dal 70
 - Prettier `*.md` dosyalarını denetlemez.
 - İş akışlarında eylemler `@<40 hane SHA> # vX.Y.Z` biçiminde sabitlenir, izin `contents: read` kalır;
   `tests/supply-chain.test.js` etiketle (`@v4`) yazılan eylemi reddeder. SHA'yı `gh api repos/<eylem>/commits/<etiket>`
-  ile bulun; güncellemeleri Dependabot PR'ları getirir.
+  ile bulun; güncellemeleri Dependabot PR'ları getirir. Dependabot `undici` ve `express` büyük sürümlerini yok sayar
+  (undici 8 Node 22.19+ ister; `express` Express 4 testleri içindir). `engines.node` yükseltilmeden undici 8'e geçilmez.
 - CI (`.github/workflows/ci.yml`): Ubuntu/Windows/macOS × Node 22/24; kapsam eşiği Ubuntu + Node 22 işinde
   denetlenir. macOS'ta geçici dizin bir symlink'tir (`/var` → `/private/var`); yol karşılaştırmalarında `realpath`
   kullanın.
