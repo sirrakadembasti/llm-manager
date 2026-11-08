@@ -34,7 +34,7 @@ Express yönetici oturumuna bağlamak için `--auth host --auth-module ./llm-aut
 oturum adaptörü ve izinli roller açıkça yapılandırılır. [Giriş yöntemleri ve sınırlar](docs/KULLANICI_KILAVUZU.md#yönetim-yolu-ve-giriş).
 
 Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulama ve kurulum geri alma ilk kapsamı tamamlandı.
-2026-11-08'de geliştirme audit düzeltmesiyle kapsam koşusunda **628 test: 627 geçti, 1 platform testi atlandı**; yedi soru türü ve iki Next.js sorusunu iki yöntemle sınayan kalite kontrolleri **23/23** geçti. Hedef uygulamanın kabul sonuçları kendi README'sinde tutulur.
+2026-11-08'de dağıtım kabulü betikleriyle kapsam koşusunda **632 test: 631 geçti, 1 platform testi atlandı**; yedi soru türü ve iki Next.js sorusunu iki yöntemle sınayan kalite kontrolleri **23/23** geçti. Hedef uygulamanın kabul sonuçları kendi README'sinde tutulur.
 pdf-to-onlinequiz (Next.js 16) saha testinde gerçek `gemini-3.8-flash` profiliyle kaynaklı sohbet üç sorunun üçünü doğru kaynaklarla yanıtladı (önceki deneme 1/3). Gerçek OpenCode 1.18.33 aynı profille, hedefe uygulamadan, tek dosyalık doğru bir değişiklik farkı hazırladı. [Ayrıntılar](docs/KULLANICI_KILAVUZU.md#doğrulanmış-durum-ve-açık-işler).
 Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
 Domainin `/llm`, arayüz betiği ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; `/stok/` altında kurulumda genel yol `/stok/llm` olur.

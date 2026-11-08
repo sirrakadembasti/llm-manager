@@ -1,0 +1,327 @@
+name: Dağıtım kabulü
+
+# Docker, Linux servis (systemd) + Nginx/HTTPS ve Windows Server/IIS üzerinde gerçek kurulum kabulü.
+# Model çağrısı yapmaz; profil sahte anahtarla kaydedilir. Kota için her PR'da değil, elle, haftalık,
+# sürüm etiketinde ve kabul dosyaları değiştiğinde çalışır.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-acceptance.yml'
+      - 'scripts/acceptance/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Kabul betiği bağımlılıkları
+        run: npm ci --omit=dev
+
+      - name: Geçici yönetici parolası
+        run: |
+          pw="$(openssl rand -hex 16)"
+          echo "::add-mask::$pw"
+          echo "LLM_ADMIN_PASSWORD=$pw" >> "$GITHUB_ENV"
+
+      - name: İmajı derle
+        run: docker build -t llm-manager:kabul .
+
+      - name: İmaj içeriği
+        run: |
+          docker run --rm --entrypoint sh llm-manager:kabul -c \
+            'test ! -e /app/tests && test ! -e /app/.env && test ! -e /app/data && test "$(id -u)" != 0'
+
+      - name: Kapsayıcıyı başlat ve kabul profilini kaydet
+        run: |
+          docker volume create llm_kabul
+          docker run -d --name llm-kabul -p 8010:8010 -v llm_kabul:/data -e LLM_ADMIN_PASSWORD llm-manager:kabul
+          bash scripts/acceptance/wait-healthy.sh llm-kabul
+          test "$(docker exec llm-kabul stat -c %U /data)" = node
+          node scripts/acceptance/deploy-check.mjs --base http://127.0.0.1:8010 --phase create
+
+      - name: Yeniden başlatmadan sonra veri korunur
+        run: |
+          docker restart llm-kabul
+          bash scripts/acceptance/wait-healthy.sh llm-kabul
+          node scripts/acceptance/deploy-check.mjs --base http://127.0.0.1:8010 --phase verify
+
+      - name: Kapsayıcı yeniden oluşturulunca volume korunur
+        run: |
+          docker rm -f llm-kabul
+          docker run -d --name llm-kabul -p 8010:8010 -v llm_kabul:/data -e LLM_ADMIN_PASSWORD llm-manager:kabul
+          bash scripts/acceptance/wait-healthy.sh llm-kabul
+          node scripts/acceptance/deploy-check.mjs --base http://127.0.0.1:8010 --phase verify
+
+      - name: Kapsayıcı günlüğü
+        if: ${{ always() }}
+        run: docker logs llm-kabul 2>&1 | tail -50 || true
+
+  linux-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Geçici yönetici parolası
+        run: |
+          pw="$(openssl rand -hex 16)"
+          echo "::add-mask::$pw"
+          echo "LLM_ADMIN_PASSWORD=$pw" >> "$GITHUB_ENV"
+
+      - name: Ayrı servis hesabıyla systemd birimleri
+        run: |
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin llmsvc
+          sudo install -d -m 0755 /opt/llm-manager
+          sudo cp -r bin src public types package.json node_modules /opt/llm-manager/
+          sudo install -m 0755 "$(command -v node)" /usr/local/bin/llm-node
+          sudo install -d -o llmsvc -g llmsvc -m 0700 /var/lib/llm-manager /var/lib/llm-manager-stok
+          printf 'LLM_ADMIN_PASSWORD=%s\n' "$LLM_ADMIN_PASSWORD" | sudo tee /etc/llm-manager.env > /dev/null
+          sudo chmod 0600 /etc/llm-manager.env
+          unit() {
+            sudo tee "/etc/systemd/system/$1.service" > /dev/null <<EOF
+          [Unit]
+          Description=LLM Manager kabul ($1)
+          After=network.target
+
+          [Service]
+          User=llmsvc
+          WorkingDirectory=/opt/llm-manager
+          EnvironmentFile=/etc/llm-manager.env
+          ExecStart=/usr/local/bin/llm-node /opt/llm-manager/bin/llm-manager.js --host 127.0.0.1 --port $2 --data-dir /var/lib/$1 $3
+          Restart=on-failure
+          TimeoutStopSec=15
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          }
+          unit llm-manager 8010 ''
+          unit llm-manager-stok 8011 '--page-path /stok/llm --api-path /stok/api/llm'
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now llm-manager llm-manager-stok
+
+      - name: Nginx ve HTTPS (yerel CA)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q nginx
+          mkdir -p kabul && cd kabul
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=LLM Kabul CA' \
+            -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' \
+            -keyout ca.key -out ca.pem
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=llm.kabul.test' -keyout server.key -out server.csr
+          printf 'subjectAltName=DNS:llm.kabul.test\nextendedKeyUsage=serverAuth\n' > server.ext
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile server.ext -out server.pem
+          sudo install -d /etc/nginx/kabul
+          sudo install -m 0600 server.key /etc/nginx/kabul/server.key
+          sudo install -m 0644 server.pem /etc/nginx/kabul/server.pem
+          echo '127.0.0.1 llm.kabul.test' | sudo tee -a /etc/hosts > /dev/null
+          sudo tee /etc/nginx/conf.d/llm-kabul.conf > /dev/null <<'EOF'
+          server {
+            listen 80;
+            server_name llm.kabul.test;
+            return 301 https://$host$request_uri;
+          }
+          server {
+            listen 443 ssl;
+            server_name llm.kabul.test;
+            ssl_certificate /etc/nginx/kabul/server.pem;
+            ssl_certificate_key /etc/nginx/kabul/server.key;
+            proxy_http_version 1.1;
+            proxy_buffering off;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            location /stok/ { proxy_pass http://127.0.0.1:8011; }
+            location / { proxy_pass http://127.0.0.1:8010; }
+          }
+          EOF
+          sudo nginx -t
+          sudo systemctl restart nginx
+
+      - name: HTTPS üzerinden kök ve önekli kurulum
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://llm.kabul.test/llm)" = 301
+          if curl -sf https://llm.kabul.test/api/llm/health > /dev/null; then
+            echo 'Sertifika doğrulanmadan bağlantı kurulmamalıydı'; exit 1
+          fi
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem --phase create
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem \
+            --page-path /stok/llm --api-path /stok/api/llm --phase create
+
+      - name: systemctl restart sonrası veri korunur
+        run: |
+          sudo systemctl restart llm-manager llm-manager-stok
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem --phase verify
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem \
+            --page-path /stok/llm --api-path /stok/api/llm --phase verify
+
+      - name: Çöken süreç Restart=on-failure ile geri gelir
+        run: |
+          old="$(systemctl show -p MainPID --value llm-manager)"
+          sudo kill -9 "$old"
+          for i in $(seq 1 20); do
+            new="$(systemctl show -p MainPID --value llm-manager)"
+            [ "$new" != 0 ] && [ "$new" != "$old" ] && break
+            sleep 1
+          done
+          test "$new" != "$old"
+          test "$(systemctl show -p NRestarts --value llm-manager)" -ge 1
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem --phase verify
+
+      - name: Düzgün kapanış zaman aşımından önce biter
+        run: |
+          start="$(date +%s)"
+          sudo systemctl stop llm-manager
+          elapsed=$(( $(date +%s) - start ))
+          echo "Kapanış süresi: ${elapsed} sn"
+          test "$elapsed" -lt 15
+          test "$(systemctl show -p Result --value llm-manager)" = success
+          sudo systemctl start llm-manager
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul/ca.pem --phase verify
+
+      - name: Servis ve Nginx günlükleri
+        if: ${{ always() }}
+        run: |
+          sudo journalctl -u llm-manager -u llm-manager-stok --no-pager | tail -60 || true
+          sudo tail -30 /var/log/nginx/error.log || true
+
+  windows-iis:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Geçici yönetici parolası
+        run: |
+          $pw = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(16)).ToLower()
+          "::add-mask::$pw"
+          "LLM_ADMIN_PASSWORD=$pw" >> $env:GITHUB_ENV
+
+      - name: IIS, URL Rewrite, ARR ve NSSM
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          Install-WindowsFeature Web-Server | Out-Null
+          choco install urlrewrite iis-arr nssm -y --no-progress
+          Import-Module WebAdministration
+          Set-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Filter 'system.webServer/proxy' -Name enabled -Value True
+
+      - name: Windows servisi (NSSM)
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          New-Item -ItemType Directory -Force C:\llm-data, C:\llm-logs | Out-Null
+          $node = (Get-Command node).Source
+          nssm install LLMManager $node
+          nssm set LLMManager AppDirectory $env:GITHUB_WORKSPACE
+          nssm set LLMManager AppParameters "`"$env:GITHUB_WORKSPACE\bin\llm-manager.js`" --host 127.0.0.1 --port 8010 --data-dir C:\llm-data"
+          nssm set LLMManager AppEnvironmentExtra "LLM_ADMIN_PASSWORD=$env:LLM_ADMIN_PASSWORD"
+          nssm set LLMManager AppExit Default Restart
+          nssm set LLMManager AppStdout C:\llm-logs\out.log
+          nssm set LLMManager AppStderr C:\llm-logs\err.log
+          nssm set LLMManager Start SERVICE_AUTO_START
+          nssm start LLMManager
+
+      - name: IIS ters vekil ve HTTPS bağlaması
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          Import-Module WebAdministration
+          @'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <configuration>
+            <system.webServer>
+              <rewrite>
+                <rules>
+                  <rule name="llm-manager" stopProcessing="true">
+                    <match url="(.*)" />
+                    <action type="Rewrite" url="http://127.0.0.1:8010/{R:1}" />
+                  </rule>
+                </rules>
+              </rewrite>
+              <httpErrors existingResponse="PassThrough" />
+            </system.webServer>
+          </configuration>
+          '@ | Set-Content -Encoding utf8 C:\inetpub\wwwroot\web.config
+          $cert = New-SelfSignedCertificate -DnsName llm.kabul.test -CertStoreLocation Cert:\LocalMachine\My
+          New-WebBinding -Name 'Default Web Site' -Protocol https -Port 443
+          (Get-WebBinding -Name 'Default Web Site' -Protocol https).AddSslCertificate($cert.Thumbprint, 'my')
+          $b64 = [Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks')
+          "-----BEGIN CERTIFICATE-----`n$b64`n-----END CERTIFICATE-----" | Set-Content -Encoding ascii kabul-ca.pem
+          Add-Content C:\Windows\System32\drivers\etc\hosts "`n127.0.0.1 llm.kabul.test"
+          iisreset /restart
+
+      - name: IIS üzerinden HTTPS kabulü
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul-ca.pem --phase create
+
+      - name: Servis ve IIS yeniden başlatıldıktan sonra veri korunur
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          Restart-Service LLMManager
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul-ca.pem --phase verify
+          iisreset /restart
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul-ca.pem --phase verify
+
+      - name: Çöken süreç NSSM ile geri gelir
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $old = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object CommandLine -like '*llm-manager.js*'
+          if (-not $old) { throw 'Servis süreci bulunamadı' }
+          Stop-Process -Id $old.ProcessId -Force
+          Start-Sleep -Seconds 5
+          $new = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object CommandLine -like '*llm-manager.js*'
+          if (-not $new -or $new.ProcessId -eq $old.ProcessId) { throw 'Servis yeniden başlamadı' }
+          node scripts/acceptance/deploy-check.mjs --base https://llm.kabul.test --ca kabul-ca.pem --phase verify
+
+      - name: Servis günlükleri
+        if: ${{ always() }}
+        run: |
+          Get-Service LLMManager -ErrorAction SilentlyContinue | Format-List Name, Status
+          Get-Content C:\llm-logs\out.log, C:\llm-logs\err.log -Tail 40 -ErrorAction SilentlyContinue
