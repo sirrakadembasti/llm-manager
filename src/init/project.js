@@ -150,7 +150,11 @@ export function initLLMProject({
     ...(integration.hostAuthModule ? { LLM_HOST_AUTH_MODULE: integration.hostAuthModule } : {}),
     LLM_ADMIN_PASSWORD: password,
     LLM_CHAT_TOKENS: token,
-    LLM_CHAT_TOKEN: env.LLM_CHAT_TOKEN || token.split(',')[0]
+    LLM_CHAT_TOKEN: env.LLM_CHAT_TOKEN || token.split(',')[0],
+    // Derlenmiş sunucular (Next standalone chdir) göreli ./data'yı build klasörüne taşır.
+    ...(['nextjs', 'nuxt', 'sveltekit'].includes(type)
+      ? { LLM_DATA_DIR: env.LLM_DATA_DIR || path.join(cwd, 'data') }
+      : {})
   });
   ensureGitignore(cwd);
   if (['spa', 'tauri'].includes(type)) {

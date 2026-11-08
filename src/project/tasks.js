@@ -83,7 +83,8 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       );
     }
     const before = await reader.scan({ signal });
-    if (before.partial)
+    // Boyutu aşan tek dosya (lock/wasm) kopyaya alınmaz ve uygulama adımında ezilemez; görev açılabilir.
+    if (before.limited)
       throw projectError(
         'PROJECT_SCAN_INCOMPLETE',
         'Tarama sınırlı. Değişiklik hazırlamadan önce proje kapsamını veya sunucu tarama sınırını düzenleyin.',

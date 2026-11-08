@@ -65,12 +65,25 @@ export async function runGraphify({ files, command, args = ['-m', 'graphify'], s
       throw projectError('PROJECT_GRAPH_INVALID', 'Graphify grafiğinin biçimi geçersiz.', 502);
     }
     const inventory = new Map(files.map(f => [f.path, f]));
+    let skippedNodes = 0;
     const nodes = graph.nodes.flatMap(node => {
       if (!node || typeof node !== 'object')
         throw projectError('PROJECT_GRAPH_INVALID', 'Graphify öğe biçimi geçersiz.', 502);
       if (!node.source_file) return [];
-      if (!inventory.has(node.source_file) || typeof node.id !== 'string' || typeof node.label !== 'string') {
+      const source = String(node.source_file);
+      if (
+        path.isAbsolute(source) ||
+        /^[A-Za-z]:/.test(source) ||
+        source.split(/[\\/]/).includes('..') ||
+        typeof node.id !== 'string' ||
+        typeof node.label !== 'string'
+      ) {
         throw projectError('PROJECT_GRAPH_INVALID', 'Graphify kaynak referansı proje sınırları dışında.', 502);
+      }
+      // Paket adları ve taranmamış dosyalar içerik taşımaz; harita bütünüyle reddedilmez, düğüm atlanır.
+      if (!inventory.has(source)) {
+        skippedNodes++;
+        return [];
       }
       const line = Number(/^L(\d+)/.exec(node.source_location || '')?.[1] || 1);
       if (line < 1 || line > inventory.get(node.source_file).content.split('\n').length) {
@@ -87,7 +100,7 @@ export async function runGraphify({ files, command, args = ['-m', 'graphify'], s
         kind: String(l.relation || 'related').slice(0, 80),
         confidence: String(l.confidence || 'unknown').slice(0, 40)
       }));
-    return { status: 'ready', nodes, links };
+    return { status: 'ready', nodes, links, skippedNodes };
   } catch (error) {
     if (error.code === 'ENOENT') return { status: 'unavailable', nodes: [], links: [] };
     throw error;

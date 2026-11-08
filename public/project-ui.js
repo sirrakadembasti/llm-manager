@@ -346,7 +346,7 @@ function createLLMProjectUI({
           'Proje asistanı yapılandırılmadı. Sunucuda LLM_PROJECT_ROOT veya project.root seçeneğiyle kaynak dizinini bağlayın.'
         )
       : inventory
-        ? `${inventory.fileCount} kaynak dosyası · ${inventory.documentCount || 0} belge · ${inventory.excluded || 0} dosya/dizin dışlandı · ${inventory.partial ? 'Tarama sınırlı' : 'İzin verilen kaynaklar tarandı'} · ${new Date(inventory.scannedAt).toLocaleString('tr-TR')}`
+        ? `${inventory.fileCount} kaynak dosyası · ${inventory.documentCount || 0} belge · ${inventory.excluded || 0} dosya/dizin dışlandı · ${inventory.partial && inventory.limited === false ? 'Boyut sınırını aşan dosyalar atlandı' : inventory.partial ? 'Tarama sınırlı' : 'İzin verilen kaynaklar tarandı'} · ${new Date(inventory.scannedAt).toLocaleString('tr-TR')}`
         : tr('scan_first', 'Mimari özeti oluşturmak için projeyi tarayın.');
     el('project-graph-status').textContent =
       next.capabilities?.graphify === false

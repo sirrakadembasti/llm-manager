@@ -719,3 +719,57 @@ test('overview-only LLM integration instruction is sent only with general introd
   assert.doesNotMatch(sent[1][0].content, /LLM entegrasyonu/);
   assert.match(sent[1][0].content, /Yalnız verilen kaynaklara dayan/);
 });
+
+test('an oversized single file keeps tasks available but count limits still block them', async t => {
+  // Saha testi: pnpm-lock.yaml (256 KiB üstü) yüzünden gerçek hedefte plan görevi bile 409 alıyordu.
+  const { options, root } = await fixture(t);
+  const lock = 'lockfileVersion: 9\n' + 'x'.repeat(300 * 1024);
+  await fs.writeFile(path.join(root, 'pnpm-lock.yaml'), lock);
+  const engine = path.join(os.tmpdir(), `oversized-engine-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(engine, { force: true }));
+  await fs.writeFile(
+    engine,
+    `const http=require('node:http'),fs=require('node:fs');const port=Number(process.argv.find(a=>a.startsWith('--port=')).split('=')[1]);http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');if(req.url==='/global/health')return res.end('{"healthy":true,"version":"1.18.33"}');if(req.url==='/session')return res.end('{"id":"ses_fixture"}');if(req.url.includes('/message')){let raw='';for await(const c of req)raw+=c;if(fs.existsSync('pnpm-lock.yaml'))process.exit(8);if(JSON.parse(raw).parts[0].text.includes('kilit'))fs.writeFileSync('pnpm-lock.yaml','ezildi');return res.end(JSON.stringify({info:{},parts:[{type:'text',text:'tamam'}]}));}res.writeHead(404);res.end('{}');}).listen(port,'127.0.0.1',()=>console.log('opencode server listening on http://127.0.0.1:'+port));`
+  );
+  const make = maxFiles =>
+    createProjectAssistant({
+      options: {
+        ...options.project,
+        ...(maxFiles ? { maxFiles } : {}),
+        opencode: { command: process.execPath, args: [engine] }
+      },
+      getActiveProfile: options.store.getActive,
+      ask: async () => ({ text: 'unused' })
+    });
+  const assistant = make();
+  t.after(() => assistant.close());
+  const scan = await assistant.handle({ method: 'POST', path: '/project/scan', body: {} });
+  assert.equal(scan.status, 200);
+  assert.equal(scan.body.inventory.partial, true);
+  const task = body =>
+    assistant.handle({ method: 'POST', path: '/project/tasks', body: { shareSources: true, ...body } });
+  const plan = await task({ mode: 'plan', prompt: 'özetle' });
+  assert.equal(plan.status, 200, JSON.stringify(plan.body));
+  const change = await task({ mode: 'change', prompt: 'kilit dosyasını değiştir' });
+  assert.equal(change.status, 200, JSON.stringify(change.body));
+  const created = change.body.files.find(f => f.path === 'pnpm-lock.yaml');
+  assert.equal(created?.kind, 'create');
+  const applied = await assistant.handle({
+    method: 'POST',
+    path: `/project/tasks/${change.body.id}/apply`,
+    body: { approved: true, revision: change.body.revision }
+  });
+  assert.equal(applied.status, 409);
+  assert.equal(await fs.readFile(path.join(root, 'pnpm-lock.yaml'), 'utf8'), lock);
+
+  const limited = make(1);
+  t.after(() => limited.close());
+  await limited.handle({ method: 'POST', path: '/project/scan', body: {} });
+  const blocked = await limited.handle({
+    method: 'POST',
+    path: '/project/tasks',
+    body: { mode: 'plan', prompt: 'özetle', shareSources: true }
+  });
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.error?.code ?? blocked.body.code, 'PROJECT_SCAN_INCOMPLETE');
+});

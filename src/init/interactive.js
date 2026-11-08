@@ -80,15 +80,8 @@ export async function runInteractiveInit({
       logger(
         'BrowserWindow webPreferences.preload için preload.cjs kullanın; renderer: window.llm.ask(prompt). Anahtar girişi: openLLMPanel().'
       );
-    if (detectedType === 'nextjs') {
-      logger(
-        'next.config: serverExternalPackages: [' +
-          JSON.stringify(PKG) +
-          '] ekleyin. Kalıcı disk veya host store gerekir; sunucusuz dosya deposu kalıcı değildir.'
-      );
-      for (const file of ['next.config.js', 'next.config.mjs', 'next.config.ts'])
-        if (fs.existsSync(path.join(cwd, file))) logger(file + ': serverExternalPackages ayarını uygulayın.');
-    }
+    if (detectedType === 'nextjs')
+      logger('Next.js: kalıcı disk veya host store gerekir; sunucusuz dosya deposu kalıcı değildir.');
     const entryFile = detectEntryFile(cwd, detectedType);
     logger(
       `\n[Adım 1/4] Algılanan senaryo: ${detectedType} | Hedef dosya: ${entryFile || '(otomatik bağlantı dosyası bulunamadı)'}`

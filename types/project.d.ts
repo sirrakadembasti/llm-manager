@@ -61,6 +61,8 @@ export interface ProjectInventory {
   exclusionCounts?: Partial<Record<ProjectExclusionReason, number>>;
   exclusionsTruncated?: boolean;
   partial: boolean;
+  /** Sayı/toplam boyut sınırı kaynak atladı; true iken plan/değişiklik görevi hazırlanmaz. */
+  limited?: boolean;
   gitAware: boolean;
   files: Array<{ path: string; hash: string; bytes: number }>;
 }
