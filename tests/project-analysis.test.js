@@ -523,3 +523,41 @@ test('imports quoted in excluded archives cannot change current source ranking',
   const result = selectProjectContext(corpus, 'orders architecture', 1000);
   assert.ok(!result.sources.some(source => source.path === 'related.js'));
 });
+
+test('Next.js App Router route handlers become route endpoints derived from the file path', () => {
+  const report = analyzeProject([
+    {
+      path: 'app/api/ai/route.ts',
+      content:
+        "export const runtime = 'nodejs';\nexport async function POST(request) {\n  return Response.json({});\n}\n"
+    },
+    {
+      path: 'app/api/exams/[id]/route.ts',
+      content: 'export function GET() {}\nexport const DELETE = async () => new Response(null);\n'
+    },
+    {
+      path: 'src/app/(shop)/docs/[...slug]/route.js',
+      content: 'const handler = () => {};\nexport { handler as GET, handler as HEAD };\n'
+    },
+    { path: 'app/route.ts', content: 'export async function GET() {}\n' },
+    { path: 'app/page.tsx', content: 'export async function GET() {}\n' },
+    { path: 'lib/route.ts', content: 'export async function POST() {}\n' },
+    { path: 'components/form.tsx', content: "fetch('/api/ai', { method: 'POST' });\n" }
+  ]);
+  const routes = report.api
+    .filter(entry => entry.kind === 'route')
+    .map(({ method, endpoint, path, line }) => `${method} ${endpoint} ${path}:${line}`);
+  assert.deepEqual(routes.sort(), [
+    'DELETE /api/exams/[id] app/api/exams/[id]/route.ts:2',
+    'GET / app/route.ts:1',
+    'GET /api/exams/[id] app/api/exams/[id]/route.ts:1',
+    'GET /docs/[...slug] src/app/(shop)/docs/[...slug]/route.js:2',
+    'HEAD /docs/[...slug] src/app/(shop)/docs/[...slug]/route.js:2',
+    'POST /api/ai app/api/ai/route.ts:2'
+  ]);
+  assert.ok(
+    report.relationships.some(
+      link => link.kind === 'http' && link.from === 'components/form.tsx' && link.to === 'app/api/ai/route.ts'
+    )
+  );
+});

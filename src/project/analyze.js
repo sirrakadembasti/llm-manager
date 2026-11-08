@@ -64,6 +64,17 @@ function dependencyLines(text) {
   return positions;
 }
 
+// Next.js App Router: app/**/route.(ts|js) serves the URL formed by its folders.
+// Route groups "(name)" and parallel slots "@name" are not URL segments;
+// dynamic segments such as [id] and [...slug] are kept as written.
+function nextRouteEndpoint(name) {
+  const segments = name.split('/');
+  const appIndex = segments.indexOf('app');
+  if (appIndex === -1 || !/^route\.[cm]?[jt]sx?$/.test(segments.at(-1))) return null;
+  const urlSegments = segments.slice(appIndex + 1, -1).filter(segment => !/^\(.*\)$|^@/.test(segment));
+  return '/' + urlSegments.join('/');
+}
+
 export function analyzeProject(files) {
   const stack = [],
     components = [],
@@ -135,6 +146,19 @@ export function analyzeProject(files) {
           kind: 'route'
         });
       }
+    }
+    const appRoute = nextRouteEndpoint(name);
+    if (appRoute !== null) {
+      const methods = new Map();
+      for (const m of content.matchAll(
+        /\bexport\s+(?:async\s+function\s+|function\s+|(?:const|let|var)\s+)(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g
+      ))
+        if (!methods.has(m[1])) methods.set(m[1], m.index);
+      for (const m of content.matchAll(/\bexport\s*\{([^}]*)\}/g))
+        for (const alias of m[1].matchAll(/\bas\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g))
+          if (!methods.has(alias[1])) methods.set(alias[1], m.index);
+      for (const [method, index] of methods)
+        api.push({ method, endpoint: appRoute, path: name, line: lineAt(content, index), kind: 'route' });
     }
     for (const m of content.matchAll(/\bfetch\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
       api.push({ method: 'UNKNOWN', endpoint: m[1], path: name, line: lineAt(content, m.index), kind: 'client' });

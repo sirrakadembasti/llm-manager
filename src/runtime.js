@@ -550,6 +550,7 @@ export async function* parseSseStream(stream, transport, options = {}) {
   let currentData = [];
   const accumulatedUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let lastFinishReason = null;
+  let producedText = false;
   const terminalChunk = () => {
     const filtered = ['SAFETY', 'content_filter'].includes(lastFinishReason);
     const truncated = ['length', 'MAX_TOKENS', 'max_tokens'].includes(lastFinishReason);
@@ -561,6 +562,15 @@ export async function* parseSseStream(stream, transport, options = {}) {
           : 'Model yanıtı token sınırında kesildi.',
         { status: 422, retryable: false }
       );
+      error.usage = { ...accumulatedUsage };
+      throw error;
+    }
+    // JSON yoluyla aynı sözleşme: metin üretmeyen (boş, bozuk ya da olaysız) akış başarı sayılmaz.
+    if (!producedText && !(truncated && options.acceptTruncated === true)) {
+      const error = new LLMError(ErrorCodes.LLM_EMPTY_RESPONSE, 'Sağlayıcı kullanılabilir model yanıtı üretmedi.', {
+        status: 502,
+        retryable: true
+      });
       error.usage = { ...accumulatedUsage };
       throw error;
     }
@@ -598,6 +608,7 @@ export async function* parseSseStream(stream, transport, options = {}) {
                 lastFinishReason = parsed.finishReason;
               }
               if (parsed.text) {
+                producedText = true;
                 yield { type: 'delta', text: parsed.text };
               }
               if (parsed.done) {
@@ -636,7 +647,10 @@ export async function* parseSseStream(stream, transport, options = {}) {
             accumulatedUsage.totalTokens = (accumulatedUsage.inputTokens || 0) + (accumulatedUsage.outputTokens || 0);
           }
           if (parsed.finishReason) lastFinishReason = parsed.finishReason;
-          if (parsed.text) yield { type: 'delta', text: parsed.text };
+          if (parsed.text) {
+            producedText = true;
+            yield { type: 'delta', text: parsed.text };
+          }
         }
       }
     }
