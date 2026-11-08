@@ -35,10 +35,24 @@ npm run test:coverage     # eşik: satır 80, dal 70
 
 - Bu Windows makinesinde paralel koşuda (`npm test`) `npm-start` ve `project-startup` testleri, makinede başka
   süreçler çalışırken zaman aşımına düşebilir. Önce seri koşuyla ya da tek başına doğrulayın; gerçek hata sanmayın.
+- `tests/auth-policy.test.js` içindeki init probe testi de yükte geçici `fetch failed` verebilir; tek başına
+  tekrar koşturun.
+- Yeni git worktree'de `node_modules` yoktur: lint/typecheck üst klasördekini bulup geçer, ama kurulum/derleme
+  testleri (`init-*`, `real installed host`, CLI paketi) `MODULE_NOT_FOUND` ile düşer. Önce worktree'de `npm ci`.
 - Prettier `*.md` dosyalarını denetlemez.
 - CI (`.github/workflows/ci.yml`): Ubuntu/Windows/macOS × Node 22/24; kapsam eşiği Ubuntu + Node 22 işinde
   denetlenir. macOS'ta geçici dizin bir symlink'tir (`/var` → `/private/var`); yol karşılaştırmalarında `realpath`
   kullanın.
+
+## Canlı (ücretli) denemeler
+
+Kullanıcı onay verdiğinde:
+
+- Önce model çağırmadan seçilen kaynakları eski/yeni kodla karşılaştırın; sonra çağırın.
+- Tekrar ve yedeği kapatın (`retry: false`), istek ve sağlayıcının bildirdiği token sayılarını raporlayın.
+- OpenCode görevlerinde yalnız fark hazırlayın (apply yok). Hedefin `git status` çıktısını ve dosya özetlerini
+  önce/sonra karşılaştırın, görev kaydını kapatın.
+- `.env` yalnız süreç ortamına yüklenir; değerler, anahtarlar ve profil içerikleri yazdırılmaz (yalnız ad/sağlayıcı/model).
 
 ## Git akışı
 
