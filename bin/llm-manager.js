@@ -133,6 +133,7 @@ let host = process.env.HOST || '127.0.0.1';
 let dataDir = process.env.LLM_DATA_DIR;
 let chatTokens = process.env.LLM_CHAT_TOKENS;
 let projectRoot = process.env.LLM_PROJECT_ROOT;
+let projectRootArg = false;
 let authMode = process.env.LLM_AUTH_MODE;
 let hostAuthModule = process.env.LLM_HOST_AUTH_MODULE;
 let adminRoles = process.env.LLM_ADMIN_ROLES?.split(',')
@@ -182,6 +183,7 @@ for (let i = 0; i < args.length; i++) {
     chatTokens = String(args[++i] || '');
   } else if (arg === '--project-root') {
     projectRoot = String(args[++i] || '');
+    projectRootArg = true;
     if (!projectRoot || projectRoot.startsWith('-')) fail('Proje kaynak dizini gerekli.');
   } else if (arg === '--auth') {
     authMode = String(args[++i] || '');
@@ -201,7 +203,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (isInit) {
-  if (projectRoot)
+  // .env'deki LLM_PROJECT_ROOT sihirbazın kendi yazdığı değerdir; yalnız açık bayrak reddedilir.
+  if (projectRootArg)
     fail('--project-root sunucu seçeneğidir. Entegre hostta LLM_PROJECT_ROOT veya project.root yapılandırın.');
   const result = await runInteractiveInit({
     type: initType,
