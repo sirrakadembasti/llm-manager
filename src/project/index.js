@@ -38,6 +38,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
       documentCount: snapshot.files.filter(f => /\.(?:md|txt)$/i.test(f.path)).length,
       bytes: snapshot.bytes,
       partial: snapshot.partial,
+      limited: snapshot.limited,
       excluded: snapshot.excluded,
       exclusions: snapshot.exclusions,
       exclusionCounts: snapshot.exclusionCounts,

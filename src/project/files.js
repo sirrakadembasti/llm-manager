@@ -187,6 +187,8 @@ export function createProjectFiles({
     const files = [];
     let bytes = 0;
     let partial = walkLimited;
+    // limited: sayı/toplam/gezinti sınırı kaynak atladı. Yalnız tek dosya boyutu aşıldığında false kalır.
+    let limited = walkLimited;
     const gitIgnored = candidates.length ? await gitIgnoredPaths(base, candidates) : new Set();
     for (const name of candidates) {
       signal?.throwIfAborted();
@@ -197,13 +199,13 @@ export function createProjectFiles({
           continue;
         }
         if (files.length >= maxFiles) {
-          partial = true;
+          partial = limited = true;
           exclude(name, 'file-count');
           continue;
         }
         const file = await read(name, { signal, gitChecked: true });
         if (bytes + file.bytes > maxTotalBytes) {
-          partial = true;
+          partial = limited = true;
           exclude(name, 'total-size');
           continue;
         }
@@ -225,6 +227,7 @@ export function createProjectFiles({
       exclusionCounts,
       exclusionsTruncated: diagnosticsLimited,
       partial,
+      limited,
       gitAware,
       revision: digest(files.map(f => `${f.path}:${f.hash}`).join('\n')),
       scannedAt: new Date().toISOString()

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { detectProjectType, detectEntryFile } from './detect.js';
 import { resolveLlmRelPath } from './paths.js';
 import { readEnv } from '../envFile.js';
+import { nextExternalStatus } from './next-config.js';
 function getExpectedHelperFiles(cwd, type) {
   const env = readEnv(path.join(cwd, '.env'));
   const pagePath = env.LLM_PAGE_PATH || '/llm';
@@ -94,9 +95,33 @@ export function verifyIntegration({
     solution: '.gitignore dosyasına data/, .env, .env.local ve *.key ekleyin.'
   });
 
+  const nextStatus = type === 'nextjs' ? nextExternalStatus(cwd, PKG) : undefined;
+  if (nextStatus === null)
+    warnings.push(
+      `next.config dosyası yok: serverExternalPackages: [${JSON.stringify(PKG)}] içeren bir next.config.mjs ekleyin; aksi hâlde next build paketi derlemeye dahil edebilir.`
+    );
+  if (nextStatus) {
+    const status = nextStatus;
+    checks.push({
+      id: 'next_external_package',
+      title: 'Next.js serverExternalPackages Ayarı',
+      ok: status?.present === true,
+      ...(status?.present === true
+        ? {}
+        : {
+            error:
+              status.present === null
+                ? `${status.file} otomatik okunamadı; ayarın varlığı doğrulanamadı.`
+                : `${status.file} içinde paket serverExternalPackages listesinde değil.`,
+            solution: `next.config dosyasına serverExternalPackages: [${JSON.stringify(PKG)}] ekleyin; aksi hâlde next build paket dosyalarını okuyamaz.`
+          })
+    });
+  }
+
   // 1. data_dir kontrolü
   const dataDirTitle = 'Veri ve Şifreleme Klasörü Kontrolü';
-  const dataDir = path.join(cwd, 'data');
+  const configuredDataDir = readEnv(path.join(cwd, '.env')).LLM_DATA_DIR;
+  const dataDir = configuredDataDir ? path.resolve(cwd, configuredDataDir) : path.join(cwd, 'data');
   try {
     fs.accessSync(fs.existsSync(dataDir) ? dataDir : cwd, fs.constants.W_OK);
     checks.push({ id: 'data_dir', title: dataDirTitle, ok: true });

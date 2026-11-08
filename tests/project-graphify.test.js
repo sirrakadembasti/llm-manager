@@ -114,6 +114,57 @@ test('Graphify adapter rejects graph references outside the source inventory', a
   });
 });
 
+test('Graphify skips package names and non-inventory files instead of rejecting the whole map', async t => {
+  // Saha testi: gerçek hedefte 3407 düğümden 10'u paket adı veya taranmamış dosyaya işaret ediyordu.
+  const nodes = [
+    { id: 'app', label: 'app', source_file: 'src/app.js', source_location: 'L1' },
+    { id: 'pkg', label: 'pdfjs-dist', source_file: 'pdfjs-dist', source_location: 'L1' },
+    { id: 'tool', label: 'pnpm', source_file: 'tools/pnpm/dist/pnpm.mjs', source_location: 'L1' },
+    { id: 'nm', label: 'prisma', source_file: 'node_modules/prisma/build/index.js', source_location: 'L1' }
+  ];
+  const links = [
+    { source: 'app', target: 'pkg', relation: 'imports' },
+    { source: 'app', target: 'app', relation: 'self' }
+  ];
+  const runner = await fixture(
+    t,
+    `
+    const fs = require('node:fs'), path = require('node:path'), args=process.argv.slice(2);
+    const out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});
+    fs.writeFileSync(path.join(out,'graph.json'),${JSON.stringify(JSON.stringify({ nodes, links }))});
+  `
+  );
+  const result = await runGraphify({ files: [{ path: 'src/app.js', content: 'export const app = 1;' }], ...runner });
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(
+    result.nodes.map(n => n.path),
+    ['src/app.js']
+  );
+  assert.deepEqual(
+    result.links.map(l => l.kind),
+    ['self']
+  );
+  assert.equal(result.skippedNodes, 3);
+});
+
+for (const escaped of ['../private.js', '/etc/passwd', 'C:/Windows/win.ini', 'src/../../x.js'])
+  test(`Graphify still rejects an escaping or absolute reference: ${escaped}`, async t => {
+    const runner = await fixture(
+      t,
+      `
+      const fs = require('node:fs'), path = require('node:path'), args=process.argv.slice(2);
+      const out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});
+      fs.writeFileSync(path.join(out,'graph.json'),${JSON.stringify(
+        JSON.stringify({ nodes: [{ id: 'x', label: 'x', source_file: escaped, source_location: 'L1' }], links: [] })
+      )});
+    `
+    );
+    await assert.rejects(
+      runGraphify({ files: [{ path: 'src/app.js', content: 'export const app = 1;' }], ...runner }),
+      { code: 'PROJECT_GRAPH_INVALID' }
+    );
+  });
+
 test('Graphify adapter rejects successful processes without a graph result', async t => {
   const runner = await fixture(t, 'process.exit(0);');
   await assert.rejects(runGraphify({ files: [], ...runner }), { code: 'PROJECT_GRAPH_INVALID' });
