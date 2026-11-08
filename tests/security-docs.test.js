@@ -56,8 +56,12 @@ test('supply-chain threat separates current repository controls from planned pro
   assert.match(current, /npm audit --omit=dev[^\n]*geliştirme bağımlılıklarını kapsamaz/);
   assert.match(current, /npm pack --dry-run/);
   assert.match(current, /Yayın iş akışı yoktur/);
+  assert.match(current, /tam commit SHA[^\n]*contents: read/);
+  assert.match(current, /npm audit signatures/);
+  assert.match(current, /tests\/supply-chain\.test\.js[^\n]*sha512/);
+  assert.match(current, /dependabot/i);
   assert.ok(planned, 'future protections must be explicitly marked as unimplemented');
-  assert.match(planned, /bağımlılık[^\n]*kilit dosyası incelemesi/i);
-  assert.match(planned, /değişmez commit SHA/);
+  assert.doesNotMatch(planned, /commit SHA/, 'SHA pinning is implemented, not planned');
+  assert.match(planned, /yayıncı[^\n]*politikası/);
   assert.match(planned, /köken kanıtı[^\n]*imzalama/);
 });
