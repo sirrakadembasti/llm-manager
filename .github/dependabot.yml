@@ -9,3 +9,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # undici 8+ Node >=22.19 istiyor; paket engines.node >=22.12 destekler.
+      - dependency-name: undici
+        update-types: ['version-update:semver-major']
+      # `express` Express 4 testleri içindir; Express 5 `express5` takma adıyla sınanır.
+      - dependency-name: express
+        update-types: ['version-update:semver-major']
