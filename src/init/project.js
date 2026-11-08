@@ -98,6 +98,14 @@ function registerDotnet(target, journal) {
     if (content !== project.content) journal.write(project.full, content);
   }
 }
+// Proje Asistanı kökü: helper klasörünü içeren git deposunun kökü (yoksa helper klasörü), helper'a göre göreli.
+export function defaultProjectRoot(cwd) {
+  const start = path.resolve(cwd);
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.git'))) return path.relative(start, dir).split(path.sep).join('/') || '.';
+    if (path.dirname(dir) === dir) return '.';
+  }
+}
 export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
@@ -151,6 +159,8 @@ export function initLLMProject({
     LLM_ADMIN_PASSWORD: password,
     LLM_CHAT_TOKENS: token,
     LLM_CHAT_TOKEN: env.LLM_CHAT_TOKEN || token.split(',')[0],
+    // Mevcut değer (boş bırakılmış olsa bile) kullanıcı seçimidir; ezilmez.
+    ...(env.LLM_PROJECT_ROOT === undefined ? { LLM_PROJECT_ROOT: defaultProjectRoot(cwd) } : {}),
     // Derlenmiş sunucular (Next standalone chdir) göreli ./data'yı build klasörüne taşır.
     ...(['nextjs', 'nuxt', 'sveltekit'].includes(type)
       ? { LLM_DATA_DIR: env.LLM_DATA_DIR || path.join(cwd, 'data') }
