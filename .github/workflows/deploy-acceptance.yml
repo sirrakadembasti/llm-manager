@@ -14,6 +14,7 @@ on:
     paths:
       - '.github/workflows/deploy-acceptance.yml'
       - 'scripts/acceptance/**'
+      - 'scripts/docker-runtime-deps.mjs'
       - 'Dockerfile'
       - '.dockerignore'
 
@@ -250,8 +251,8 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           Install-WindowsFeature Web-Server | Out-Null
           choco install urlrewrite iis-arr nssm -y --no-progress
-          Import-Module WebAdministration
-          Set-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Filter 'system.webServer/proxy' -Name enabled -Value True
+          # pwsh WebAdministration'ı uyumluluk oturumunda yükler; IIS'in kendi aracı appcmd kullanılır.
+          & "$env:windir\System32\inetsrv\appcmd.exe" set config -section:system.webServer/proxy /enabled:True /commit:apphost
 
       - name: Windows servisi (NSSM)
         run: |
@@ -271,7 +272,7 @@ jobs:
       - name: IIS ters vekil ve HTTPS bağlaması
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          Import-Module WebAdministration
+          $appcmd = "$env:windir\System32\inetsrv\appcmd.exe"
           @'
           <?xml version="1.0" encoding="UTF-8"?>
           <configuration>
@@ -289,8 +290,8 @@ jobs:
           </configuration>
           '@ | Set-Content -Encoding utf8 C:\inetpub\wwwroot\web.config
           $cert = New-SelfSignedCertificate -DnsName llm.kabul.test -CertStoreLocation Cert:\LocalMachine\My
-          New-WebBinding -Name 'Default Web Site' -Protocol https -Port 443
-          (Get-WebBinding -Name 'Default Web Site' -Protocol https).AddSslCertificate($cert.Thumbprint, 'my')
+          & $appcmd set site 'Default Web Site' "/+bindings.[protocol='https',bindingInformation='*:443:']"
+          netsh http add sslcert ipport=0.0.0.0:443 certhash=$($cert.Thumbprint) certstorename=MY appid='{4dc3e181-e14b-4a21-b022-59fc669b0914}'
           $b64 = [Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks')
           "-----BEGIN CERTIFICATE-----`n$b64`n-----END CERTIFICATE-----" | Set-Content -Encoding ascii kabul-ca.pem
           Add-Content C:\Windows\System32\drivers\etc\hosts "`n127.0.0.1 llm.kabul.test"
