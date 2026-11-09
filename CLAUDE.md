@@ -46,7 +46,9 @@ npm run test:coverage     # eşik: satır 80, dal 70
 - Prettier `*.md` dosyalarını denetlemez.
 - Dağıtım kabulü (`.github/workflows/deploy-acceptance.yml`: Docker, systemd+Nginx/HTTPS, IIS) kullanıcı kararıyla
   **yalnız elle** çalışır; otomatik tetikleyici (schedule/tags/pull_request) eklenmez. `Dockerfile`, servis talimatı veya
-  `scripts/acceptance/` değişince `gh workflow run deploy-acceptance.yml --ref <dal>` ile tetiklenir. Windows dakikası kotadan 2 kat düşer.
+  `scripts/acceptance/` değişince `gh workflow run deploy-acceptance.yml --ref <dal>` ile tetiklenir. Depo herkese açık olduğundan
+  GitHub'ın standart makinelerinde Actions dakikası ücretlendirilmez; depo yeniden özel yapılırsa Windows dakikası 2,
+  macOS dakikası 10 kat sayılır.
 - İş akışlarında eylemler `@<40 hane SHA> # vX.Y.Z` biçiminde sabitlenir, izin `contents: read` kalır;
   `tests/supply-chain.test.js` etiketle (`@v4`) yazılan eylemi reddeder. SHA'yı `gh api repos/<eylem>/commits/<etiket>`
   ile bulun; güncellemeleri Dependabot PR'ları getirir. Dependabot `undici` ve `express` büyük sürümlerini yok sayar
