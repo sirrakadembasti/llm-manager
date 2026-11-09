@@ -96,9 +96,13 @@ test('deploy check script fails when the profile did not survive a restart', asy
 
 test('deployment acceptance workflow covers Docker, Nginx HTTPS with systemd and IIS', () => {
   const workflow = readFileSync(join(root, '.github', 'workflows', 'deploy-acceptance.yml'), 'utf8');
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /schedule:\s*\n\s*- cron:/);
-  assert.match(workflow, /tags:\s*\[\s*['"]?v\*/);
+  // Kullanıcı kararı: kabul yalnız elle tetiklenir; zamanlanmış, etiket veya PR tetikleyicisi yoktur.
+  const triggers = workflow.match(/^on:\r?\n((?: {2}.*\r?\n)+)/m)?.[1] ?? '';
+  assert.deepEqual(
+    [...triggers.matchAll(/^ {2}(\w+):/gm)].map(match => match[1]),
+    ['workflow_dispatch'],
+    'dağıtım kabulü yalnız workflow_dispatch ile çalışmalı'
+  );
   for (const job of ['docker:', 'linux-service:', 'windows-iis:']) assert.match(workflow, new RegExp(`^  ${job}`, 'm'));
   assert.match(workflow, /docker build/);
   assert.match(workflow, /systemctl restart/);
