@@ -1,22 +1,10 @@
 name: Dağıtım kabulü
 
 # Docker, Linux servis (systemd) + Nginx/HTTPS ve Windows Server/IIS üzerinde gerçek kurulum kabulü.
-# Model çağrısı yapmaz; profil sahte anahtarla kaydedilir. Kota için her PR'da değil, elle, haftalık,
-# sürüm etiketinde ve kabul dosyaları değiştiğinde çalışır.
+# Model çağrısı yapmaz; profil sahte anahtarla kaydedilir. Yalnız elle çalışır:
+#   gh workflow run deploy-acceptance.yml --ref <dal>
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 4 * * 1'
-  push:
-    tags: ['v*']
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-acceptance.yml'
-      - 'scripts/acceptance/**'
-      - 'scripts/docker-runtime-deps.mjs'
-      - 'Dockerfile'
-      - '.dockerignore'
 
 permissions:
   contents: read
