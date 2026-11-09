@@ -38,7 +38,7 @@ Express bağlantısı, ayrı parola/host oturumu seçimi, özel adres, doğrulam
 pdf-to-onlinequiz (Next.js 16) saha testinde gerçek `gemini-3.8-flash` profiliyle kaynaklı sohbet üç sorunun üçünü doğru kaynaklarla yanıtladı (önceki deneme 1/3). Gerçek OpenCode 1.18.33 aynı profille, hedefe uygulamadan, tek dosyalık doğru bir değişiklik farkı hazırladı. [Ayrıntılar](docs/KULLANICI_KILAVUZU.md#doğrulanmış-durum-ve-açık-işler).
 Çalışan hedefte paket değişikliğinin yüklenmesi için sunucu yeniden başlatılır; kurulum hedef uygulamayı kendiliğinden güncellemez.
 Domainin `/llm`, arayüz betiği ve `/api/llm` istekleri aynı backend'e ulaşmalıdır; `/stok/` altında kurulumda genel yol `/stok/llm` olur.
-Yerel HTTP proxy kabulü tamamlandı; gerçek Linux VPS, Windows Server/IIS, domain/HTTPS ve servis yeniden başlatma kabulü henüz tamamlanmadı.
+Yerel HTTP proxy kabulü tamamlandı. 2026-11-09'da [dağıtım kabulü iş akışı](docs/KULLANICI_KILAVUZU.md#docker-ve-servisler) GitHub'ın Linux ve Windows Server makinelerinde Docker, systemd + Nginx/HTTPS ve NSSM + IIS/HTTPS kurulumlarını yeniden başlatma ve çökme sonrası veri korunmasıyla geçti; ilk koşu Docker imajında Express'in kurulmadığı bir hatayı buldu ve düzeltildi. Gerçek domain/genel sertifika ve gerçek VPS ağı kabulü henüz yapılmadı.
 
 Paket adı `@sirrakadembasti/llm-manager`; npm'deki çıplak `llm-manager` başka bir projedir. Yerel 2.0.0 sürümü henüz **yayımlanmamış** durumundadır.
 
