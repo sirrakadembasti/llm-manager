@@ -39,3 +39,29 @@ test('YH1-D3: Dockerfile, .dockerignore and unified guide meet production specs'
   assert.ok(deploy.includes('LLM_ADMIN_PASSWORD'));
   assert.ok(deploy.includes('/data'));
 });
+
+test('Docker image installs Express as a runtime dependency from the lockfile', async () => {
+  const root = path.resolve();
+  const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+  // express bir devDependency; NODE_ENV=production altında `npm install express --no-save` onu atlar.
+  assert.doesNotMatch(dockerfile, /npm install express[^\n]*--no-save/);
+  assert.match(dockerfile, /npm ci --include=dev/);
+  assert.match(dockerfile, /node scripts\/docker-runtime-deps\.mjs/);
+  assert.match(dockerfile, /npm prune --omit=dev/);
+  const order = ['npm ci --include=dev', 'node scripts/docker-runtime-deps.mjs', 'npm prune --omit=dev'].map(step =>
+    dockerfile.indexOf(step)
+  );
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    'kurulum, Express taşıma ve budama sırası bozuk'
+  );
+
+  const { promoteRuntimeDependencies } = await import('../scripts/docker-runtime-deps.mjs');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const promoted = promoteRuntimeDependencies(structuredClone(pkg));
+  assert.equal(promoted.dependencies.express, pkg.devDependencies.express);
+  assert.equal(promoted.devDependencies.express, undefined);
+  assert.equal(promoted.dependencies.undici, pkg.dependencies.undici);
+  assert.ok(promoted.devDependencies.eslint, 'diğer geliştirme bağımlılıkları budanmak üzere yerinde kalır');
+});

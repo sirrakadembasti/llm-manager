@@ -11,10 +11,16 @@ WORKDIR /app
 
 # Bağımlılık dosyalarını kopyala
 COPY package*.json ./
+COPY scripts/docker-runtime-deps.mjs ./scripts/docker-runtime-deps.mjs
 
-# Bağımlılıkları kur (express peer dependency bağımsız sunucu için zorunludur)
-RUN npm ci --omit=dev && \
-    npm install express@^4.19.2 --no-save --no-package-lock
+# Bağımlılıkları kilit dosyasından kur. Bağımsız sunucu için zorunlu Express bir devDependency olduğundan
+# NODE_ENV=production altında `npm install express` onu atlar; önce tümü kurulur, Express çalışma
+# bağımlılığına taşınır, sonra geliştirme araçları budanır.
+RUN npm ci --include=dev && \
+    node scripts/docker-runtime-deps.mjs && \
+    npm prune --omit=dev && \
+    rm -rf scripts && \
+    npm cache clean --force
 
 # Uygulama kaynak kodlarını kopyala
 COPY bin ./bin

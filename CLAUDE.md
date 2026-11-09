@@ -44,6 +44,8 @@ npm run test:coverage     # eşik: satır 80, dal 70
 - Yeni git worktree'de `node_modules` yoktur: lint/typecheck üst klasördekini bulup geçer, ama kurulum/derleme
   testleri (`init-*`, `real installed host`, CLI paketi) `MODULE_NOT_FOUND` ile düşer. Önce worktree'de `npm ci`.
 - Prettier `*.md` dosyalarını denetlemez.
+- Dağıtım kabulü (`.github/workflows/deploy-acceptance.yml`: Docker, systemd+Nginx/HTTPS, IIS) her PR'da koşmaz;
+  `gh workflow run deploy-acceptance.yml --ref <dal>` ile tetiklenir. Windows dakikası kotadan 2 kat düşer.
 - İş akışlarında eylemler `@<40 hane SHA> # vX.Y.Z` biçiminde sabitlenir, izin `contents: read` kalır;
   `tests/supply-chain.test.js` etiketle (`@v4`) yazılan eylemi reddeder. SHA'yı `gh api repos/<eylem>/commits/<etiket>`
   ile bulun; güncellemeleri Dependabot PR'ları getirir. Dependabot `undici` ve `express` büyük sürümlerini yok sayar
