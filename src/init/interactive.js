@@ -147,7 +147,7 @@ export async function runInteractiveInit({
     password = writtenEnv.LLM_ADMIN_PASSWORD;
     logger(
       writtenEnv.LLM_PROJECT_ROOT
-        ? `Proje Asistanı kökü: LLM_PROJECT_ROOT=${writtenEnv.LLM_PROJECT_ROOT} (helper klasörüne göre; .env içinde değiştirilebilir).`
+        ? `Proje Asistanı kökü: LLM_PROJECT_ROOT=${writtenEnv.LLM_PROJECT_ROOT} (${path.isAbsolute(writtenEnv.LLM_PROJECT_ROOT) ? 'mutlak yol' : 'sunucunun çalışma dizinine göre'}; .env içinde değiştirilebilir).`
         : 'Proje Asistanı kökü boş bırakılmış; Projeyi tara için .env içinde LLM_PROJECT_ROOT tanımlayın.'
     );
     logger(

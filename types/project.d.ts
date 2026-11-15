@@ -10,6 +10,8 @@ export interface ProjectOptions {
   graphify?: false | { command: string; args?: string[] };
   graphifyPython?: string;
   graphifyAutoDetect?: boolean;
+  /** Graphify extraction limit in ms (default 300000); env: LLM_GRAPHIFY_TIMEOUT_MS. */
+  graphifyTimeoutMs?: number;
   opencodePath?: string;
   opencode?: { command: string; args?: string[] };
   commands?: Record<string, { command: string; args?: string[]; timeoutMs?: number }>;

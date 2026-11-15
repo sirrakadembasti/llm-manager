@@ -106,6 +106,22 @@ export function defaultProjectRoot(cwd) {
     if (path.dirname(dir) === dir) return '.';
   }
 }
+// Derlenen hostlar (Next standalone, Nuxt/SvelteKit çıktısı) çalışma dizinini build klasörüne taşıyabilir;
+// göreli yollar orada yanlış klasörü gösterir.
+const COMPILED_HOSTS = ['nextjs', 'nuxt', 'sveltekit'];
+
+// Mevcut değer (boş bırakılmış olsa bile) kullanıcı seçimidir; ezilmez. Derlenen hostlarda göreli değer,
+// kurulumun çalıştığı uygulama köküne göre aynı klasörü gösteren mutlak yola çevrilir.
+function projectRootEnv(cwd, current, compiled) {
+  if (current === undefined) {
+    const root = defaultProjectRoot(cwd);
+    return { LLM_PROJECT_ROOT: compiled ? path.resolve(cwd, root) : root };
+  }
+  if (compiled && current.trim() && !path.isAbsolute(current.trim()))
+    return { LLM_PROJECT_ROOT: path.resolve(cwd, current.trim()) };
+  return {};
+}
+
 export function initLLMProject({
   cwd = process.cwd(),
   type = detectProjectType(cwd),
@@ -144,6 +160,7 @@ export function initLLMProject({
       'Mevcut llm.js host oturumu adaptörünü desteklemiyor. Dosyayı inceleyip --force ile yükseltin veya entegrasyonu elle taşıyın.'
     );
   }
+  const compiled = COMPILED_HOSTS.includes(type);
   const origins = ['spa', 'tauri'].includes(type) ? resolveInitOrigins(cwd, allowedOrigins) : '';
   password ??= env.LLM_ADMIN_PASSWORD || integration.examplePassword || crypto.randomBytes(18).toString('base64url');
   const token = env.LLM_CHAT_TOKENS || crypto.randomBytes(24).toString('base64url');
@@ -159,12 +176,9 @@ export function initLLMProject({
     LLM_ADMIN_PASSWORD: password,
     LLM_CHAT_TOKENS: token,
     LLM_CHAT_TOKEN: env.LLM_CHAT_TOKEN || token.split(',')[0],
-    // Mevcut değer (boş bırakılmış olsa bile) kullanıcı seçimidir; ezilmez.
-    ...(env.LLM_PROJECT_ROOT === undefined ? { LLM_PROJECT_ROOT: defaultProjectRoot(cwd) } : {}),
+    ...projectRootEnv(cwd, env.LLM_PROJECT_ROOT, compiled),
     // Derlenmiş sunucular (Next standalone chdir) göreli ./data'yı build klasörüne taşır.
-    ...(['nextjs', 'nuxt', 'sveltekit'].includes(type)
-      ? { LLM_DATA_DIR: env.LLM_DATA_DIR || path.join(cwd, 'data') }
-      : {})
+    ...(compiled ? { LLM_DATA_DIR: env.LLM_DATA_DIR || path.join(cwd, 'data') } : {})
   });
   ensureGitignore(cwd);
   if (['spa', 'tauri'].includes(type)) {

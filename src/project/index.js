@@ -127,6 +127,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
           : options.graphifyPython
             ? ['-m', 'graphify']
             : [],
+        ...(options.graphifyTimeoutMs ? { timeoutMs: options.graphifyTimeoutMs } : {}),
         signal
       }).catch(error => {
         signal?.throwIfAborted();
