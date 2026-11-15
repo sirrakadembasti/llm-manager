@@ -20,7 +20,16 @@ export async function findGraphifyCommand(env = process.env) {
   return null;
 }
 
-export async function runGraphify({ files, command, args = ['-m', 'graphify'], signal, timeoutMs = 120000 }) {
+// Gerçek bir Next.js projesinde (459 dosya) çıkarım 104–132 sn sürdü; sınır bunun rahatça üstünde tutulur.
+export const DEFAULT_GRAPHIFY_TIMEOUT_MS = 300000;
+
+export async function runGraphify({
+  files,
+  command,
+  args = ['-m', 'graphify'],
+  signal,
+  timeoutMs = DEFAULT_GRAPHIFY_TIMEOUT_MS
+}) {
   if (!command) return { status: 'unavailable', nodes: [], links: [] };
   const workspace = await createProjectWorkspace(files);
   try {

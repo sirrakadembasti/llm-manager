@@ -24,13 +24,45 @@ test('init, git kökü olmayan uygulama kökünde LLM_PROJECT_ROOT=. yazar', t =
   assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, '.');
 });
 
-test('init, Next.js hostunda uygulama kökü için LLM_PROJECT_ROOT=. yazar', t => {
+test('init, Next.js hostunda uygulama kökünü mutlak yol olarak yazar (standalone chdir build klasörüne taşır)', t => {
   const cwd = tempDir('llm-root-next-');
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
   writePackage(cwd, { next: '^16.0.0', react: '^19.0.0' });
   fs.mkdirSync(path.join(cwd, '.git'));
   initLLMProject({ cwd, type: 'nextjs', password: 'test-password-123' });
-  assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, '.');
+  assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, path.resolve(cwd));
+});
+
+test('init, derlenen hostlarda git kökünü de mutlak yazar', t => {
+  const repo = tempDir('llm-root-nuxt-');
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(repo, '.git'));
+  for (const type of ['nuxt', 'sveltekit']) {
+    const app = path.join(repo, 'apps', type);
+    fs.mkdirSync(app, { recursive: true });
+    writePackage(app, {});
+    initLLMProject({ cwd: app, type, password: 'test-password-123' });
+    assert.equal(readEnv(path.join(app, '.env')).LLM_PROJECT_ROOT, path.resolve(repo), type);
+  }
+});
+
+test('init, derlenen hostta mevcut göreli kökü aynı yeri gösteren mutlak yola çevirir; mutlak ve boş değeri korur', t => {
+  const cwd = tempDir('llm-root-next-existing-');
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  writePackage(cwd, { next: '^16.0.0', react: '^19.0.0' });
+  fs.mkdirSync(path.join(cwd, 'src'));
+  fs.writeFileSync(path.join(cwd, '.env'), 'LLM_PROJECT_ROOT=./src\n');
+  initLLMProject({ cwd, type: 'nextjs', password: 'test-password-123' });
+  assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, path.resolve(cwd, 'src'));
+
+  const absolute = path.resolve(cwd, 'src');
+  fs.writeFileSync(path.join(cwd, '.env'), `LLM_PROJECT_ROOT=${absolute}\n`);
+  initLLMProject({ cwd, type: 'nextjs', password: 'test-password-123' });
+  assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, absolute);
+
+  fs.writeFileSync(path.join(cwd, '.env'), 'LLM_PROJECT_ROOT=\n');
+  initLLMProject({ cwd, type: 'nextjs', password: 'test-password-123' });
+  assert.equal(readEnv(path.join(cwd, '.env')).LLM_PROJECT_ROOT, '');
 });
 
 test('init, git deposunun alt klasöründeki helper için göreli kökü (..) yazar', t => {
