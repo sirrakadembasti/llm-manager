@@ -155,15 +155,13 @@ test('OpenCode görev süresi profil yanıt süresinden bağımsızdır', async 
     return assistant;
   };
   const plan = assistant =>
-    assistant
-      .handle({ method: 'POST', path: '/project/scan', body: {} })
-      .then(() =>
-        assistant.handle({
-          method: 'POST',
-          path: '/project/tasks',
-          body: { mode: 'plan', prompt: 'orders', shareSources: true }
-        })
-      );
+    assistant.handle({ method: 'POST', path: '/project/scan', body: {} }).then(() =>
+      assistant.handle({
+        method: 'POST',
+        path: '/project/tasks',
+        body: { mode: 'plan', prompt: 'orders', shareSources: true }
+      })
+    );
   const ok = await plan(make({}));
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
   assert.equal(ok.body.content, 'yavaş-plan');
