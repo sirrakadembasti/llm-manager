@@ -1,11 +1,11 @@
 import { packageInstalled, checkSource } from './compiler.js';
-import { PKG } from './project.js';
+import { PKG, COMPILED_HOSTS } from './project.js';
 import { INSTALL_SPEC, EXPRESS_SPEC, needsHostPackage, standalonePrerequisite } from './standalone.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { detectProjectType, detectEntryFile } from './detect.js';
 import { resolveLlmRelPath } from './paths.js';
-import { readEnv } from '../envFile.js';
+import { readEnv, gitignoreCovers } from '../envFile.js';
 import { nextExternalStatus } from './next-config.js';
 function getExpectedHelperFiles(cwd, type) {
   const env = readEnv(path.join(cwd, '.env'));
@@ -75,7 +75,8 @@ export function verifyIntegration({
       ok: packageInstalled(cwd, PKG),
       solution: 'npm install ' + INSTALL_SPEC + ' komutunu host projede çalıştırın.'
     });
-  if (needsHostPackage(cwd, type) && packageInstalled(cwd, PKG))
+  // Next.js/Nuxt/SvelteKit yönetimi kendi rotalarında sunar; ayrı Express sunucusu gerekmez.
+  if (needsHostPackage(cwd, type) && packageInstalled(cwd, PKG) && !COMPILED_HOSTS.includes(type))
     checks.push({
       id: 'standalone_express',
       title: 'Bağımsız Sunucu Express Önkoşulu',
@@ -87,11 +88,12 @@ export function verifyIntegration({
         .readFileSync(path.join(cwd, '.gitignore'), 'utf8')
         .split(/\r?\n/)
         .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'))
     : [];
   checks.push({
     id: 'secrets_ignored',
     title: 'Sır Dosyalarının Git Dışında Tutulması',
-    ok: ['data/', '.env', '.env.local', '*.key'].every(entry => ignored.includes(entry)),
+    ok: ['data/', '.env', '.env.local', '*.key'].every(entry => gitignoreCovers(ignored, entry)),
     solution: '.gitignore dosyasına data/, .env, .env.local ve *.key ekleyin.'
   });
 

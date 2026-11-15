@@ -108,7 +108,7 @@ export function defaultProjectRoot(cwd) {
 }
 // Derlenen hostlar (Next standalone, Nuxt/SvelteKit çıktısı) çalışma dizinini build klasörüne taşıyabilir;
 // göreli yollar orada yanlış klasörü gösterir.
-const COMPILED_HOSTS = ['nextjs', 'nuxt', 'sveltekit'];
+export const COMPILED_HOSTS = ['nextjs', 'nuxt', 'sveltekit'];
 
 // Mevcut değer (boş bırakılmış olsa bile) kullanıcı seçimidir; ezilmez. Derlenen hostlarda göreli değer,
 // kurulumun çalıştığı uygulama köküne göre aynı klasörü gösteren mutlak yola çevrilir.

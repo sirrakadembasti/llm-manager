@@ -35,7 +35,7 @@ export function upsertEnv(filePath, entries) {
 
 // Kök düzeyindeki basit girdiler (`data/`, `.env`, `*.key`) için yaklaşık .gitignore eşleşmesi: aynı satır ya da
 // eğik çizgisiz bir glob (`.env*`) girdiyi kapsar; girdiyi yeniden açan `!` kuralı varsa kapsanmış sayılmaz.
-function gitignoreCovers(rules, entry) {
+export function gitignoreCovers(rules, entry) {
   const isDir = entry.endsWith('/');
   const name = entry.replace(/\/$/, '');
   const matches = pattern => {

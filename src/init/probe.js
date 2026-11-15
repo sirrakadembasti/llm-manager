@@ -1,6 +1,9 @@
 import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { PKG } from './project.js';
 import { loadStandaloneServer } from './standalone.js';
 import { readEnv } from '../envFile.js';
 function openDefaultBrowser(url) {
@@ -19,6 +22,83 @@ function openDefaultBrowser(url) {
   } catch {
     return false;
   }
+}
+
+// Uygulamanın geliştirme sunucusu varsayılan portları (.env içindeki PORT önceliklidir).
+const HOST_DEFAULT_PORTS = { nextjs: 3000, nuxt: 3000, sveltekit: 5173 };
+
+// Next.js/Nuxt/SvelteKit yönetimi kendi rotalarında sunar. Ayrı Express sunucusu açılmaz:
+// yönetim katmanı (parola, yollar, veri klasörü) süreç içinde doğrulanır; uygulama çalışıyorsa
+// yönetim sayfası uygulamanın kendi adresinde de yoklanır.
+export async function probeCompiledHost({
+  cwd = process.cwd(),
+  type,
+  hostPort,
+  password,
+  adminUser,
+  pagePath,
+  apiPath,
+  openBrowser = true,
+  browserOpener
+} = {}) {
+  const env = readEnv(path.join(cwd, '.env'));
+  adminUser ??= env.LLM_ADMIN_USER || 'admin';
+  pagePath ??= env.LLM_PAGE_PATH || '/llm';
+  apiPath ??= env.LLM_API_PATH || '/api/llm';
+  password ??= env.LLM_ADMIN_PASSWORD;
+  hostPort ??= Number(env.PORT) || HOST_DEFAULT_PORTS[type] || 3000;
+  const dataDir = env.LLM_DATA_DIR ? path.resolve(cwd, env.LLM_DATA_DIR) : path.join(cwd, 'data');
+  const auth = 'Basic ' + Buffer.from(adminUser + ':' + password).toString('base64');
+  const marker = `data-api-base="${apiPath}"`;
+  const url = `http://localhost:${hostPort}${pagePath}`;
+
+  let inProcess;
+  try {
+    const { createLLMManager } = await loadHostCore(cwd);
+    const manager = createLLMManager({ dataDir, adminUser, adminPassword: password, logger: { warn() {}, info() {} } });
+    const request = pathname => new Request(`http://localhost${pathname}`, { headers: { authorization: auth } });
+    const page = await manager.fetch(request(pagePath), { pagePath, apiPath });
+    const profiles = await manager.fetch(request(`${apiPath}/profiles`), { pagePath, apiPath });
+    inProcess = page.status === 200 && (await page.text()).includes(marker) && profiles.status === 200;
+    await manager.close?.();
+  } catch {
+    inProcess = false;
+  }
+
+  let hostVerified;
+  let status = 0;
+  try {
+    const res = await fetch(`http://127.0.0.1:${hostPort}${pagePath}`, {
+      headers: { Authorization: auth },
+      signal: AbortSignal.timeout(3000)
+    });
+    status = res.status;
+    hostVerified = res.status === 200 && (await res.text()).includes(marker);
+  } catch {
+    hostVerified = false;
+  }
+
+  let openedBrowser = false;
+  if (hostVerified && openBrowser === true) {
+    try {
+      if (typeof browserOpener === 'function') {
+        await browserOpener(url);
+        openedBrowser = true;
+      } else openedBrowser = openDefaultBrowser(url);
+    } catch {
+      openedBrowser = false;
+    }
+  }
+  return { ok: inProcess, inProcess, hostVerified, url, status, startedServer: false, openedBrowser };
+}
+
+async function loadHostCore(cwd) {
+  const installed = path.join(cwd, 'node_modules', PKG, 'src', 'core.js');
+  return await import(
+    fs.existsSync(installed)
+      ? pathToFileURL(fs.realpathSync(installed)).href
+      : new URL('../core.js', import.meta.url).href
+  );
 }
 
 export async function probeAndOpenBrowser({
