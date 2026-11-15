@@ -5,14 +5,15 @@ import { buildProviderRequest } from '../runtime.js';
 import { providerFetch } from '../providerTransport.js';
 import { projectError } from './policy.js';
 
-export async function createProjectRelay({ profile, networkOptions = {}, signal, maxRequests = 40 }) {
+export async function createProjectRelay({ profile, networkOptions = {}, signal, maxRequests = 40, timeoutMs }) {
   signal?.throwIfAborted();
   const seed = buildProviderRequest(profile, [], { ...networkOptions });
   const transport = seed.transport.id;
   if (!['google', 'anthropic', 'openai'].includes(transport))
     throw projectError('PROJECT_PROVIDER_UNSUPPORTED', 'Bu sağlayıcı araç protokolü desteklenmiyor.');
   const token = crypto.randomBytes(32).toString('hex');
-  const deadline = Date.now() + seed.timeoutMs;
+  // Görev bütçesi bütün araç isteklerini kapsar; tek istek ayrıca profil yanıt süresiyle sınırlıdır.
+  const deadline = Date.now() + (timeoutMs || seed.timeoutMs);
   const closed = new AbortController();
   let requests = 0;
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000 }, async (req, res) => {
@@ -80,7 +81,7 @@ export async function createProjectRelay({ profile, networkOptions = {}, signal,
       const combined = AbortSignal.any([
         closed.signal,
         requestAbort.signal,
-        AbortSignal.timeout(remaining),
+        AbortSignal.timeout(Math.min(remaining, seed.timeoutMs)),
         ...(signal ? [signal] : [])
       ]);
       const headers = { ...seed.headers };

@@ -33,12 +33,46 @@ export function upsertEnv(filePath, entries) {
   fs.chmodSync(filePath, 0o600);
 }
 
+// Kök düzeyindeki basit girdiler (`data/`, `.env`, `*.key`) için yaklaşık .gitignore eşleşmesi: aynı satır ya da
+// eğik çizgisiz bir glob (`.env*`) girdiyi kapsar; girdiyi yeniden açan `!` kuralı varsa kapsanmış sayılmaz.
+function gitignoreCovers(rules, entry) {
+  const isDir = entry.endsWith('/');
+  const name = entry.replace(/\/$/, '');
+  const matches = pattern => {
+    let p = pattern.replace(/^\//, '');
+    const dirOnly = p.endsWith('/');
+    p = p.replace(/\/$/, '');
+    if (!p || p.includes('/') || (dirOnly && !isDir)) return false;
+    if (p === name) return true;
+    const regex = new RegExp(
+      '^' +
+        p
+          .split('')
+          .map(ch => (ch === '*' ? '[^/]*' : ch === '?' ? '[^/]' : ch.replace(/[.+^${}()|[\]\\]/g, '\\$&')))
+          .join('') +
+        '$'
+    );
+    // Glob girdinin kendisini kapsamalı: `*.key` girdisi için `*.key` ya da `*` gerekir.
+    return regex.test(name) && (!/[*?]/.test(name) || regex.test(name.replace(/[*?]/g, 'x')));
+  };
+  let covered = false;
+  for (const rule of rules) {
+    if (rule.startsWith('!')) {
+      if (matches(rule.slice(1))) covered = false;
+    } else if (matches(rule)) covered = true;
+  }
+  return covered;
+}
+
 export function ensureGitignore(cwd, entries = ['data/', '.env', '.env.local', '*.key']) {
   const target = path.join(cwd, '.gitignore');
   const content = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
   const eol = content.includes('\r\n') ? '\r\n' : '\n';
-  const lines = new Set(content.split(/\r?\n/).map(line => line.trim()));
-  const missing = entries.filter(entry => !lines.has(entry));
+  const rules = content
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  const missing = entries.filter(entry => !gitignoreCovers(rules, entry));
   if (missing.length) {
     fs.writeFileSync(
       target,

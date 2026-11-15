@@ -13,6 +13,8 @@ export interface ProjectOptions {
   /** Graphify extraction limit in ms (default 300000); env: LLM_GRAPHIFY_TIMEOUT_MS. */
   graphifyTimeoutMs?: number;
   opencodePath?: string;
+  /** Whole OpenCode task budget in ms (default 600000); env: LLM_OPENCODE_TIMEOUT_MS. */
+  opencodeTimeoutMs?: number;
   opencode?: { command: string; args?: string[] };
   commands?: Record<string, { command: string; args?: string[]; timeoutMs?: number }>;
 }

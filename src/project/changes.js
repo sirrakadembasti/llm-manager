@@ -124,6 +124,8 @@ export function createProjectChanges({ reader, maxTasks = 10 }) {
     if (approval?.approved !== true)
       throw projectError('PROJECT_APPROVAL_REQUIRED', 'Dosya farklarını inceledikten sonra işlemi açıkça onaylayın.');
     if (approval.revision !== task.revision || task.state !== (reverse ? 'applied' : 'proposed')) throw conflict();
+    if (!task.files.length)
+      throw projectError('PROJECT_NO_CHANGES', 'Görev dosya değişikliği içermiyor; uygulanacak fark yok.', 409);
     const from = reverse ? 'after' : 'before',
       to = reverse ? 'before' : 'after';
     for (const file of task.files) if ((await currentHash(task, file)) !== digest(file[from])) throw conflict();

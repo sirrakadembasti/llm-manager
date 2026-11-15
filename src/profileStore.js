@@ -315,10 +315,13 @@ export function createLLMProfileStore({
           });
         }
         if (existing && (existing.provider !== provider || existing.baseURL !== baseURL) && !newKey) {
-          throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Sağlayıcı değişince yeni API anahtarı girin.', {
-            status: 400,
-            retryable: false
-          });
+          throw new LLMError(
+            ErrorCodes.PROFILE_INVALID,
+            existing.provider !== provider
+              ? 'Sağlayıcı değişince yeni API anahtarı girin.'
+              : 'API adresi değişince yeni API anahtarı girin.',
+            { status: 400, retryable: false }
+          );
         }
         const secret = newKey ? encrypt(newKey, await getKeyBytes()) : existing?.secret;
         if (!secret) {
@@ -338,6 +341,16 @@ export function createLLMProfileStore({
         const fallbackProfileIds = Array.isArray(input?.fallbackProfileIds)
           ? input.fallbackProfileIds.filter(id => typeof id === 'string' && id.trim())
           : existing?.fallbackProfileIds || [];
+        if (Array.isArray(input?.fallbackProfileIds)) {
+          const known = new Set(data.profiles.map(item => item.id));
+          const invalid = fallbackProfileIds.find(fbId => fbId === existing?.id || !known.has(fbId));
+          if (invalid !== undefined)
+            throw new LLMError(
+              ErrorCodes.PROFILE_INVALID,
+              invalid === existing?.id ? 'Profil kendisini yedek olarak gösteremez.' : 'Yedek profil bulunamadı.',
+              { status: 400, retryable: false }
+            );
+        }
         const profile = {
           ...runtime,
           id: existing?.id || crypto.randomUUID(),
@@ -404,6 +417,9 @@ export function createLLMProfileStore({
         if (!profile) throw notFoundError();
         assertRevision(profile, revision);
         data.profiles = data.profiles.filter(item => item.id !== id);
+        for (const item of data.profiles)
+          if (Array.isArray(item.fallbackProfileIds) && item.fallbackProfileIds.includes(id))
+            item.fallbackProfileIds = item.fallbackProfileIds.filter(fbId => fbId !== id);
         if (data.activeId === id) data.activeId = null;
         await write(data);
         return this.list();
