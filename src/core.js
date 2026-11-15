@@ -170,7 +170,7 @@ export function createLLMManager({
   chatOverrides = 'admin',
   chatAccess = 'authenticated',
   rateLimit: rateLimitConfig,
-  retry: retryConfig,
+  retry: retryConfig = process.env.LLM_RETRY === 'false' ? false : undefined,
   logger: customLogger = null,
   health = true,
   usageLog = false,
@@ -979,7 +979,10 @@ export function createLLMManager({
             429
           );
       }
-      return await projectAssistant.handle({ method: verb, path: projectPath, body, principal, signal });
+      const projectResult = await projectAssistant.handle({ method: verb, path: projectPath, body, principal, signal });
+      if (projectResult?.body && typeof projectResult.body === 'object' && !Array.isArray(projectResult.body))
+        projectResult.body = { ...projectResult.body, requestId };
+      return projectResult;
     }
     const match = /^\/(catalog|chat|profiles|models|health|usage)(?:\/([^/]+)(?:\/(activate|test|models))?)?\/?$/.exec(
       cleanPath
@@ -1017,7 +1020,7 @@ export function createLLMManager({
         } catch {}
       }
       const targetMonth = queryMonth || new Date().toISOString().slice(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
+      if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(targetMonth)) {
         return ok({ error: 'Geçersiz ay formatı. YYYY-MM bekleniyor.', code: 'PARAMS_INVALID', requestId }, 400);
       }
       const summary = await usageTracker.getSummary(targetMonth);
@@ -1151,7 +1154,9 @@ export function createLLMManager({
         logger.warn('auth.failed', { requestId, ip: clientKey || undefined });
         return deny(401, 'UNAUTHORIZED', 'Kimlik doğrulama gerekli.');
       }
-      authLimiter?.reset(clientKey || 'anonymous');
+      // İstemci kimliği yoksa sayaç ortaktır; başka bir istemcinin (ör. Bearer sohbet) başarısı saldırganın
+      // sayacını sıfırlamamalı. Doğru kimlik bilgisi sınır dolu olsa da girer.
+      if (clientKey) authLimiter?.reset(clientKey);
       const isChat = pathname === `${apiPath}/chat` && request.method === 'POST';
       if (principal.isAdmin !== true && (!isChat || chatAccess === 'admin')) {
         return deny(403, 'FORBIDDEN', 'Yönetici yetkisi gerekli.');

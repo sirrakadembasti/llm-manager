@@ -10,7 +10,11 @@ import { runOpenCode } from './opencode.js';
 import { runProjectCommand } from './commands.js';
 import { projectError, hasProjectSecret } from './policy.js';
 
+// OpenCode görevi çok sayıda model isteği içerir; varsayılan bütçe 10 dk, tek istek profil süresiyle sınırlı kalır.
+export const DEFAULT_OPENCODE_TIMEOUT_MS = 600000;
+
 export function createProjectTasks({ reader, options, getActiveProfile, networkOptions }) {
+  const taskTimeoutMs = options.opencodeTimeoutMs || DEFAULT_OPENCODE_TIMEOUT_MS;
   const changes = createProjectChanges({ reader });
   const tasks = new Map();
   const commands = options.commands || {};
@@ -105,7 +109,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     let relay;
     let retained = false;
     try {
-      relay = await createProjectRelay({ profile, networkOptions, signal });
+      relay = await createProjectRelay({ profile, networkOptions, signal, timeoutMs: taskTimeoutMs });
       const currentAnalysis = analyzeProject(before.files);
       const signals = {
         api: currentAnalysis.api.slice(0, 30),
@@ -127,7 +131,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
         mode: body.mode,
         command: options.opencode?.command || options.opencodePath,
         args: options.opencode?.args,
-        timeoutMs: profile.timeoutMs || 120000,
+        timeoutMs: taskTimeoutMs,
         signal
       });
       signal?.throwIfAborted();

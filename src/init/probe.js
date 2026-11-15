@@ -50,6 +50,8 @@ export async function probeAndOpenBrowser({
     };
   }
   password ??= env.LLM_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
+  // Derlenen hostlar mutlak LLM_DATA_DIR kullanır; doğrulama sunucusu aynı klasöre yazmalı.
+  const dataDir = env.LLM_DATA_DIR ? path.resolve(cwd, env.LLM_DATA_DIR) : path.join(cwd, 'data');
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid probe port');
   let url = `http://127.0.0.1:${port}${pagePath}`;
   const auth = 'Basic ' + Buffer.from(adminUser + ':' + password).toString('base64');
@@ -84,7 +86,7 @@ export async function probeAndOpenBrowser({
         apiPath,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
-        dataDir: path.join(cwd, 'data'),
+        dataDir,
         handleSignals
       });
     } catch {
@@ -97,7 +99,7 @@ export async function probeAndOpenBrowser({
         apiPath,
         chatTokens: env.LLM_CHAT_TOKENS,
         allowedOrigins: env.LLM_ALLOWED_ORIGINS || [],
-        dataDir: path.join(cwd, 'data'),
+        dataDir,
         handleSignals
       });
     }
