@@ -3,7 +3,7 @@ import { configureNext } from './next-config.js';
 import { execFileSync } from 'node:child_process';
 import { packageInstalled } from './compiler.js';
 import { INSTALL_SPEC, EXPRESS_SPEC, needsHostPackage, standalonePrerequisite } from './standalone.js';
-import { PKG } from './project.js';
+import { PKG, COMPILED_HOSTS } from './project.js';
 import readline from 'node:readline/promises';
 import path from 'node:path';
 import { readEnv } from '../envFile.js';
@@ -11,7 +11,7 @@ import { detectProjectType, detectEntryFile } from './detect.js';
 import { initLLMProject } from './project.js';
 import { injectIntoEntryFile } from './inject.js';
 import { verifyIntegration, formatVerificationReport } from './verify.js';
-import { probeAndOpenBrowser } from './probe.js';
+import { probeAndOpenBrowser, probeCompiledHost } from './probe.js';
 import { createChangeJournal } from './journal.js';
 import { resolveInitOrigins } from './origins.js';
 function isDeclined(answer) {
@@ -33,6 +33,7 @@ export async function runInteractiveInit({
   apiPath,
   allowedOrigins,
   port = 8010,
+  hostPort,
   force = false,
   yes = false,
   openBrowser = true,
@@ -109,7 +110,8 @@ export async function runInteractiveInit({
         if (!packageInstalled(cwd, PKG))
           throw new Error('Paket kurulumu doğrulanamadı; host node_modules klasörünü kontrol edin.');
       }
-      if (packageInstalled(cwd, PKG) && !standalonePrerequisite(cwd)) {
+      // Next.js/Nuxt/SvelteKit yönetimi kendi rotalarında sunar; ayrı Express sunucusu ve Express gerekmez.
+      if (packageInstalled(cwd, PKG) && !COMPILED_HOSTS.includes(detectedType) && !standalonePrerequisite(cwd)) {
         logger('Canlı yoklama ve bağımsız yönetim sunucusu için desteklenen Express gerekir.');
         if (await install(EXPRESS_SPEC, 'Express projeye kurulsun mu')) {
           if (!standalonePrerequisite(cwd))
@@ -221,6 +223,35 @@ export async function runInteractiveInit({
       };
     }
     // Adım 4: Canlı yönetim yoklaması ve tarayıcı açma
+    if (COMPILED_HOSTS.includes(detectedType)) {
+      const hostProbe = await probeCompiledHost({
+        cwd,
+        type: detectedType,
+        hostPort,
+        password,
+        adminUser: readEnv(path.join(cwd, '.env')).LLM_ADMIN_USER,
+        pagePath: initRes.pagePath,
+        apiPath: initRes.apiPath,
+        openBrowser,
+        browserOpener
+      });
+      const hostName = { nextjs: 'Next.js', nuxt: 'Nuxt', sveltekit: 'SvelteKit' }[detectedType];
+      if (hostProbe.hostVerified) {
+        logger(`\n[Adım 4/4] ✅ Yönetim ekranı ${hostName} uygulamasında doğrulandı (${initRes.pagePath}).`);
+        logger(`🌐 Yönetim Adresi: ${hostProbe.url}`);
+      } else if (hostProbe.inProcess) {
+        logger(
+          `\n[Adım 4/4] ✅ Yönetim katmanı süreç içinde doğrulandı (parola, ${initRes.pagePath} ve ${initRes.apiPath} yolları, veri klasörü).`
+        );
+        logger(
+          `${hostName} uygulaması çalışmıyor; ayrı sunucu açılmaz. Uygulamayı başlatın (ör. npm run dev) ve ${hostProbe.url} adresini açın.`
+        );
+      } else {
+        logger(`\n[Adım 4/4] ❌ Yönetim katmanı doğrulanamadı; .env içindeki LLM_* değerlerini kontrol edin.`);
+      }
+      if (hostProbe.ok) logger('Parola .env dosyasında LLM_ADMIN_PASSWORD olarak saklandı.');
+      return { ok: hostProbe.ok, type: detectedType, entryFile, initRes, injectRes, verification, probe: hostProbe };
+    }
     const probe = await probeAndOpenBrowser({
       cwd,
       port,
