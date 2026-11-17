@@ -92,7 +92,9 @@ export async function createProjectRelay({ profile, networkOptions = {}, signal,
         method: 'POST',
         headers,
         body: JSON.stringify(body),
-        signal: combined
+        signal: combined,
+        stream: true,
+        maxStreamBytes: 8 * 1024 * 1024
       });
       if (!response.ok) {
         await response.body?.cancel();
