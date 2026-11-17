@@ -313,6 +313,9 @@ export function mountLLMManagement(
       }
 
       if (result.body === undefined) return res.sendStatus(result.status);
+      if (result.status === 429 && result.body?.retryAfterSec) {
+        res.set('Retry-After', String(result.body.retryAfterSec));
+      }
       res.status(result.status).json(result.body);
     } catch (error) {
       next(error);
