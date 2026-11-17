@@ -411,6 +411,38 @@ test('unconfigured projects display setup guidance and disable source operations
   assert.match(element('project-status').textContent, /yapılandır/);
 });
 
+test('project tasks warn about engine files that were left out of the proposal', async () => {
+  const proposal = {
+    id: 'task-skipped',
+    revision: 'proposal-skipped',
+    mode: 'change',
+    state: 'proposed',
+    content: 'Hazır',
+    files: [],
+    skippedFiles: [
+      { path: 'notes.bin', reason: 'unsupported' },
+      { path: 'seed.js', reason: 'secret' }
+    ],
+    skippedFilesTruncated: true
+  };
+  const { ui, element } = fixture(async url => {
+    if (url === '/project/tasks') return proposal;
+    return { ...ready, capabilities: { changes: true } };
+  });
+  await ui.init();
+  element('project-mode').value = 'change';
+  element('project-share').checked = true;
+  element('project-prompt').value = 'Ekle';
+  await element('project-chat-form').listeners.submit({ preventDefault() {} });
+  const warning = element('project-diffs')
+    .children.map(child => child.textContent)
+    .join(' ');
+  assert.match(warning, /değişikliğe alınmadı/);
+  assert.match(warning, /notes\.bin/);
+  assert.match(warning, /seed\.js/);
+  assert.match(warning, /secret/);
+});
+
 test('project changes show file differences and require a separate approval before applying', async () => {
   const calls = [];
   const proposal = {
