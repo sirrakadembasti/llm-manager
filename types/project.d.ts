@@ -107,6 +107,8 @@ export interface ProjectTask {
   profile: { id: string; name: string; provider: string; model: string };
   files: Array<{ path: string; kind: 'create' | 'update' | 'delete'; before: string | null; after: string | null }>;
   commandResult: ProjectCommandResult | null;
+  skippedFiles: Array<{ path: string; reason: string }>;
+  skippedFilesTruncated: boolean;
   retrieval?: ProjectRetrievalTrace;
   graphUsed?: boolean;
 }

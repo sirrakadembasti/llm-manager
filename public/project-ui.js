@@ -457,7 +457,17 @@ function createLLMProjectUI({
       ? `${labels[task.state] || task.state} · ${task.profile?.model || ''}`
       : '';
     el('project-task-output').textContent = task?.content || '';
+    const skipped = task?.skippedFiles || [];
     el('project-diffs').replaceChildren(
+      ...(skipped.length
+        ? [
+            textNode(
+              'p',
+              `${tr('skipped_files', 'Şu dosyalar değişikliğe alınmadı')}: ${skipped.map(item => `${item.path} (${item.reason})`).join(', ')}${task.skippedFilesTruncated ? ` ${tr('skipped_more', 've diğerleri')}` : ''}`,
+              'project-skipped'
+            )
+          ]
+        : []),
       ...(task?.files || []).map(file => {
         const detail = document.createElement('details');
         const columns = document.createElement('div');

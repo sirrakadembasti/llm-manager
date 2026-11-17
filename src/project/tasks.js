@@ -37,6 +37,8 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       mode: task.mode,
       ...(task.mode === 'plan' ? { state: 'planned' } : {}),
       content: task.content,
+      skippedFiles: task.skippedFiles,
+      skippedFilesTruncated: task.skippedFilesTruncated,
       profile: task.profile,
       createdAt: task.createdAt,
       engineVersion: task.engineVersion,
@@ -158,6 +160,10 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
         stagedRevision: after.revision,
         mode: body.mode,
         content: engine.content,
+        // The staged copy only holds files that passed the filter, so every non-directory
+        // exclusion in the second scan is something the engine created.
+        skippedFiles: after.exclusions.filter(item => item.reason !== 'directory'),
+        skippedFilesTruncated: Boolean(after.exclusionsTruncated),
         createdAt: new Date().toISOString(),
         engineVersion: engine.version,
         retrieval: retrieved.retrieval,

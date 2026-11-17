@@ -700,6 +700,50 @@ test('project tasks stage engine changes and apply only after explicit review ap
   assert.match(await fs.readFile(path.join(root, 'server.js'), 'utf8'), /concurrent user edit/);
 });
 
+test('project tasks report engine-created files that the scan filter excluded', async t => {
+  const { options, root } = await fixture(t);
+  const engine = path.join(root, 'fake-engine-skipped.cjs');
+  await fs.writeFile(
+    engine,
+    `
+    const http=require('node:http'),fs=require('node:fs');
+    const port=Number(process.argv.find(a=>a.startsWith('--port=')).split('=')[1]);
+    http.createServer(async(req,res)=>{
+      res.setHeader('Content-Type','application/json');
+      if(req.url==='/global/health'){res.end('{"healthy":true,"version":"1.18.33"}');return;}
+      if(req.url==='/session'){res.end('{"id":"ses_fixture"}');return;}
+      if(req.url.includes('/message')){
+        let raw='';for await(const chunk of req)raw+=chunk;
+        fs.writeFileSync('server.js',"app.get('/orders', updatedHandler);\\n");
+        fs.writeFileSync('notes.bin',Buffer.from([0,1,2,3]));
+        fs.writeFileSync('seed.js','const password = "hunter2-fixture-secret";\\n');
+        res.end(JSON.stringify({info:{},parts:[{type:'text',text:'tamam'}]}));return;
+      }
+      res.writeHead(404);res.end('{}');
+    }).listen(port,'127.0.0.1',()=>console.log('opencode server listening on http://127.0.0.1:'+port));
+  `
+  );
+  options.project.opencode = { command: process.execPath, args: [engine] };
+  const manager = createLLMManager(options);
+  t.after(() => manager.close());
+  const prepared = await manager.fetch(
+    request('http://host/api/llm/project/tasks', 'POST', {
+      mode: 'change',
+      prompt: 'Dosyalar ekle',
+      shareSources: true
+    })
+  );
+  assert.equal(prepared.status, 200, JSON.stringify(await prepared.clone().json()));
+  const task = await prepared.json();
+  const skipped = Object.fromEntries(task.skippedFiles.map(f => [f.path, f.reason]));
+  assert.ok(skipped['notes.bin']);
+  assert.equal(skipped['seed.js'], 'secret');
+  assert.deepEqual(
+    task.files.map(f => f.path),
+    ['server.js']
+  );
+});
+
 test('overview-only LLM integration instruction is sent only with general introduction questions', async t => {
   const { options } = await fixture(t);
   const sent = [];

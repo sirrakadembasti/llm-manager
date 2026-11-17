@@ -199,6 +199,8 @@
   "project.before": "Önce",
   "project.after": "Sonra",
   "project.absent": "Dosya yok",
+  "project.skipped_files": "Şu dosyalar değişikliğe alınmadı",
+  "project.skipped_more": "ve diğerleri",
   "project.create": "Yeni dosya",
   "project.update": "Güncelleme",
   "project.delete": "Silme",
