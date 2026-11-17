@@ -101,3 +101,74 @@ test('project relay applies a per-session request budget', async t => {
   assert.equal((await send()).status, 200);
   assert.equal((await send()).status, 429);
 });
+
+async function streamSetup(t, handler) {
+  const upstream = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => handler(req, res));
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+  t.after(() => {
+    upstream.closeAllConnections();
+    return new Promise(resolve => upstream.close(resolve));
+  });
+  const profile = {
+    provider: 'custom',
+    model: 'fixture-model',
+    apiKey: 'original-fixture-key-must-stay-private',
+    baseURL: `http://127.0.0.1:${upstream.address().port}/v1`,
+    timeoutMs: 10000,
+    maxOutputTokens: 512
+  };
+  const relay = await createProjectRelay({ profile, networkOptions: { allowLocalHttp: true, proxyUrl: '' } });
+  t.after(() => relay.close());
+  const post = () =>
+    fetch(relay.baseURL + '/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${relay.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: profile.model, messages: [{ role: 'user', content: 'x' }] })
+    });
+  return { post };
+}
+
+test('project relay forwards a 3 MiB provider response completely', async t => {
+  const payload = Buffer.alloc(3 * 1024 * 1024, 'a');
+  const { post } = await streamSetup(t, (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+    res.end(payload);
+  });
+  const response = await post();
+  assert.equal(response.status, 200);
+  assert.equal((await response.arrayBuffer()).byteLength, payload.length);
+});
+
+test('project relay cuts the connection when the response exceeds 8 MiB', async t => {
+  const chunk = Buffer.alloc(1024 * 1024, 'a');
+  const { post } = await streamSetup(t, (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+    for (let i = 0; i < 9; i++) res.write(chunk);
+    res.end();
+  });
+  const response = await post();
+  await assert.rejects(() => response.arrayBuffer());
+});
+
+test('project relay delivers the first chunk before the provider finishes', async t => {
+  let finish;
+  const done = new Promise(resolve => (finish = resolve));
+  t.after(() => finish());
+  const { post } = await streamSetup(t, async (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write('data: first\n\n');
+    await done;
+    res.end('data: second\n\n');
+  });
+  const response = await post();
+  const reader = response.body.getReader();
+  const first = await Promise.race([reader.read(), new Promise(resolve => setTimeout(() => resolve('timeout'), 3000))]);
+  assert.notEqual(first, 'timeout');
+  assert.match(Buffer.from(first.value).toString(), /first/);
+  finish();
+  await reader.cancel();
+});
