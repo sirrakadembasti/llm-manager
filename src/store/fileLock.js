@@ -26,12 +26,19 @@ function isPidAlive(pid) {
   }
 }
 
+// A lock naming this very PID but written before this process started cannot be ours:
+// the PID was reused after a crash (typical in containers where the main process keeps one PID).
+function isStaleLock(info) {
+  const age = Date.now() - new Date(info.at).getTime();
+  if (info.pid === process.pid) return new Date(info.at).getTime() < Date.now() - process.uptime() * 1000;
+  return age > 10000 && !isPidAlive(info.pid);
+}
+
 function handleStaleLock(lockPath) {
   try {
     const raw = fs.readFileSync(lockPath, 'utf8');
     const lockInfo = JSON.parse(raw);
-    const ageMs = Date.now() - new Date(lockInfo.at).getTime();
-    if (ageMs > 10000 && !isPidAlive(lockInfo.pid)) {
+    if (isStaleLock(lockInfo)) {
       fs.unlinkSync(lockPath);
       return true;
     }
@@ -173,7 +180,7 @@ export async function withFileLock(lockPath, fn, { timeoutMs = 5000, retryInterv
 async function handleStaleLockAsync(lockPath) {
   try {
     const info = JSON.parse(await fs.promises.readFile(lockPath, 'utf8'));
-    if (Date.now() - new Date(info.at).getTime() > 10000 && !isPidAlive(info.pid)) {
+    if (isStaleLock(info)) {
       await fs.promises.unlink(lockPath);
       return true;
     }
