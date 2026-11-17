@@ -109,10 +109,12 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
   }
 
   async function scan(signal, useGraphify = false) {
-    inventory = await reader.scan({ signal });
+    // Local snapshot: concurrent chats reassign the shared `inventory` while Graphify runs.
+    const snapshot = await reader.scan({ signal });
+    inventory = snapshot;
     retrievalMode = useGraphify ? 'graphify' : 'basic';
-    analysis = analyzeProject(inventory.files);
-    if (graph.status === 'ready' && graph.revision !== inventory.revision)
+    analysis = analyzeProject(snapshot.files);
+    if (graph.status === 'ready' && graph.revision !== snapshot.revision)
       graph = { status: 'stale', revision: graph.revision, nodes: [], links: [] };
     if (useGraphify && options.graphify !== false) {
       const command =
@@ -120,7 +122,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
         options.graphifyPython ||
         (options.graphifyAutoDetect !== false ? await findGraphifyCommand() : null);
       graph = await runGraphify({
-        files: inventory.files,
+        files: snapshot.files,
         command,
         args: options.graphify?.command
           ? options.graphify.args || []
@@ -133,7 +135,7 @@ export function createProjectAssistant({ options, ask, getActiveProfile, network
         signal?.throwIfAborted();
         return { status: 'error', code: error.code || 'PROJECT_GRAPH_FAILED', nodes: [], links: [] };
       });
-      graph.revision = inventory.revision;
+      graph.revision = snapshot.revision;
     }
     return await status();
   }

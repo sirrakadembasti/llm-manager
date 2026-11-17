@@ -115,3 +115,38 @@ test('closing the assistant aborts pending chats', async t => {
   assert.equal((await chat).status, 499);
   assert.equal((await call('/project/chat', chatBody, alice)).body.code, 'PROJECT_CLOSED');
 });
+
+test('a chat during a slow Graphify scan cannot restamp the map with a newer revision', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-project-graph-race-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.writeFile(path.join(root, 'server.js'), "app.get('/orders', handler);\n");
+  const runner = path.join(os.tmpdir(), `graph-race-${path.basename(root)}.cjs`);
+  const marker = path.join(os.tmpdir(), `graph-race-${path.basename(root)}.started`);
+  t.after(() => Promise.all([fs.rm(runner, { force: true }), fs.rm(marker, { force: true })]));
+  await fs.writeFile(
+    runner,
+    `const fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2);
+    fs.writeFileSync(${JSON.stringify(marker)},'started');
+    setTimeout(()=>{const out=path.join(args[args.indexOf('--out')+1],'graphify-out');fs.mkdirSync(out,{recursive:true});
+    fs.writeFileSync(path.join(out,'graph.json'),JSON.stringify({nodes:[{id:'a',label:'orders',source_file:'server.js',source_location:'L1'}],links:[]}));},1200);`
+  );
+  const assistant = createProjectAssistant({
+    options: { root, graphify: { command: process.execPath, args: [runner] } },
+    getActiveProfile: () => ({ id: 'p', name: 'P', provider: 'custom', model: 'm' }),
+    ask: async () => ({ content: 'Yanıt' })
+  });
+  t.after(() => assistant.close());
+  const call = (route, body = {}) => assistant.handle({ method: 'POST', path: route, body, principal: alice });
+  const started = (await call('/project/scan', {})).body.inventory.revision;
+  const slow = call('/project/scan', { graphify: true });
+  // Graphify starts only after the scan snapshot was taken; wait for it before editing the source.
+  while (!(await fs.stat(marker).catch(() => null))) await new Promise(resolve => setTimeout(resolve, 20));
+  await fs.writeFile(path.join(root, 'server.js'), "app.get('/orders', changedHandler);\n");
+  assert.equal((await call('/project/chat', chatBody)).status, 200);
+  const scanned = (await slow).body;
+  assert.equal(scanned.graph.status, 'ready');
+  assert.equal(scanned.graph.revision, started);
+  const next = (await call('/project/chat', { ...chatBody, retrievalMode: 'graphify' })).body;
+  assert.equal(next.retrieval.reason, 'graph-stale');
+  assert.equal(next.retrieval.effectiveMode, 'basic');
+});
