@@ -604,7 +604,8 @@ export function createLLMManager({
       if (purpose !== undefined) overrides.purpose = purpose;
       const timeoutBudget = resolveRuntimeOptions(profile, overrides).timeoutMs;
       const budgetSignal = AbortSignal.timeout(timeoutBudget);
-      const requestSignal = body?.signal ? AbortSignal.any([body.signal, budgetSignal]) : budgetSignal;
+      const requestSignal =
+        body?.signal instanceof AbortSignal ? AbortSignal.any([body.signal, budgetSignal]) : budgetSignal;
 
       const candidateProfiles = [profile];
       if (Array.isArray(profile.fallbackProfileIds) && profile.fallbackProfileIds.length > 0) {
@@ -950,6 +951,12 @@ export function createLLMManager({
     }
   }
 
+  // JSON bodies cannot carry an AbortSignal; only in-process callers can, so anything else is ignored.
+  const routeSignal = (bodySignal, transportSignal) => {
+    if (!(bodySignal instanceof AbortSignal)) return transportSignal;
+    return transportSignal ? AbortSignal.any([bodySignal, transportSignal]) : bodySignal;
+  };
+
   async function handleRoute({ method, path: routePath, body, query, principal, requestId, clientKey, signal } = {}) {
     const verb = String(method || 'GET').toUpperCase();
     const cleanPath = (routePath || '').split('?')[0];
@@ -1035,11 +1042,14 @@ export function createLLMManager({
       return verb === 'POST' && id === 'preview' ? previewModels(body, { principal, clientKey, requestId }) : null;
     if (resource === 'chat')
       return verb === 'POST' && id === undefined
-        ? chatCompletion(body ? { ...body, signal: body.signal || signal } : { signal }, {
-            principal,
-            requestId,
-            clientKey
-          })
+        ? chatCompletion(
+            { ...body, signal: routeSignal(body?.signal, signal) },
+            {
+              principal,
+              requestId,
+              clientKey
+            }
+          )
         : null;
 
     if (id === undefined) {
