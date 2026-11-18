@@ -713,3 +713,57 @@ test('UI Modelleri getir action preserves in-progress form edits and keeps exist
     ['ozel-model-v1', 'gpt-4.1', 'gpt-4o']
   );
 });
+
+async function signalFixture(generate) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-body-signal-'));
+  const manager = createLLMManager({ insecureNoAuth: true, dataDir, generate });
+  const saved = await manager.handle({
+    method: 'POST',
+    path: '/profiles',
+    body: {
+      name: 'Signal profile',
+      provider: 'openai',
+      baseURL: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiKey: 'sk-fixture-key'
+    }
+  });
+  await manager.handle({
+    method: 'POST',
+    path: `/profiles/${saved.body.id}/activate`,
+    body: { revision: saved.body.revision }
+  });
+  return { manager, dataDir };
+}
+
+test('K11: a "signal" field in the chat JSON body is ignored instead of breaking the request', async t => {
+  const { manager, dataDir } = await signalFixture(async () => 'tamam');
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+  const result = await manager.handle({ method: 'POST', path: '/chat', body: { prompt: 'x', signal: 'abc' } });
+  assert.equal(result.status, 200);
+});
+
+test('K11: the transport signal, not a body field, cancels the provider request', async t => {
+  let received;
+  const { manager, dataDir } = await signalFixture(
+    (_messages, { signal }) =>
+      new Promise((_resolve, reject) => {
+        received = signal;
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      })
+  );
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+  const controller = new AbortController();
+  const pending = manager.handle({
+    method: 'POST',
+    path: '/chat',
+    body: { prompt: 'x', signal: 'abc' },
+    signal: controller.signal
+  });
+  for (let i = 0; !received && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(received, 'provider request was never started');
+  controller.abort();
+  const result = await pending;
+  assert.equal(received.aborted, true);
+  assert.notEqual(result.status, 200);
+});
