@@ -57,3 +57,28 @@ test('literal credentials remain excluded, including short quoted values and con
   ])
     assert.equal(hasProjectSecret(source), true);
 });
+
+test('K12: a bare reassignment from a member reference is code, not a credential', () => {
+  for (const source of [
+    'password = writtenEnv.LLM_ADMIN_PASSWORD;',
+    '  password = env.DB.PASS;',
+    'logger(x);\n    password = writtenEnv.LLM_ADMIN_PASSWORD;\n    next();',
+    'if (ready) { password = config.admin.password; }'
+  ])
+    assert.equal(hasProjectSecret(source), false, source);
+});
+
+test('K12: bare assignments that can hold a real secret stay excluded', () => {
+  for (const source of [
+    'password = "hunter2";',
+    "password = 'abc' + x;",
+    'PASSWORD=hunter2',
+    'password = hunter2;',
+    'PASSWORD=my.secret.pass',
+    'password = my.secret.pass',
+    "password = a.b || 'default-secret';",
+    "password = a.b ?? 'default-secret';",
+    'password = a.b + "tail";'
+  ])
+    assert.equal(hasProjectSecret(source), true, source);
+});
