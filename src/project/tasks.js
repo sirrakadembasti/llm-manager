@@ -18,6 +18,12 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
   const changes = createProjectChanges({ reader });
   const tasks = new Map();
   const commands = options.commands || {};
+  // The staged copy is scanned with the host's limits; default limits would reject a project the host enlarged for.
+  const scanLimits = Object.fromEntries(
+    ['maxFiles', 'maxFileBytes', 'maxTotalBytes']
+      .filter(key => options[key] !== undefined)
+      .map(key => [key, options[key]])
+  );
   for (const [name, definition] of Object.entries(commands)) {
     if (
       !/^[\w-]{1,50}$/.test(name) ||
@@ -137,7 +143,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
         signal
       });
       signal?.throwIfAborted();
-      const stagedReader = createProjectFiles({ root: workspace.root });
+      const stagedReader = createProjectFiles({ root: workspace.root, ...scanLimits });
       const after = await stagedReader.scan({ signal });
       if (after.partial)
         throw projectError('PROJECT_SCAN_INCOMPLETE', 'Hazırlanan değişiklik tarama sınırını aşıyor.', 409);
@@ -192,7 +198,7 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
       throw projectError('PROJECT_COMMAND_INVALID', 'Bu doğrulama komutu host tarafından tanımlanmamış.', 404);
     await changes.verify(id);
     const entry = tasks.get(id);
-    const stagedReader = createProjectFiles({ root: entry.workspace.root });
+    const stagedReader = createProjectFiles({ root: entry.workspace.root, ...scanLimits });
     if ((await stagedReader.scan({ signal })).revision !== entry.stagedRevision)
       throw projectError('PROJECT_CONFLICT', 'Geçici kaynak kopyası değişti; görevi yeniden hazırlayın.', 409);
     const result = await runProjectCommand({

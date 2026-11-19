@@ -850,3 +850,34 @@ test('sourced chat sees masked test files while change tasks and the graph never
   assert.doesNotMatch(JSON.stringify(captured), new RegExp(secret));
   assert.ok(reply.body.sources.some(s => s.path === 'login.test.js'));
 });
+
+test('host scan limits also apply to the staged copy, so a project above the default total can get a change task', async t => {
+  const { options, root } = await fixture(t);
+  for (let i = 0; i < 20; i++) await fs.writeFile(path.join(root, `big${i}.js`), `// ${'x'.repeat(250 * 1024)}\n`);
+  const engine = path.join(os.tmpdir(), `limits-engine-${path.basename(root)}.cjs`);
+  t.after(() => fs.rm(engine, { force: true }));
+  await fs.writeFile(
+    engine,
+    `const http=require('node:http'),fs=require('node:fs');const port=Number(process.argv.find(a=>a.startsWith('--port=')).split('=')[1]);http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');if(req.url==='/global/health')return res.end('{"healthy":true,"version":"1.18.33"}');if(req.url==='/session')return res.end('{"id":"ses_fixture"}');if(req.url.includes('/message')){let raw='';for await(const c of req)raw+=c;fs.writeFileSync('server.js',"app.get('/orders', updatedHandler);\\n");return res.end(JSON.stringify({info:{},parts:[{type:'text',text:'tamam'}]}));}res.writeHead(404);res.end('{}');}).listen(port,'127.0.0.1',()=>console.log('opencode server listening on http://127.0.0.1:'+port));`
+  );
+  const assistant = createProjectAssistant({
+    options: {
+      ...options.project,
+      maxTotalBytes: 16 * 1024 * 1024,
+      opencode: { command: process.execPath, args: [engine] }
+    },
+    getActiveProfile: options.store.getActive,
+    ask: async () => ({ text: 'unused' })
+  });
+  t.after(() => assistant.close());
+  const change = await assistant.handle({
+    method: 'POST',
+    path: '/project/tasks',
+    body: { mode: 'change', prompt: 'Handler güncelle', shareSources: true }
+  });
+  assert.equal(change.status, 200, JSON.stringify(change.body));
+  assert.deepEqual(
+    change.body.files.map(f => f.path),
+    ['server.js']
+  );
+});
