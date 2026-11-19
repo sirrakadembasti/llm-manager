@@ -134,14 +134,17 @@ export function projectPath(value) {
   return value;
 }
 
-export function hasProjectSecret(content) {
-  if (
+// Credential formats that are secrets wherever they appear; a file holding one is never masked.
+function hasHardSecret(content) {
+  return (
     /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|\bAIza[\w-]{20,}|\bsk-(?:proj-)?[\w-]{16,}|\bgh[pousr]_[\w]{20,}|\bAKIA[A-Z0-9]{16}\b/i.test(
       content
-    ) ||
-    /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s:/]+:[^\s@]+@/i.test(content)
-  )
-    return true;
+    ) || /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s:/]+:[^\s@]+@/i.test(content)
+  );
+}
+
+export function hasProjectSecret(content) {
+  if (hasHardSecret(content)) return true;
   // Only a direct literal (including a reactive initializer) is a credential.
   // Empty literals are allowed; quoted JSON keys and short passwords are covered.
   const literals =
@@ -179,6 +182,28 @@ export function hasProjectSecret(content) {
     return true;
   }
   return false;
+}
+
+export const MASK_TEXT = '[GİZLENDİ]';
+
+/**
+ * Sourced-chat view of a file whose only secrets are assignment-style lines (typically synthetic test
+ * credentials): each matching line becomes `[GİZLENDİ]` so line numbers still match the file. Returns null
+ * (the file stays fully excluded) for hard credential formats, for nothing to mask, and whenever the
+ * masked text still looks secret.
+ */
+export function maskProjectSecrets(content) {
+  if (hasHardSecret(content)) return null;
+  let count = 0;
+  const masked = content
+    .split('\n')
+    .map(line => {
+      if (!hasProjectSecret(line)) return line;
+      count++;
+      return `${/^[ \t]*/.exec(line)[0]}${MASK_TEXT}${line.endsWith('\r') ? '\r' : ''}`;
+    })
+    .join('\n');
+  return count && !hasProjectSecret(masked) ? { content: masked, count } : null;
 }
 
 export function diagnosticProjectPath(value) {
