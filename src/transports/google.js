@@ -1,4 +1,12 @@
 import { LLMError, ErrorCodes } from '../errors.js';
+
+// Düşünme token'ları çıktı olarak faturalanır ve toplama dahildir; önbellekli token'lar prompt'un alt kümesidir.
+function usageOf(metadata) {
+  const inputTokens = metadata?.promptTokenCount ?? 0;
+  const outputTokens = (metadata?.candidatesTokenCount ?? 0) + (metadata?.thoughtsTokenCount ?? 0);
+  return { inputTokens, outputTokens, totalTokens: metadata?.totalTokenCount ?? inputTokens + outputTokens };
+}
+
 export default {
   id: 'google',
 
@@ -85,10 +93,7 @@ export default {
     const content = textParts.join('\n');
     const finishReason = candidate?.finishReason || null;
 
-    const inputTokens = payload.usageMetadata?.promptTokenCount ?? 0;
-    const outputTokens = payload.usageMetadata?.candidatesTokenCount ?? 0;
-    const totalTokens = payload.usageMetadata?.totalTokenCount ?? inputTokens + outputTokens;
-    const usage = { inputTokens, outputTokens, totalTokens };
+    const usage = usageOf(payload.usageMetadata);
 
     return { content, finishReason, usage, reasoning: null };
   },
@@ -104,10 +109,7 @@ export default {
 
       let usage = null;
       if (payload.usageMetadata) {
-        const inputTokens = payload.usageMetadata.promptTokenCount ?? 0;
-        const outputTokens = payload.usageMetadata.candidatesTokenCount ?? 0;
-        const totalTokens = payload.usageMetadata.totalTokenCount ?? inputTokens + outputTokens;
-        usage = { inputTokens, outputTokens, totalTokens };
+        usage = usageOf(payload.usageMetadata);
       }
 
       const done = finishReason !== null && finishReason !== undefined;
