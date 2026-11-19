@@ -251,3 +251,22 @@ test("K21: Anthropic kullanımı önbellek yazma/okuma token'larını girdiye ka
   const start = anthropic.parseStreamEvent(JSON.stringify({ type: 'message_start', message: { usage } }));
   assert.equal(start.usage.inputTokens, 154);
 });
+
+test('K21: Anthropic akış hatasında overloaded_error yeniden denenebilir, diğer türler denenemez sayılır', () => {
+  const event = type => JSON.stringify({ type: 'error', error: { type, message: 'Hata iletisi' } });
+  assert.throws(
+    () => anthropic.parseStreamEvent(event('overloaded_error')),
+    error => {
+      assert.ok(error instanceof LLMError);
+      assert.equal(error.retryable, true);
+      return true;
+    }
+  );
+  assert.throws(
+    () => anthropic.parseStreamEvent(event('invalid_request_error')),
+    error => {
+      assert.equal(error.retryable, false);
+      return true;
+    }
+  );
+});

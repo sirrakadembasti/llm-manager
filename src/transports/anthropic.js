@@ -116,7 +116,10 @@ export default {
 
       if (type === 'error') {
         const errMsg = payload.error?.message || 'Anthropic stream error';
-        throw new LLMError(ErrorCodes.LLM_PROVIDER_ERROR, errMsg, { status: 502, retryable: false });
+        throw new LLMError(ErrorCodes.LLM_PROVIDER_ERROR, errMsg, {
+          status: 502,
+          retryable: payload.error?.type === 'overloaded_error'
+        });
       }
 
       if (type === 'content_block_delta') {
