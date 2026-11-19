@@ -74,7 +74,22 @@ const extensions = new Set([
   '.proto',
   '.sh',
   '.ps1',
-  '.txt'
+  '.txt',
+  '.cshtml',
+  '.razor',
+  '.astro',
+  '.mdx',
+  '.dart',
+  '.scala',
+  '.ex',
+  '.exs',
+  '.lua',
+  '.tf',
+  '.gradle',
+  '.kts',
+  '.ejs',
+  '.hbs',
+  '.jinja'
 ]);
 
 function hasControlCharacters(value) {
@@ -156,6 +171,13 @@ export function hasProjectSecret(content) {
     if (content[match.index - 1] === '.' && /\s/.test(match[2])) continue;
     return true;
   }
+  // Groovy/Gradle command call (`storePassword 'x'`): the keyword starts a statement and takes a literal argument.
+  if (
+    /(?:^|[{;])[ \t]*[\w$]*(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|pwd|encryption[_-]?key)[ \t]+(["'])(?!\1)/im.test(
+      content
+    )
+  )
+    return true;
   for (const match of content.matchAll(/\b(?:password|pwd)\s*=\s*([^;\r\n]+)/gi)) {
     const value = match[1].trim();
     if (!value || /^(["'`])\1\s*[,}]?$/.test(value)) continue;
