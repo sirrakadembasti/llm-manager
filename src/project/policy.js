@@ -168,6 +168,14 @@ export function hasProjectSecret(content) {
       /^(?:ref|shallowRef)\s*(?:<[^>]+>)?\s*\(\s*(?:''|""|false|true|null|undefined|0)?\s*\)\s*[,}]?$/.test(value);
     const reference = /^[\w$]+(?:\.[\w$]+)*(?:\(\s*\))?\s*(?:[,})]|$)/.test(value);
     if (code && (emptyRef || reference)) continue;
+    // A plain statement `password = a.b.c;`: a dotted reference ended by `;`. Without the dots and
+    // the semicolon, `PASSWORD=hunter2` or `password=my.secret.pass` would look the same.
+    const lineStart = /(?:^|[{}])[ \t]*$/.test(
+      content.slice(content.lastIndexOf('\n', match.index - 1) + 1, match.index)
+    );
+    const assignedReference =
+      lineStart && /^[\w$]+(?:\.[\w$]+)+$/.test(value) && content[match.index + match[0].length] === ';';
+    if (assignedReference) continue;
     return true;
   }
   return false;
