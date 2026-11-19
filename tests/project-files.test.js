@@ -256,7 +256,7 @@ const newTypes = {
   ],
   'src/pages/index.astro': ['---\nconst apiKey = "abcd1234";\n---', '---\nconst apiKey = import.meta.env.KEY;\n---'],
   'docs/guide.mdx': ['export const cfg = { password: "hunter2" };', 'export const cfg = { password: env.PASS };'],
-  'lib/db.dart': ["final password = 'hunter2';", 'final password = readPassword();'],
+  'lib/db.dart': ["final password = 'hunter2';", 'final password = Platform.environment["PASS"];'],
   'src/Db.scala': ['val password = "hunter2"', 'val password = sys.env("PASS")'],
   'lib/db.ex': ['config :app, password: "hunter2"', 'config :app, password: System.get_env("PASS")'],
   'config/runtime.exs': ['config :app, password: "hunter2"', 'config :app, password: System.fetch_env!("PASS")'],
@@ -271,8 +271,8 @@ const newTypes = {
   ],
   'build.gradle.kts': ['val password = "hunter2"', 'val password = System.getenv("PASS")'],
   'views/login.ejs': ['<% const password = "hunter2"; %>', '<input type="password" value="<%= password %>">'],
-  'views/db.hbs': ['{{> db password="hunter2"}}', '{{> db field=password}}'],
-  'templates/db.jinja': ['{% set password = "hunter2" %}', '{% set password = get_password() %}']
+  'views/db.hbs': ['{{> db password="hunter2"}}', '{{> db password=dbPassword}}'],
+  'templates/db.jinja': ['{% set password = "hunter2" %}', '{% set password = env.PASS %}']
 };
 
 test('newly supported file types are scanned and keep the secret filter working in their own syntax', async t => {

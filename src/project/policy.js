@@ -188,11 +188,15 @@ export function hasProjectSecret(content) {
     if (computed && !fallbackLiteral) continue;
     const prefix = content.slice(Math.max(0, match.index - 120), match.index);
     // Declarations, member assignments and destructuring/parameter defaults.
-    const code = /(?:\b(?:const|let|var)\s+|[\w$]+\.\s*|[{(,]\s*|[\w$]+\s*:\s*)$/i.test(prefix);
+    const code = /(?:\b(?:const|let|var|final|val)\s+|[\w$]+\.\s*|[{(,]\s*|[\w$]+\s*:\s*)$/i.test(prefix);
     const emptyRef =
       /^(?:ref|shallowRef)\s*(?:<[^>]+>)?\s*\(\s*(?:''|""|false|true|null|undefined|0)?\s*\)\s*[,}]?$/.test(value);
-    const reference = /^[\w$]+(?:\.[\w$]+)*(?:\(\s*\))?\s*(?:[,})]|$)/.test(value);
+    const reference = /^[\w$]+(?:\.[\w$]+)*(?:\[[^\]\r\n]*\])*(?:\(\s*\))?\s*(?:[,})]|$)/.test(value);
     if (code && (emptyRef || reference)) continue;
+    // Template tags: Jinja/Twig '{% set password = a.b %}' and a Handlebars hash argument '{{> db password=a.b}}'.
+    // The right side must be a name (not a number or literal) closed by the tag end.
+    const templateTag = /\{%-?\s*set\s+$|\{\{[^{}\r\n]*\s$/.test(prefix);
+    if (templateTag && /^[A-Za-z_$][\w$]*(?:\.[\w$]+)*\s*(?:\}\}|-?%\})/.test(value)) continue;
     // A plain statement `password = a.b.c;`: a dotted reference ended by `;`. Without the dots and
     // the semicolon, `PASSWORD=hunter2` or `password=my.secret.pass` would look the same.
     const lineStart = /(?:^|[{}])[ \t]*$/.test(
