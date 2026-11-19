@@ -58,6 +58,7 @@ export interface ProjectInventory {
   revision: string;
   scannedAt: string;
   fileCount: number;
+  maskedFileCount: number;
   documentCount: number;
   bytes: number;
   excluded: number;

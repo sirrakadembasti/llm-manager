@@ -221,3 +221,29 @@ test('project reader rejects oversized files and aborts before scanning', async 
   controller.abort();
   await assert.rejects(files.scan({ signal: controller.signal }), { name: 'AbortError' });
 });
+
+test('scan keeps assignment-style secret files out of files but returns them masked for sourced chat', async t => {
+  const { root, write } = await fixture(t);
+  const secret = 'synthetic-private-password-value';
+  await write('tests/login.test.js', `import a from 'a';\nconst password = "${secret}";\nassert.ok(a);\n`);
+  await write('src/real.js', 'const key = "sk-abcdefghijklmnopqrstuvwxyz0123";\nconst password = "x";\n');
+  await write('src/app.js', 'export const ok = 1;\n');
+  const reader = createProjectFiles({ root });
+  const first = await reader.scan();
+  assert.deepEqual(
+    first.files.map(f => f.path),
+    ['src/app.js']
+  );
+  assert.deepEqual(
+    first.maskedFiles.map(f => f.path),
+    ['tests/login.test.js']
+  );
+  const [masked] = first.maskedFiles;
+  assert.equal(masked.content, "import a from 'a';\n[GİZLENDİ]\nassert.ok(a);\n");
+  assert.equal(masked.masked, 1);
+  assert.doesNotMatch(JSON.stringify(first), new RegExp(secret));
+  assert.equal(first.exclusionCounts.secret, 2);
+  await assert.rejects(reader.read('tests/login.test.js'), { code: 'PROJECT_SECRET_DETECTED' });
+  await write('tests/login.test.js', `import a from 'a';\nconst password = "${secret}-2";\nassert.ok(a);\n`);
+  assert.notEqual((await reader.scan()).revision, first.revision);
+});

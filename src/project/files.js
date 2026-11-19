@@ -7,6 +7,7 @@ import {
   projectError,
   projectPath,
   hasProjectSecret,
+  maskProjectSecrets,
   isWithin,
   skipDirectory,
   diagnosticProjectPath
@@ -51,7 +52,7 @@ export function createProjectFiles({
     return current;
   }
 
-  async function read(relativePath, { signal, gitChecked = false } = {}) {
+  async function read(relativePath, { signal, gitChecked = false, masked = false } = {}) {
     signal?.throwIfAborted();
     const absolute = await resolveFile(relativePath);
     if (await isProjectIgnored(await rootPath(), relativePath, { git: !gitChecked })) {
@@ -80,8 +81,13 @@ export function createProjectFiles({
       } catch {
         throw projectError('PROJECT_PATH_DENIED', 'UTF-8 olmayan kaynak bağlama alınmaz.', 403, 'encoding');
       }
-      if (hasProjectSecret(content))
-        throw projectError('PROJECT_SECRET_DETECTED', 'Sır içerebilecek kaynak dosyası dışlandı.', 403, 'secret');
+      if (hasProjectSecret(content)) {
+        // Masked reads serve sourced chat only; the unmasked reader keeps the file out of every other flow.
+        const view = masked && maskProjectSecrets(content);
+        if (!view)
+          throw projectError('PROJECT_SECRET_DETECTED', 'Sır içerebilecek kaynak dosyası dışlandı.', 403, 'secret');
+        return { path: relativePath, content: view.content, hash: digest(data), bytes: bytesRead, masked: view.count };
+      }
       return { path: relativePath, content, hash: digest(data), bytes: bytesRead };
     } finally {
       await handle.close();
@@ -185,6 +191,9 @@ export function createProjectFiles({
             : 3;
     candidates.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
     const files = [];
+    // Chat-only masked views have their own budget so they never displace files the other flows read.
+    const maskedFiles = [];
+    let maskedBytes = 0;
     let bytes = 0;
     let partial = walkLimited;
     // limited: sayı/toplam/gezinti sınırı kaynak atladı. Yalnız tek dosya boyutu aşıldığında false kalır.
@@ -203,7 +212,15 @@ export function createProjectFiles({
           exclude(name, 'file-count');
           continue;
         }
-        const file = await read(name, { signal, gitChecked: true });
+        const file = await read(name, { signal, gitChecked: true, masked: true });
+        if (file.masked) {
+          if (maskedFiles.length < maxFiles && maskedBytes + file.bytes <= maxTotalBytes) {
+            maskedFiles.push(file);
+            maskedBytes += file.bytes;
+          }
+          exclude(name, 'secret');
+          continue;
+        }
         if (bytes + file.bytes > maxTotalBytes) {
           partial = limited = true;
           exclude(name, 'total-size');
@@ -221,6 +238,7 @@ export function createProjectFiles({
     return {
       name: path.basename(base),
       files,
+      maskedFiles,
       bytes,
       excluded,
       exclusions,
@@ -229,7 +247,9 @@ export function createProjectFiles({
       partial,
       limited,
       gitAware,
-      revision: digest(files.map(f => `${f.path}:${f.hash}`).join('\n')),
+      revision: digest(
+        [...files.map(f => `${f.path}:${f.hash}`), ...maskedFiles.map(f => `${f.path}:${f.hash}:masked`)].join('\n')
+      ),
       scannedAt: new Date().toISOString()
     };
   }

@@ -817,3 +817,36 @@ test('an oversized single file keeps tasks available but count limits still bloc
   assert.equal(blocked.status, 409);
   assert.equal(blocked.body.error?.code ?? blocked.body.code, 'PROJECT_SCAN_INCOMPLETE');
 });
+
+test('sourced chat sees masked test files while change tasks and the graph never do', async t => {
+  const { root, options } = await fixture(t);
+  const secret = 'synthetic-private-password-value';
+  await fs.writeFile(
+    path.join(root, 'login.test.js'),
+    `import { login } from './server.js';\nconst password = "${secret}";\nlogin(password);\n`
+  );
+  let captured;
+  const assistant = createProjectAssistant({
+    options: options.project,
+    getActiveProfile: options.store.getActive,
+    ask: async messages => {
+      captured = messages;
+      return { text: 'ok' };
+    }
+  });
+  t.after(() => assistant.close());
+  const scanned = await assistant.handle({ method: 'POST', path: '/project/scan', body: {} });
+  assert.ok(!scanned.body.inventory.files.some(f => f.path === 'login.test.js'));
+  assert.equal(scanned.body.inventory.maskedFileCount, 1);
+  const reply = await assistant.handle({
+    method: 'POST',
+    path: '/project/chat',
+    body: { prompt: 'login.test.js login', shareSources: true, revision: scanned.body.inventory.revision }
+  });
+  assert.equal(reply.status, 200);
+  const sent = captured[1].content;
+  assert.match(sent, /login\.test\.js/);
+  assert.match(sent, /\[GİZLENDİ\]/);
+  assert.doesNotMatch(JSON.stringify(captured), new RegExp(secret));
+  assert.ok(reply.body.sources.some(s => s.path === 'login.test.js'));
+});

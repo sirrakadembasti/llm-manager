@@ -82,3 +82,31 @@ test('K12: bare assignments that can hold a real secret stay excluded', () => {
   ])
     assert.equal(hasProjectSecret(source), true, source);
 });
+
+test('maskProjectSecrets replaces only assignment-style secret lines and keeps line numbers', async () => {
+  const { maskProjectSecrets } = await import('../src/project/policy.js');
+  const source = [
+    'import x from "y";',
+    '  const password = "hunter2";',
+    'run(x);',
+    "  apiKey: 'synthetic-value',",
+    ''
+  ].join('\n');
+  const masked = maskProjectSecrets(source);
+  assert.equal(masked.count, 2);
+  assert.equal(masked.content.split('\n').length, source.split('\n').length);
+  assert.deepEqual(masked.content.split('\n'), ['import x from "y";', '  [GİZLENDİ]', 'run(x);', '  [GİZLENDİ]', '']);
+  assert.doesNotMatch(masked.content, /hunter2|synthetic-value/);
+  assert.equal(hasProjectSecret(masked.content), false);
+});
+
+test('maskProjectSecrets keeps CRLF endings and refuses files holding real credential formats', async () => {
+  const { maskProjectSecrets } = await import('../src/project/policy.js');
+  assert.equal(maskProjectSecrets('a\r\npassword = "hunter2";\r\nb\r\n').content, 'a\r\n[GİZLENDİ]\r\nb\r\n');
+  // Hard credential formats and anything the masked text still trips on stay fully excluded.
+  assert.equal(maskProjectSecrets('const password = "x";\nconst k = "sk-abcdefghijklmnopqrstuvwxyz";'), null);
+  assert.equal(maskProjectSecrets('-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----'), null);
+  assert.equal(maskProjectSecrets('postgresql://user:pass123@localhost/db\npassword = "x";'), null);
+  assert.equal(maskProjectSecrets('const a = AKIAABCDEFGHIJKLMNOP;\npassword = "x";'), null);
+  assert.equal(maskProjectSecrets('const a = 1;\n'), null);
+});
