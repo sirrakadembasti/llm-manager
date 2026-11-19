@@ -251,3 +251,27 @@ test('usage read and write failures remain non-fatal and malformed lines are ski
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('K21: kullanım kaydı, deponun gerçek dosya yolunun klasörüne yazılır (dataDir verilmese de)', async () => {
+  const dir = `tests/.tmp-usage-store-path-${Date.now()}`;
+  try {
+    const store = createLLMProfileStore({ filePath: path.join(dir, 'ozel', 'profiller.json'), allowLocalHttp: true });
+    const saved = await store.save({
+      name: 'Test Profile',
+      provider: 'openai',
+      model: 'mock-model',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'sk-test'
+    });
+    await store.activate(saved.id, saved.revision);
+    const manager = createLLMManager({ store, usageLog: true, allowLocalHttp: true, generate: async () => 'Tamam' });
+    await manager.ask('Merhaba!');
+    const files = fs.readdirSync(path.join(dir, 'ozel'));
+    assert.ok(
+      files.some(name => /^usage-\d{4}-\d{2}\.jsonl$/.test(name)),
+      files.join(', ')
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -338,7 +338,7 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 
 ## Dağıtım ve ayarlar
 
-Üretimde TLS ters vekili, servis hesabı ve kalıcı veri dizini kullanın. Ağa açık CLI en az **12 karakter** parola ister. Parolayı komut satırı/kabuk geçmişi yerine servis ortamında tutun. Sağlık: `curl -f http://127.0.0.1:8010/api/llm/health`; ok/version/hasActiveProfile/requestId döner, canlı sağlayıcı başarısını kanıtlamaz. `usageLog:true` veya `LLM_USAGE_LOG=true` aylık içeriksiz JSONL ve admin `/usage` açar; `chat.completed` başarı/hata/iptal/erken yineleyici dönüşü dahil mantıksal isteği bir kez kaydeder, bilinmeyen usage null'dır.
+Üretimde TLS ters vekili, servis hesabı ve kalıcı veri dizini kullanın. Ağa açık CLI en az **12 karakter** parola ister. Parolayı komut satırı/kabuk geçmişi yerine servis ortamında tutun. Sağlık: `curl -f http://127.0.0.1:8010/api/llm/health`; ok/version/hasActiveProfile/requestId döner, canlı sağlayıcı başarısını kanıtlamaz. `usageLog:true` veya `LLM_USAGE_LOG=true` aylık içeriksiz JSONL (`usage-YYYY-MM.jsonl`; `dataDir`, yoksa profil dosyasının klasörü, o da yoksa `data/`) ve admin `/usage` açar; `chat.completed` başarı/hata/iptal/erken yineleyici dönüşü dahil mantıksal isteği bir kez kaydeder, bilinmeyen usage null'dır.
 
 | Ayar | Kapsam |
 | --- | --- |
