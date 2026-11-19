@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { runInteractiveInit, initLLMProject, verifyIntegration } from '../src/init.js';
+import { probeCompiledHost, probeAndOpenBrowser } from '../src/init/probe.js';
 
 const packageName = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;
 
@@ -87,7 +88,7 @@ test('Next.js uygulaması çalışıyorsa sihirbaz yönetim sayfasını orada do
       res.writeHead(200, { 'Content-Type': 'text/html' });
       return res.end('<main data-api-base="/api/llm"></main>');
     }
-    res.writeHead(401);
+    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="LLM Yonetimi"' });
     res.end();
   });
   host.listen(0, '127.0.0.1');
@@ -111,4 +112,50 @@ test('sır dosyası kontrolü .env* ve /data/ gibi kapsayan .gitignore kurallar�
   assert.equal(fs.readFileSync(path.join(cwd, '.gitignore'), 'utf8'), '/data/\n.env*\n!.env.example\n*.key\n');
   const check = verifyIntegration({ cwd, type: 'express' }).checks.find(item => item.id === 'secrets_ignored');
   assert.equal(check.ok, true);
+});
+
+async function foreignServer(t, handler) {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    seen.push(req.headers.authorization);
+    handler(req, res);
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => server.close());
+  return { seen, port: server.address().port };
+}
+
+test('sihirbaz probu yönetici parolasını LLM Yonetimi kimlik doğrulaması sunmayan sürece göndermez', async t => {
+  for (const handler of [
+    (req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<main data-api-base="/api/llm"></main>');
+    },
+    (req, res) => {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Baska Uygulama"' });
+      res.end();
+    }
+  ]) {
+    const { seen, port } = await foreignServer(t, handler);
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-probe-foreign-'));
+    t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+    const compiled = await probeCompiledHost({
+      cwd,
+      type: 'nextjs',
+      hostPort: port,
+      password: 'gizli-parola-123',
+      openBrowser: false
+    });
+    assert.equal(compiled.hostVerified, false);
+    const standalone = await probeAndOpenBrowser({
+      cwd,
+      port,
+      password: 'gizli-parola-123',
+      startServerIfNeeded: false,
+      openBrowser: false
+    });
+    assert.equal(standalone.ok, false);
+    assert.deepEqual(seen.filter(Boolean), []);
+  }
 });
