@@ -110,3 +110,21 @@ test('maskProjectSecrets keeps CRLF endings and refuses files holding real crede
   assert.equal(maskProjectSecrets('const a = AKIAABCDEFGHIJKLMNOP;\npassword = "x";'), null);
   assert.equal(maskProjectSecrets('const a = 1;\n'), null);
 });
+
+test('Groovy/Gradle command-style credentials are secrets, computed ones are not', () => {
+  for (const line of [
+    "storePassword 'hunter2'",
+    '    keyPassword "hunter2"',
+    "signingConfigs { release { storePassword 'hunter2' } }",
+    "password 'hunter2'"
+  ])
+    assert.equal(hasProjectSecret(line), true, line);
+  for (const line of [
+    'storePassword System.getenv("STORE_PASS")',
+    "storePassword keystoreProps['storePassword']",
+    'keyPassword = props.keyPassword',
+    "// Enter your password 'again' in the prompt",
+    'Kullanıcı password sorusuna evet dedi'
+  ])
+    assert.equal(hasProjectSecret(line), false, line);
+});

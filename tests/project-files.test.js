@@ -247,3 +247,50 @@ test('scan keeps assignment-style secret files out of files but returns them mas
   await write('tests/login.test.js', `import a from 'a';\nconst password = "${secret}-2";\nassert.ok(a);\n`);
   assert.notEqual((await reader.scan()).revision, first.revision);
 });
+
+const newTypes = {
+  'Web/Login.cshtml': ['@{ var password = "hunter2"; }', '<input type="password" name="password" />'],
+  'Pages/Login.razor': [
+    '@code { private string password = "hunter2"; }',
+    '<input type="password" @bind="Model.Pass" />'
+  ],
+  'src/pages/index.astro': ['---\nconst apiKey = "abcd1234";\n---', '---\nconst apiKey = import.meta.env.KEY;\n---'],
+  'docs/guide.mdx': ['export const cfg = { password: "hunter2" };', 'export const cfg = { password: env.PASS };'],
+  'lib/db.dart': ["final password = 'hunter2';", 'final password = readPassword();'],
+  'src/Db.scala': ['val password = "hunter2"', 'val password = sys.env("PASS")'],
+  'lib/db.ex': ['config :app, password: "hunter2"', 'config :app, password: System.get_env("PASS")'],
+  'config/runtime.exs': ['config :app, password: "hunter2"', 'config :app, password: System.fetch_env!("PASS")'],
+  'scripts/db.lua': ['local password = "hunter2"', 'local password = os.getenv("PASS")'],
+  'infra/main.tf': [
+    'resource "x" "y" {\n  password = "hunter2"\n}',
+    'resource "x" "y" {\n  password = var.db_password\n}'
+  ],
+  'app/build.gradle': [
+    "signingConfigs { release { storePassword 'hunter2' } }",
+    'release { storePassword System.getenv("STORE_PASS") }'
+  ],
+  'build.gradle.kts': ['val password = "hunter2"', 'val password = System.getenv("PASS")'],
+  'views/login.ejs': ['<% const password = "hunter2"; %>', '<input type="password" value="<%= password %>">'],
+  'views/db.hbs': ['{{> db password="hunter2"}}', '{{> db field=password}}'],
+  'templates/db.jinja': ['{% set password = "hunter2" %}', '{% set password = get_password() %}']
+};
+
+test('newly supported file types are scanned and keep the secret filter working in their own syntax', async t => {
+  const { root, write } = await fixture(t);
+  for (const [name, [secret, safe]] of Object.entries(newTypes)) {
+    await write(name, `${safe}\n`);
+    await write(name.replace(/(\.[^./]+)$/, '.private$1'), `${secret}\n`);
+  }
+  await write('config/.env.example', 'PASSWORD=hunter2\n');
+  const snapshot = await createProjectFiles({ root }).scan();
+  const included = new Set(snapshot.files.map(f => f.path));
+  const reasons = new Map(snapshot.exclusions.map(item => [item.path, item.reason]));
+  for (const name of Object.keys(newTypes)) {
+    assert.ok(included.has(name), `${name} taranmalı`);
+    const privateName = name.replace(/(\.[^./]+)$/, '.private$1');
+    assert.ok(!included.has(privateName), `${privateName} sabit parola nedeniyle dışlanmalı`);
+    assert.equal(reasons.get(privateName), 'secret', privateName);
+  }
+  assert.ok(!included.has('config/.env.example'));
+  assert.doesNotMatch(JSON.stringify(snapshot.files), /hunter2/);
+});
