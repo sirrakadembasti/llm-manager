@@ -128,3 +128,32 @@ test('Groovy/Gradle command-style credentials are secrets, computed ones are not
   ])
     assert.equal(hasProjectSecret(line), false, line);
 });
+
+test('template and typed-declaration references are code, literals in the same syntax still are secrets', () => {
+  for (const line of [
+    '{% set password = env.PASS %}',
+    '{%- set password = settings.db.password -%}',
+    '{{> db password=dbPassword}}',
+    '{{> db user=name password=creds.pass }}',
+    'final password = Platform.environment["PASS"];',
+    'final password = config.password;',
+    'val password = settings.dbPassword'
+  ])
+    assert.equal(hasProjectSecret(line), false, line);
+  for (const line of [
+    '{% set password = "hunter2" %}',
+    '{% set password = 12345 %}',
+    '{% set password = "abc" ~ suffix %}',
+    '{{> db password="hunter2"}}',
+    '{{> db password=12345}}',
+    'final password = "hunter2";',
+    "final password = 'abc' + suffix;",
+    'val password = "hunter2"',
+    'set password = hunter2',
+    'Run: set password = hunter2 and retry',
+    'PASSWORD=hunter2',
+    'password=my.secret.pass',
+    'password = env.PASS %}'
+  ])
+    assert.equal(hasProjectSecret(line), true, line);
+});
