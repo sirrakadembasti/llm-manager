@@ -266,7 +266,7 @@ if (!response.ok) throw new Error(JSON.stringify(result));
 | Üretim | temperature 0–2; topP 0–1; stop en çok 4 dize; responseFormat text/json |
 | `thinking` | auto/enabled/disabled; modele göre tam kapama desteklenmeyebilir |
 | `chatAccess` / `chatOverrides` | authenticated/admin/false; admin/all/none (varsayılan admin) |
-| Kota | Chat 30/dk; test 10/dk; model/önizleme 10/dk; hatalı giriş 10/dk (istemci kimliği verilmeyen `fetch` hostlarında sayaç ortaktır ve başka istemcinin başarılı girişi onu sıfırlamaz; doğru parola sınır dolu olsa da girer) |
+| Kota | Chat 30/dk; test 10/dk; model/önizleme 10/dk; hatalı giriş 10/dk (iki adaptörde aynı kural: istemci kimliği varsa — Express `req.ip`, `fetch` için `getClientId` — sayaç dolunca o istemcinin doğru parolası dahil bütün denemeleri `Retry-After` süresince reddedilir; kimliği yoksa ortak sayaç ve kilitlenme yoktur, kimlik bilgisi taşıyan her doğrulama denemesi sıralı olarak `rateLimit.authDelayMs` (varsayılan 1000 ms) bekletilir, sıra 20'yi aşarsa 429 döner, daha önce doğrulanmış kimlik bilgisi 5 dakika beklemez; ilk girişte ilk istek bir saniye gecikir, aynı anda gelen yeni kimlik bilgili istekler sırayla bekler; `fetch` hostlarında `getClientId` vermeniz önerilir) |
 | Sağlayıcı çıktısı / kısa test | JSON 2 MiB, SSE 8 MiB; quick test en çok 20 sn/512 token |
 | Proje isteği | Prompt 10000 karakter; kaynaklı sohbet geçmişi en çok 12, görev geçmişi 10 mesaj; mesaj başına 10000 karakter |
 | Değişiklik / motor köprüsü | 100 dosya, 2 MiB önce/sonra; 40 sağlayıcı isteği, istek 1 MiB, yanıt 8 MiB |
@@ -480,6 +480,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-19 yapılandırılabilir tarama sınırları | Görev akışında hazırlanan kopya artık hostun tarama sınırlarıyla taranır (varsayılan 4 MiB üstü projede "Hazırlanan değişiklik tarama sınırını aşıyor" hatası kalktı). `LLM_PROJECT_MAX_FILES`, `LLM_PROJECT_MAX_FILE_BYTES`, `LLM_PROJECT_MAX_TOTAL_BYTES` ortam değişkenleri CLI, `npm start` ve sihirbaz kurulumlarında da sınırı ayarlar. |
 | 2026-11-19 yeni dosya türleri | `.cshtml`, `.razor`, `.astro`, `.mdx`, `.dart`, `.scala`, `.ex`, `.exs`, `.lua`, `.tf`, `.gradle`, `.kts`, `.ejs`, `.hbs`, `.jinja` taranır. Sır filtresi her türün sözdiziminde sınandı; Gradle'ın komut biçimli kimlik bilgisi (`storePassword 'x'`) artık sır sayılır. Sabit parola içeren dosya yine dışlanır (kaynaklı sohbette maskelenir). |
 | 2026-11-19 şablon ve tipli bildirim referansları | Jinja/Twig `{% set password = env.PASS %}`, Handlebars `{{> db password=dbPassword}}` ve Dart/Kotlin `final|val password = a.b["X"]` gibi referans atamaları kod sayılır. `"hunter2"`, `12345`, `"abc" ~ x` gibi değerler, `PASSWORD=hunter2` ve bildirimsiz düz yazıdaki `set password = hunter2` hâlâ sır sayılır. |
+| 2026-11-20 ortak hatalı giriş politikası | Express ve Web (`fetch`) adaptörü aynı kuralı (`src/authLimit.js`) kullanır. İstemci kimliği varsa sayaç dolunca doğru parola da reddedilir; kimliği yoksa ortak sayaç kilidi kalktı, doğrulama denemeleri sıralı gecikme alır (`rateLimit.authDelayMs`), yönetici kilitlenmez. |
 
 ### Doğrulanmış durum ve açık işler
 

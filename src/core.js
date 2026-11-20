@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes, isLLMError } from './errors.js';
 import { createRateLimiter } from './rateLimit.js';
+import { createAuthPolicy } from './authLimit.js';
 import { createStructuredLogger, redact, sanitizeRequestId } from './logger.js';
 import {
   generateProfileResponse,
@@ -240,8 +241,8 @@ export function createLLMManager({
         };
 
   const authLimit = rateLimitConfig?.authFailuresPerMinute ?? 10;
-  const authLimiter =
-    rateLimitConfig === false ? null : createRateLimiter({ capacity: authLimit, refillPerSec: authLimit / 60 });
+  const authPolicy =
+    rateLimitConfig === false ? null : createAuthPolicy({ capacity: authLimit, delayMs: rateLimitConfig?.authDelayMs });
   const guarded = async (fn, status = 200) => {
     try {
       return ok(await fn(), status);
@@ -1142,6 +1143,18 @@ export function createLLMManager({
             }
           }
         );
+      const blocked = authPolicy?.blocked(clientKey);
+      if (blocked) {
+        const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
+        response.headers.set('Retry-After', String(blocked.retryAfterSec));
+        return response;
+      }
+      const paced = await authPolicy?.pace(clientKey, authorization);
+      if (paced && !paced.ok) {
+        const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
+        response.headers.set('Retry-After', String(paced.retryAfterSec));
+        return response;
+      }
       principal = checkBearerToken(authorization, tokens);
       if (!principal) {
         if (typeof authorizeRequest === 'function') principal = await authorizeRequest(request);
@@ -1158,18 +1171,11 @@ export function createLLMManager({
         }
       }
       if (!principal) {
-        const limit = authLimiter?.take(clientKey || 'anonymous');
-        if (limit && !limit.ok) {
-          const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
-          response.headers.set('Retry-After', String(limit.retryAfterSec));
-          return response;
-        }
+        authPolicy?.fail(clientKey);
         logger.warn('auth.failed', { requestId, ip: clientKey || undefined });
         return deny(401, 'UNAUTHORIZED', 'Kimlik doğrulama gerekli.');
       }
-      // İstemci kimliği yoksa sayaç ortaktır; başka bir istemcinin (ör. Bearer sohbet) başarısı saldırganın
-      // sayacını sıfırlamamalı. Doğru kimlik bilgisi sınır dolu olsa da girer.
-      if (clientKey) authLimiter?.reset(clientKey);
+      authPolicy?.succeed(clientKey, authorization);
       const isChat = pathname === `${apiPath}/chat` && request.method === 'POST';
       if (principal.isAdmin !== true && (!isChat || chatAccess === 'admin')) {
         return deny(403, 'FORBIDDEN', 'Yönetici yetkisi gerekli.');

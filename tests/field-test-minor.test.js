@@ -86,21 +86,20 @@ test('Proje Asistanı yanıtları requestId taşır', async t => {
   assert.equal((await response.json()).requestId, 'istek-kimligi-1');
 });
 
-test('kimliği olmayan istemcilerde başarılı istek ortak giriş sayacını sıfırlamaz', async () => {
+test('kimliği olmayan istemcilerde ortak sayaç yönetici ve sohbet istemcisini kilitlemez', async () => {
   const manager = createLLMManager({
     store,
     adminPassword: 'pw-123456',
     chatTokens: ['chat-token'],
-    rateLimit: { authFailuresPerMinute: 3 }
+    rateLimit: { authFailuresPerMinute: 3, authDelayMs: 5 }
   });
   const attempt = authorization =>
     manager.fetch(new Request('http://localhost/api/llm/profiles', { headers: { authorization } }));
-  for (let i = 0; i < 3; i++) assert.equal((await attempt(basic('yanlis'))).status, 401);
-  // Bearer istemcisi (ör. sohbet) başarılı kimlik doğrular; saldırganın sayacını sıfırlamamalı.
-  await attempt('Bearer chat-token');
-  assert.equal((await attempt(basic('yanlis'))).status, 429);
-  // Doğru parola sınır dolu olsa da girer.
+  // Ortak sayaç yoktur: hatalı denemeler 429'a dönüşmez, yalnız sıralı gecikme alır.
+  for (let i = 0; i < 6; i++) assert.equal((await attempt(basic('yanlis'))).status, 401);
+  // Doğru parola ve sohbet belirteci engellenmez.
   assert.equal((await attempt(basic('pw-123456'))).status, 200);
+  assert.equal((await attempt('Bearer chat-token')).status, 403);
 });
 
 test('boş farklı değişiklik onaylansa da uygulanmış sayılmaz', async t => {

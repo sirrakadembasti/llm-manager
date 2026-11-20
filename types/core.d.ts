@@ -93,6 +93,8 @@ export interface LLMManagerRateLimitConfig {
   chatPerMinute?: number;
   testPerMinute?: number;
   authFailuresPerMinute?: number;
+  /** İstemci kimliği olmayan hostlarda doğrulama denemeleri arasındaki sabit bekleme (ms, varsayılan 1000). */
+  authDelayMs?: number;
 }
 
 export type LoggerInput = Partial<StructuredLogger> & { log?: (...args: unknown[]) => void };

@@ -5,6 +5,7 @@ import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { createRateLimiter } from './rateLimit.js';
+import { createAuthPolicy } from './authLimit.js';
 import { sanitizeRequestId, createStructuredLogger, redact } from './logger.js';
 import {
   CSRF_HEADER,
@@ -76,34 +77,28 @@ export function createBasicAuth({ user = 'admin', password, rateLimit = true, lo
     });
   }
   const capacity = rateLimit?.authFailuresPerMinute ?? 10;
-  const authLimiter = rateLimit !== false ? createRateLimiter({ capacity, refillPerSec: capacity / 60 }) : null;
+  const authPolicy = rateLimit !== false ? createAuthPolicy({ capacity }) : null;
   const authLogger = createStructuredLogger(logger);
 
   return (req, res, next) => {
     const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
-    if (authLimiter) {
-      const check = authLimiter.check(ip);
-      if (!check.ok) {
-        res.set('Retry-After', String(check.retryAfterSec));
-        return res.status(429).json({ error: 'Çok fazla hatalı giriş denemesi yapıldı.', code: 'RATE_LIMITED' });
-      }
+    const blocked = authPolicy?.blocked(ip);
+    if (blocked) {
+      res.set('Retry-After', String(blocked.retryAfterSec));
+      return res.status(429).json({ error: 'Çok fazla hatalı giriş denemesi yapıldı.', code: 'RATE_LIMITED' });
     }
 
     const authorization = req.get('Authorization') || '';
     const authentication = checkBasicAuth(authorization, { user, password });
     if (!authentication.ok) {
-      if (authLimiter) {
-        authLimiter.take(ip, 1);
-      }
+      authPolicy?.fail(ip);
       authLogger.warn('auth.failed', { ip, requestId: req.requestId });
       res.set('WWW-Authenticate', 'Basic realm="LLM Yonetimi"');
       return res
         .status(401)
         .json({ code: 'UNAUTHORIZED', error: 'Kimlik doğrulama gerekli.', requestId: req.requestId });
     }
-    if (authLimiter) {
-      authLimiter.reset(ip);
-    }
+    authPolicy?.succeed(ip);
     req.user = authentication.principal;
     next();
   };
