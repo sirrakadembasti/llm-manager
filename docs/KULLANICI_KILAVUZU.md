@@ -271,7 +271,7 @@ if (!response.ok) throw new Error(JSON.stringify(result));
 | Proje isteği | Prompt 10000 karakter; kaynaklı sohbet geçmişi en çok 12, görev geçmişi 10 mesaj; mesaj başına 10000 karakter |
 | Değişiklik / motor köprüsü | 100 dosya, 2 MiB önce/sonra; 40 sağlayıcı isteği, istek 1 MiB, yanıt 8 MiB |
 
-Proje chat/tasks mevcut chat kotasını paylaşır. Kota anahtarı host `clientKey` veya Web `getClientId(request)`, sonra `principal.id`, yoksa ortak anonim kimliktir. Express `req.ip`/`trust proxy` hostun sorumluluğudur. 429 `Retry-After` taşır; `rateLimit:false` kapatır. Kotalar süreç içidir, dağıtık maliyet tavanı değildir.
+Proje chat/tasks mevcut chat kotasını paylaşır. Kota anahtarı host `clientKey` veya Web `getClientId(request)`, sonra `principal.id`, yoksa ortak anonim kimliktir. Express `req.ip` değerini bağımsız sunucuda `trustProxy` / `LLM_TRUST_PROXY` belirler; kendi Express uygulamanıza bağlıyorsanız `trust proxy` ayarı hostun sorumluluğudur. Ters vekil arkasında bu ayar yoksa bütün istemciler vekilin adresiyle tek sayaç ve kota paylaşır, tek kişinin yanlış denemeleri herkesi kilitler. 429 `Retry-After` taşır; `rateLimit:false` kapatır. Kotalar süreç içidir, dağıtık maliyet tavanı değildir.
 
 Amaçlar `quick | diagnostic | default`. MiMo auto modunda `purpose: 'diagnostic'` ve `purpose: 'quick'` düşünmeyi kapatır; `purpose: 'default'` model varsayılanını korur. MiMo quick testi açık thinking seçimini de kapatır. Test geçmesi üretim uygunluğu garantisi değildir.
 
@@ -348,6 +348,7 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 | HOST / PORT / LLM_DATA_DIR | CLI: 127.0.0.1 / 8010 / ./data; bayraklar öncelikli. `npm start` örneği yalnız PORT'u doğrudan okur. |
 | LLM_CONFIG_PATH / LLM_CONFIG_KEY_PATH / LLM_CONFIG_ENCRYPTION_KEY | Açık dosya yolları / 32 bayt hex veya base64 anahtar |
 | LLM_CHAT_TOKENS / LLM_ALLOWED_ORIGINS | Chat Bearer listesi / açık CORS origin listesi |
+| LLM_TRUST_PROXY | Yalnız CLI/bağımsız sunucu (`trustProxy`, `--trust-proxy`): Express `trust proxy`. Varsayılan kapalı, `X-Forwarded-For` yok sayılır. Nginx/IIS gibi **tek** ters vekil arkasında `1`; zincir için adres listesi veya adı (`127.0.0.1,loopback`). `true` her başlığa güvenir; doğrudan erişilebilen sunucuda istemci kendi IP'sini uydurup hatalı giriş ve sohbet kotasını atlatır, kullanmayın. |
 | LLM_ALLOW_LOCAL_HTTP / LLM_HTTPS_PROXY / LLM_USAGE_LOG | true ile yerel HTTP istisnası / proxy / true ile kullanım kaydı |
 | LLM_PROJECT_ROOT / LLM_OPENCODE_PATH / LLM_GRAPHIFY_PYTHON | Kaynak kökü / OpenCode motor yolu / isteğe bağlı Graphify kurulu Python yorumlayıcısının mutlak yolu |
 | LLM_PROJECT_MAX_FILES / LLM_PROJECT_MAX_FILE_BYTES / LLM_PROJECT_MAX_TOTAL_BYTES | Tarama sınırları: dosya sayısı (varsayılan 2500; 1–20000), dosya başına bayt (262144; 1–8 MiB), toplam bayt (4 MiB; 1–64 MiB). Pozitif ondalık tam sayı olmayan veya üst sınırı aşan değer yok sayılır, varsayılan kalır. Toplam sınır kadar kaynak bellekte okunur ve plan/değişiklik görevinde geçici kopyaya alınır; gereksiz büyütmeyin. `project` seçeneğindeki `maxFiles`/`maxFileBytes`/`maxTotalBytes` aynı sınırlardır. |
@@ -356,7 +357,7 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 | LLM_RETRY | `false` sağlayıcı tekrarını kapatır (`retry` seçeneği verilmediyse) |
 | LLM_BACKUP_PASSWORD | CLI export/import yedek parolası; yoksa LLM_ADMIN_PASSWORD kullanılır |
 
-Her giriş noktası her değişkeni otomatik okumaz. CLI bayrakları `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`, `--project-root`; tümü için `--help`.
+Her giriş noktası her değişkeni otomatik okumaz. CLI bayrakları `--host`, `--port`, `--data-dir`, `--user`, `--password`, `--chat-token`, `--cors`, `--trust-proxy`, `--project-root`; tümü için `--help`.
 
 LAN host izinlerini programatik `allowedPrivateHosts` seçeneğiyle verin; önceki belgede anılan `LLM_ALLOWED_PRIVATE_HOSTS` mevcut kod tarafından okunmaz. Proxy için ek `allowedHosts` verilebilir. Kaynak kökü ve araçlar core tarafından env'den çözülebilir; paket entegrasyonunda açık seçenekler kullanılabilir.
 
@@ -372,7 +373,7 @@ docker run -d --name llm-manager --restart unless-stopped -p 8010:8010 -v llm_da
 | Servis | Asgari kurulum |
 | --- | --- |
 | PM2 | `pm2 start node_modules/@sirrakadembasti/llm-manager/bin/llm-manager.js --name llm-manager`; cwd'yi `.env` olan hosta ayarlayın, `pm2 startup` talimatını uygulayın, `pm2 save`. |
-| systemd | WorkingDirectory host, EnvironmentFile host/.env, User ayrı servis hesabı; ExecStart mutlak node + paketin bin/llm-manager.js yolu; Restart=on-failure, TimeoutStopSec=15. `systemctl daemon-reload`, enable --now; journalctl ile izleyin. |
+| systemd | WorkingDirectory host, EnvironmentFile host/.env, User ayrı servis hesabı; ExecStart mutlak node + paketin bin/llm-manager.js yolu; Restart=on-failure, TimeoutStopSec=15. Nginx/IIS arkasındaysa `.env` dosyasına `LLM_TRUST_PROXY=1` ekleyin (vekil `X-Forwarded-For` göndermelidir). `systemctl daemon-reload`, enable --now; journalctl ile izleyin. |
 | Windows/NSSM | `nssm install LLMManager 'C:\Program Files\nodejs\node.exe'`; AppDirectory host, AppParameters paketin mutlak CLI yolu. Boşluklu yolu tırnaklayın, servis hesabı/ACL ve otomatik başlangıç ayarlayın. Ek ortam için AppEnvironmentExtra mevcut sistem ortamını korur. |
 
 **Dağıtım kabulü iş akışı** (`.github/workflows/deploy-acceptance.yml`) bu kurulumları GitHub'ın Linux ve Windows Server makinelerinde gerçekten kurar ve `scripts/acceptance/deploy-check.mjs` ile dışarıdan sınar: Docker imajı (root olmayan kullanıcı, healthcheck, `docker restart` ve kapsayıcı yeniden oluşturulunca `/data` volume'unun korunması); ayrı servis hesabıyla systemd + Nginx ve yerel CA sertifikalı HTTPS (HTTP→HTTPS yönlendirmesi, `/stok/llm` önekli ikinci kurulum, `systemctl restart`, `kill -9` sonrası `Restart=on-failure`, 15 sn içinde düzgün kapanış); Windows Server'da NSSM servisi + IIS (URL Rewrite/ARR ters vekil, kendinden imzalı HTTPS bağlaması, servis/IIS yeniden başlatma ve çöken sürecin geri gelmesi). Her senaryoda oturumsuz/yanlış parolayla 401, oturumlu sayfa/betik/API, CSRF başlığı olmayan yazmanın 403 alması ve sahte anahtarlı kabul profilinin yeniden başlatmadan sonra korunması denetlenir; model çağrısı yapılmaz, parola her koşuda rastgele üretilip günlükte maskelenir. İş akışı yalnız elle çalışır (`gh workflow run deploy-acceptance.yml --ref <dal>` veya GitHub'da Actions → Dağıtım kabulü → Run workflow); zamanlanmış, etiket veya PR tetikleyicisi yoktur. Dockerfile, servis talimatları veya kabul betikleri değişince elle çalıştırılmalıdır. Gerçek domain/genel sertifika ve gerçek VPS ağı bu kabulün kapsamı dışındadır.
@@ -481,6 +482,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-19 yeni dosya türleri | `.cshtml`, `.razor`, `.astro`, `.mdx`, `.dart`, `.scala`, `.ex`, `.exs`, `.lua`, `.tf`, `.gradle`, `.kts`, `.ejs`, `.hbs`, `.jinja` taranır. Sır filtresi her türün sözdiziminde sınandı; Gradle'ın komut biçimli kimlik bilgisi (`storePassword 'x'`) artık sır sayılır. Sabit parola içeren dosya yine dışlanır (kaynaklı sohbette maskelenir). |
 | 2026-11-19 şablon ve tipli bildirim referansları | Jinja/Twig `{% set password = env.PASS %}`, Handlebars `{{> db password=dbPassword}}` ve Dart/Kotlin `final|val password = a.b["X"]` gibi referans atamaları kod sayılır. `"hunter2"`, `12345`, `"abc" ~ x` gibi değerler, `PASSWORD=hunter2` ve bildirimsiz düz yazıdaki `set password = hunter2` hâlâ sır sayılır. |
 | 2026-11-20 ortak hatalı giriş politikası | Express ve Web (`fetch`) adaptörü aynı kuralı (`src/authLimit.js`) kullanır. İstemci kimliği varsa sayaç dolunca doğru parola da reddedilir; kimliği yoksa ortak sayaç kilidi kalktı, doğrulama denemeleri sıralı gecikme alır (`rateLimit.authDelayMs`), yönetici kilitlenmez. |
+| 2026-11-20 ters vekil güveni | Bağımsız sunucu ve CLI için `trustProxy` / `--trust-proxy` / `LLM_TRUST_PROXY` eklendi. Varsayılan kapalı; `1` (atlama sayısı) veya adres listesi verilince hatalı giriş ve sohbet kotası istemci başına ayrılır. Geçersiz değer sunucuyu başlatmaz. |
 
 ### Doğrulanmış durum ve açık işler
 

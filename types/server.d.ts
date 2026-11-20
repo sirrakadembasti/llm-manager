@@ -20,6 +20,11 @@ export interface StandaloneServerOptions {
   pagePath?: string;
   apiPath?: string;
   allowedOrigins?: string | string[];
+  /**
+   * Ters vekil güveni (Express `trust proxy`). Varsayılan kapalı: `X-Forwarded-For` yok sayılır. Atlama sayısı (`1`)
+   * veya adres listesi/adı (`'127.0.0.1,loopback'`) verin; `true` her başlığa güvenir, başlık sahteciliği riski taşır.
+   */
+  trustProxy?: boolean | number | string;
   dataDir?: string;
   chatTokens?: string | string[];
   logger?: LoggerInput | null;
