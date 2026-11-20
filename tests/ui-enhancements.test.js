@@ -60,3 +60,9 @@ test('fetchHandler serves custom homeUrl for Web standard request', async () => 
   const body = await res.text();
   assert.match(body, /data-home-url="\/portal"/);
 });
+
+test('K21: homeUrl öznitelik değerinde kaçışlanır; tırnak ve $ desenleri sayfayı bozmaz', () => {
+  const { html } = createUiAssets({ homeUrl: '/a"><script>x</script>?p=1&q=$&' });
+  assert.match(html, /data-home-url="\/a&quot;&gt;&lt;script&gt;x&lt;\/script&gt;\?p=1&amp;q=\$&amp;"/);
+  assert.doesNotMatch(html, /<script>x<\/script>/);
+});
