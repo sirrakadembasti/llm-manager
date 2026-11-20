@@ -1,4 +1,5 @@
 import { LLMError, ErrorCodes } from '../errors.js';
+import { modelFamily } from '../providers.js';
 
 // Düşünme token'ları çıktı olarak faturalanır ve toplama dahildir; önbellekli token'lar prompt'un alt kümesidir.
 function usageOf(metadata) {
@@ -73,11 +74,10 @@ export default {
     }));
 
     const generationConfig = { maxOutputTokens: opts.maxOutputTokens };
-    const thinkingLevel = /^gemini-[34](?:[.-]|$)/.test(String(profile.model).replace(/^models\//, ''));
-    if (
-      opts.thinking === 'disabled' &&
-      (thinkingLevel || /^gemini-2\.5-pro/.test(String(profile.model).replace(/^models\//, '')))
-    ) {
+    // Düzey tabanlı düşünme ve kapatılamayan modeller katalogdaki model ailesinden gelir (`providers.json`).
+    const family = modelFamily('google', profile.model);
+    const thinkingLevel = family?.thinking === 'level';
+    if (opts.thinking === 'disabled' && family?.disableThinking === false) {
       throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Bu Gemini modelinde düşünme tamamen kapatılamaz.', {
         status: 400,
         retryable: false
