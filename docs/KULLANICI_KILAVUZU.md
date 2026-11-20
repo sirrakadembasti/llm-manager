@@ -484,6 +484,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-20 ortak hatalı giriş politikası | Express ve Web (`fetch`) adaptörü aynı kuralı (`src/authLimit.js`) kullanır. İstemci kimliği varsa sayaç dolunca doğru parola da reddedilir; kimliği yoksa ortak sayaç kilidi kalktı, doğrulama denemeleri sıralı gecikme alır (`rateLimit.authDelayMs`), yönetici kilitlenmez. |
 | 2026-11-20 ters vekil güveni | Bağımsız sunucu ve CLI için `trustProxy` / `--trust-proxy` / `LLM_TRUST_PROXY` eklendi. Varsayılan kapalı; `1` (atlama sayısı) veya adres listesi verilince hatalı giriş ve sohbet kotası istemci başına ayrılır. Geçersiz değer sunucuyu başlatmaz. |
 | 2026-11-20 ask() ve stream() kotası | `ask()` ve `stream()` artık HTTP sohbet kotasından muaftır (davranış değişikliği). Önceden dakikada 30'dan fazla çağrı `RATE_LIMITED` alıyor ve kimliksiz HTTP istemcileriyle aynı kovayı paylaşıyordu. HTTP istekleri kendi kotasına tabi kalır. |
+| 2026-11-20 Anthropic düşünme bütçesi | Uyarlamalı olmayan Claude modelinde `thinking: 'enabled'` iken hesaplanan bütçe API'nin asgari değerinin (1.024 token) altına inecekse (ör. hızlı testin 512 tokenlik çıktı sınırı) `thinking` alanı isteğe konmaz; önceden istek 400 ile reddedilip profil testi başarısız görünüyordu. Asgari bütçe Anthropic belgesinden doğrulandı, canlı çağrı yapılmadı. |
 
 ### Doğrulanmış durum ve açık işler
 

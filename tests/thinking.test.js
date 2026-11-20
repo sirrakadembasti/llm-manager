@@ -168,3 +168,21 @@ test('Gemini 3/4 use thinkingLevel and reject unsupported full thinking-off', ()
     error => error.code === 'RUNTIME_OPTIONS_INVALID'
   );
 });
+
+test('K09: Anthropic düşünme bütçesi 1.024 altına inecekse thinking alanı gövdeye konmaz', () => {
+  const messages = [{ role: 'user', content: 'Merhaba' }];
+  const profile = {
+    provider: 'anthropic',
+    baseURL: 'https://api.anthropic.com/v1',
+    model: 'claude-3-7-sonnet-latest',
+    apiKey: 'sk-ant-test'
+  };
+  const body = maxOutputTokens =>
+    buildProviderRequest(profile, messages, { thinking: 'enabled', maxOutputTokens }).body;
+  // Hızlı testin çıktı sınırı 512: bütçe 511 olurdu ve API 400 ile reddederdi.
+  assert.equal('thinking' in body(512), false);
+  assert.equal('thinking' in body(1024), false);
+  // Asgari bütçe (1.024) ve üstü korunur; bütçe max_tokens'tan küçük kalır.
+  assert.deepEqual(body(1025).thinking, { type: 'enabled', budget_tokens: 1024 });
+  assert.deepEqual(body(8192).thinking, { type: 'enabled', budget_tokens: 2048 });
+});
