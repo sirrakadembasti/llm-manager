@@ -186,7 +186,7 @@ export function createLLMManager({
   const projectAssistant = project
     ? createProjectAssistant({
         options: project,
-        ask: (messages, settings) => askWithAdmission(messages, settings, true),
+        ask: (messages, settings) => askMessages(messages, settings),
         getActiveProfile: () => store.getActive(),
         networkOptions: { allowLocalHttp, proxyUrl, allowedHosts, allowedPrivateHosts }
       })
@@ -892,11 +892,12 @@ export function createLLMManager({
   }
 
   // Tek satırlık kullanım: await llm.ask('Merhaba!') veya await llm.ask([{ role: 'user', content: '...' }])
+  // ask() ve stream() güvenilir host API'leridir: HTTP sohbet kotası uygulanmaz (kendi sınırınızı koyun).
   async function ask(promptOrMessages, options = {}) {
-    return await askWithAdmission(promptOrMessages, options);
+    return await askMessages(promptOrMessages, options);
   }
 
-  async function askWithAdmission(promptOrMessages, options = {}, quotaAdmitted = false) {
+  async function askMessages(promptOrMessages, options = {}) {
     const messages = normalizeMessagesInput(promptOrMessages, options.system);
     if (!Array.isArray(messages) || !messages.length) {
       throw new LLMError(ErrorCodes.MESSAGES_INVALID, 'Geçerli bir mesaj listesi (messages) veya prompt zorunludur.', {
@@ -904,7 +905,10 @@ export function createLLMManager({
         retryable: false
       });
     }
-    const result = await chatCompletion({ ...options, messages }, { principal: { isAdmin: true }, quotaAdmitted });
+    const result = await chatCompletion(
+      { ...options, messages },
+      { principal: { isAdmin: true }, quotaAdmitted: true }
+    );
     if (result.status !== 200) {
       throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status
@@ -925,7 +929,10 @@ export function createLLMManager({
         retryable: false
       });
     }
-    const result = await chatCompletion({ ...options, messages, stream: true }, { principal: { isAdmin: true } });
+    const result = await chatCompletion(
+      { ...options, messages, stream: true },
+      { principal: { isAdmin: true }, quotaAdmitted: true }
+    );
     if (result.status !== 200) {
       throw new LLMError(result.body?.code || 'LLM_ERROR', result.body?.error || 'Model çağrısı başarısız.', {
         status: result.status

@@ -137,7 +137,7 @@ app.listen(3000);
 // Host kapanışında: await llm.close();
 ```
 
-Framework bağımsız kullanım: `import { createLLMManager } from '@sirrakadembasti/llm-manager/core'`; yönetici oluşturup `ask()`, `stream()`, `fetch(Request)` veya `handle()` kullanın. `ask()`/`handle()` güvenilir host API'leridir; HTTP kimlik/yetki denetimini adaptör sağlar. Express host session için `requireAuth`, Web için `authorize(request)` verilebilir; yönetim `isAdmin === true` ister.
+Framework bağımsız kullanım: `import { createLLMManager } from '@sirrakadembasti/llm-manager/core'`; yönetici oluşturup `ask()`, `stream()`, `fetch(Request)` veya `handle()` kullanın. `ask()`/`stream()`/`handle()` güvenilir host API'leridir; HTTP kimlik/yetki denetimini adaptör sağlar. `ask()` ve `stream()` HTTP sohbet kotasından (30/dk) muaftır ve kimliksiz HTTP istemcilerinin kovasını tüketmez; çağrı sıklığını kendi kodunuzda sınırlayın. Express host session için `requireAuth`, Web için `authorize(request)` verilebilir; yönetim `isAdmin === true` ister.
 
 ### Kaynaklı yanıt kalitesini karşılaştırma
 
@@ -483,6 +483,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-19 şablon ve tipli bildirim referansları | Jinja/Twig `{% set password = env.PASS %}`, Handlebars `{{> db password=dbPassword}}` ve Dart/Kotlin `final|val password = a.b["X"]` gibi referans atamaları kod sayılır. `"hunter2"`, `12345`, `"abc" ~ x` gibi değerler, `PASSWORD=hunter2` ve bildirimsiz düz yazıdaki `set password = hunter2` hâlâ sır sayılır. |
 | 2026-11-20 ortak hatalı giriş politikası | Express ve Web (`fetch`) adaptörü aynı kuralı (`src/authLimit.js`) kullanır. İstemci kimliği varsa sayaç dolunca doğru parola da reddedilir; kimliği yoksa ortak sayaç kilidi kalktı, doğrulama denemeleri sıralı gecikme alır (`rateLimit.authDelayMs`), yönetici kilitlenmez. |
 | 2026-11-20 ters vekil güveni | Bağımsız sunucu ve CLI için `trustProxy` / `--trust-proxy` / `LLM_TRUST_PROXY` eklendi. Varsayılan kapalı; `1` (atlama sayısı) veya adres listesi verilince hatalı giriş ve sohbet kotası istemci başına ayrılır. Geçersiz değer sunucuyu başlatmaz. |
+| 2026-11-20 ask() ve stream() kotası | `ask()` ve `stream()` artık HTTP sohbet kotasından muaftır (davranış değişikliği). Önceden dakikada 30'dan fazla çağrı `RATE_LIMITED` alıyor ve kimliksiz HTTP istemcileriyle aynı kovayı paylaşıyordu. HTTP istekleri kendi kotasına tabi kalır. |
 
 ### Doğrulanmış durum ve açık işler
 
