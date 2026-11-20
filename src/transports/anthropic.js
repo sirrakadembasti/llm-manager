@@ -82,7 +82,8 @@ export default {
     } else if (opts.thinking === 'enabled') {
       const maxTokens = opts.maxOutputTokens || 8192;
       const budgetTokens = Math.min(2048, maxTokens - 1);
-      body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
+      // API asgari düşünme bütçesini 1.024 token ister; daha küçük çıktı sınırında (ör. hızlı test, 512) alan konmaz.
+      if (budgetTokens >= 1024) body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
     }
 
     if (opts.temperature !== undefined && opts.thinking !== 'enabled' && !adaptive) body.temperature = opts.temperature;
