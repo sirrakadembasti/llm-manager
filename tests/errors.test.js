@@ -473,3 +473,71 @@ test('YH1-A4: Google SAFETY and upstream request rejection retain typed behavior
     globalThis.fetch = originalFetch;
   }
 });
+
+test('K10: içerik filtresi türü bitiş nedenleri tek istekle LLM_CONTENT_FILTERED döner, yeniden denenmez', async () => {
+  const { executeWithRetry, parseSseStream } = await import('../src/runtime.js');
+  const { google, anthropic } = await import('../src/transports/index.js');
+  const profiles = {
+    google: {
+      provider: 'google',
+      model: 'gemini-2.0-flash',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: 'k'
+    },
+    anthropic: {
+      provider: 'anthropic',
+      model: 'claude-3-7-sonnet-latest',
+      baseURL: 'https://api.anthropic.com/v1',
+      apiKey: 'k'
+    }
+  };
+  const cases = [
+    ['google', { candidates: [{ finishReason: 'RECITATION' }] }],
+    ['google', { candidates: [{ finishReason: 'PROHIBITED_CONTENT' }] }],
+    ['google', { candidates: [{ finishReason: 'BLOCKLIST' }] }],
+    ['google', { candidates: [{ finishReason: 'SPII' }] }],
+    ['google', { promptFeedback: { blockReason: 'PROHIBITED_CONTENT' } }],
+    ['google', { promptFeedback: { blockReason: 'SAFETY' } }],
+    ['anthropic', { content: [], stop_reason: 'refusal' }]
+  ];
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [provider, body] of cases) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls++;
+        return new Response(JSON.stringify(body), { status: 200 });
+      };
+      await assert.rejects(
+        () =>
+          executeWithRetry(() => generateProfileResponse([{ role: 'user', content: 'Merhaba' }], profiles[provider]), {
+            attempts: 3,
+            baseMs: 1,
+            maxMs: 2
+          }),
+        error => error.code === ErrorCodes.LLM_CONTENT_FILTERED && error.status === 422,
+        JSON.stringify(body)
+      );
+      assert.equal(calls, 1, `${JSON.stringify(body)} yeniden denendi`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  // Akış: istem engeli ve RECITATION da filtre sayılır.
+  const sse = payload =>
+    new Response(`data: ${JSON.stringify(payload)}\n\n`, { headers: { 'content-type': 'text/event-stream' } }).body;
+  for (const [transport, payload] of [
+    [google, { candidates: [{ finishReason: 'RECITATION' }] }],
+    [google, { promptFeedback: { blockReason: 'BLOCKLIST' } }],
+    [anthropic, { type: 'message_delta', delta: { stop_reason: 'refusal' }, usage: { output_tokens: 0 } }]
+  ]) {
+    await assert.rejects(
+      async () => {
+        const chunks = [];
+        for await (const chunk of parseSseStream(sse(payload), transport)) chunks.push(chunk);
+      },
+      error => error.code === ErrorCodes.LLM_CONTENT_FILTERED,
+      JSON.stringify(payload)
+    );
+  }
+});

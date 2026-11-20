@@ -7,6 +7,8 @@ function inputTokensOf(usage) {
 
 export default {
   id: 'anthropic',
+  // Reddetme HTTP 200 ile stop_reason: 'refusal' olarak döner.
+  filteredReasons: ['refusal'],
 
   authHeaders(profile) {
     return {

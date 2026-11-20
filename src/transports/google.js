@@ -7,8 +7,26 @@ function usageOf(metadata) {
   return { inputTokens, outputTokens, totalTokens: metadata?.totalTokenCount ?? inputTokens + outputTokens };
 }
 
+// Yanıt bitiş nedenleri ve istem tarafı (promptFeedback.blockReason) engelleri içerik filtresidir; tekrar denemek sonucu değiştirmez.
+const FILTERED_REASONS = [
+  'SAFETY',
+  'RECITATION',
+  'PROHIBITED_CONTENT',
+  'BLOCKLIST',
+  'SPII',
+  'IMAGE_SAFETY',
+  'MODEL_ARMOR',
+  'JAILBREAK'
+];
+
+// Aday yoksa istem engeli bitiş nedeni olarak döner.
+function finishReasonOf(payload) {
+  return payload.candidates?.[0]?.finishReason || payload.promptFeedback?.blockReason || null;
+}
+
 export default {
   id: 'google',
+  filteredReasons: FILTERED_REASONS,
 
   authHeaders(profile) {
     return { 'x-goog-api-key': profile.apiKey };
@@ -91,7 +109,7 @@ export default {
     const candidate = payload.candidates?.[0];
     const textParts = candidate?.content?.parts?.filter(p => p.text && p.thought !== true)?.map(p => p.text) || [];
     const content = textParts.join('\n');
-    const finishReason = candidate?.finishReason || null;
+    const finishReason = finishReasonOf(payload);
 
     const usage = usageOf(payload.usageMetadata);
 
@@ -105,7 +123,7 @@ export default {
       const candidate = payload.candidates?.[0];
       const textParts = candidate?.content?.parts?.filter(p => p.text && p.thought !== true)?.map(p => p.text) || [];
       const text = textParts.join('');
-      const finishReason = candidate?.finishReason || null;
+      const finishReason = finishReasonOf(payload);
 
       let usage = null;
       if (payload.usageMetadata) {

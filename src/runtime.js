@@ -512,7 +512,7 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   const parsed = transport.parseResponse(payload);
   const { content, finishReason, usage, reasoning } = parsed;
 
-  if (['SAFETY', 'content_filter'].includes(finishReason)) {
+  if (isFilteredReason(transport, finishReason)) {
     throw new LLMError(
       ErrorCodes.LLM_CONTENT_FILTERED,
       'Model yanıtı güvenlik veya içerik filtresi nedeniyle engellendi.',
@@ -541,6 +541,11 @@ export async function generateProfileResponse(messages, profile, options = {}) {
   return content;
 }
 
+// 'SAFETY' ve 'content_filter' her taşımada filtre sayılır; taşıma kendi nedenlerini filteredReasons ile ekler.
+function isFilteredReason(transport, reason) {
+  return ['SAFETY', 'content_filter'].includes(reason) || transport?.filteredReasons?.includes(reason) === true;
+}
+
 export async function* parseSseStream(stream, transport, options = {}) {
   if (!stream) return;
   const reader = stream.getReader();
@@ -552,7 +557,7 @@ export async function* parseSseStream(stream, transport, options = {}) {
   let lastFinishReason = null;
   let producedText = false;
   const terminalChunk = () => {
-    const filtered = ['SAFETY', 'content_filter'].includes(lastFinishReason);
+    const filtered = isFilteredReason(transport, lastFinishReason);
     const truncated = ['length', 'MAX_TOKENS', 'max_tokens'].includes(lastFinishReason);
     if (filtered || (truncated && options.acceptTruncated !== true)) {
       const error = new LLMError(
