@@ -541,3 +541,86 @@ test('K10: içerik filtresi türü bitiş nedenleri tek istekle LLM_CONTENT_FILT
     );
   }
 });
+
+test('K10: sağlayıcı hata gövdesindeki mesaj yalnız yönetici yanıtında görünür ve sırlar maskelenir', async t => {
+  const { createMockProvider } = await import('./helpers/mockProvider.js');
+  const mock = createMockProvider();
+  const { url } = await mock.start();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-provider-message-'));
+  t.after(async () => {
+    await mock.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const profileKey = 'profil-anahtari-12345678';
+  mock.setResponse((req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        error: {
+          type: 'invalid_request_error',
+          message: `model bulunamadı: gpt-yok. Authorization: Bearer abc.DEF-123 anahtar sk-proj-abcdefghijklmnop1234 ve ${profileKey}`
+        }
+      })
+    );
+  });
+  const manager = createLLMManager({
+    dataDir: dir,
+    allowLocalHttp: true,
+    chatTokens: ['sohbet-belirteci-123'],
+    retry: false
+  });
+  const saved = await manager.handle({
+    method: 'POST',
+    path: '/profiles',
+    body: { name: 'Hata', provider: 'openai', baseURL: `${url}/v1`, model: 'gpt-yok', apiKey: profileKey }
+  });
+  await manager.handle({
+    method: 'POST',
+    path: `/profiles/${saved.body.id}/activate`,
+    body: { revision: saved.body.revision }
+  });
+
+  const admin = await manager.handle({
+    method: 'POST',
+    path: '/chat',
+    principal: { isAdmin: true },
+    body: { prompt: 'x' }
+  });
+  assert.equal(admin.status, 502);
+  assert.equal(admin.body.code, 'LLM_REQUEST_REJECTED');
+  const message = admin.body.providerMessage;
+  assert.match(message, /invalid_request_error/);
+  assert.match(message, /model bulunamadı: gpt-yok/);
+  assert.doesNotMatch(message, /abc\.DEF-123|sk-proj-abcdefghijklmnop1234|profil-anahtari-12345678/);
+  assert.ok(message.length <= 300);
+
+  // Sohbet istemcisi (Bearer): alan yok, genel mesaj korunur.
+  const client = await manager.handle({
+    method: 'POST',
+    path: '/chat',
+    principal: { isAdmin: false },
+    body: { prompt: 'x' }
+  });
+  assert.equal('providerMessage' in client.body, false);
+  assert.doesNotMatch(JSON.stringify(client.body), /model bulunamadı/);
+
+  // Akış hata olayı: yönetici mesajı alır, Bearer istemcisi almaz.
+  const streamError = async authorization => {
+    const response = await manager.fetch(
+      new Request('http://localhost/api/llm/chat', {
+        method: 'POST',
+        headers: { authorization, 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
+        body: JSON.stringify({ prompt: 'x', stream: true })
+      }),
+      { adminPassword: 'yonetici-parolasi-123' }
+    );
+    return response.text();
+  };
+  const adminStream = await streamError('Basic ' + Buffer.from('admin:yonetici-parolasi-123').toString('base64'));
+  assert.match(adminStream, /event: error/);
+  assert.match(adminStream, /"providerMessage":"invalid_request_error: model bulunamadı/);
+  assert.doesNotMatch(adminStream, /abc.DEF-123|sk-proj-abcdefghijklmnop1234|profil-anahtari-12345678/);
+  const clientStream = await streamError('Bearer sohbet-belirteci-123');
+  assert.match(clientStream, /event: error/);
+  assert.doesNotMatch(clientStream, /providerMessage|model bulunamadı/);
+});

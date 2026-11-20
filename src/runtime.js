@@ -341,7 +341,8 @@ export function classifyLLMError(error) {
       status: error.status ?? meta.status,
       error: meta.message,
       retryable: error.retryable ?? meta.retryable,
-      upstreamStatus: error.upstreamStatus ?? upstreamStatus
+      upstreamStatus: error.upstreamStatus ?? upstreamStatus,
+      ...(error.providerMessage ? { providerMessage: error.providerMessage } : {})
     };
   }
 
@@ -425,7 +426,62 @@ export function classifyLLMError(error) {
     message = KNOWN_CODE_DEFAULTS[ErrorCodes.LLM_NETWORK].message;
   }
 
-  return { code, status, error: message, retryable, upstreamStatus };
+  return {
+    code,
+    status,
+    error: message,
+    retryable,
+    upstreamStatus,
+    ...(error?.providerMessage ? { providerMessage: error.providerMessage } : {})
+  };
+}
+
+const PROVIDER_MESSAGE_BODY_BYTES = 2048;
+const PROVIDER_MESSAGE_CHARS = 300;
+
+// Sağlayıcı hata gövdesinin ilk 2 KiB'ından `error.type` + `error.message` çıkarılır, sırlar maskelenir ve 300
+// karakterle sınırlanır. Yalnız yönetici yanıtlarına eklenir (core.js); okunamazsa sessizce atlanır.
+async function readProviderMessage(response, apiKey) {
+  try {
+    const reader = response.body?.getReader();
+    if (!reader) return undefined;
+    const chunks = [];
+    let size = 0;
+    while (size < PROVIDER_MESSAGE_BODY_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.length;
+    }
+    await reader.cancel().catch(() => {});
+    const text = new TextDecoder().decode(Buffer.concat(chunks).subarray(0, PROVIDER_MESSAGE_BODY_BYTES));
+    let type;
+    let message;
+    try {
+      const error = JSON.parse(text)?.error;
+      type =
+        typeof error?.type === 'string' ? error.type : typeof error?.status === 'string' ? error.status : undefined;
+      message = typeof error?.message === 'string' ? error.message : typeof error === 'string' ? error : undefined;
+    } catch {
+      // 2 KiB'a kesilmiş gövde geçerli JSON olmayabilir; mesaj alanını doğrudan ara.
+      const raw = /"message"\s*:\s*"((?:\\.|[^"\\])*)/.exec(text)?.[1];
+      message = raw?.replace(/\\(["\\])/g, '$1');
+    }
+    let masked = [type, message].filter(Boolean).join(': ');
+    if (typeof apiKey === 'string' && apiKey.length >= 8) masked = masked.split(apiKey).join('[REDACTED]');
+    masked = masked
+      .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
+      .replace(
+        /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}|\bAIza[\w-]{20,}|\bgh[pousr]_\w{20,}|\bAKIA[A-Z0-9]{16}\b/g,
+        '[REDACTED]'
+      )
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+      .trim();
+    return masked ? masked.slice(0, PROVIDER_MESSAGE_CHARS) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function buildProviderRequest(profile, messages, options = {}) {
@@ -504,6 +560,7 @@ export async function generateProfileResponse(messages, profile, options = {}) {
         : (Date.parse(retryAfter) - Date.now()) / 1000;
       if (Number.isFinite(seconds)) error.retryAfterSec = Math.max(0, seconds);
     }
+    error.providerMessage = await readProviderMessage(response, profile.apiKey);
     throw error;
   }
 
@@ -715,6 +772,7 @@ export async function* generateProfileStream(messages, profile, options = {}) {
           : (Date.parse(retryAfter) - Date.now()) / 1000;
         if (Number.isFinite(seconds)) error.retryAfterSec = Math.max(0, seconds);
       }
+      error.providerMessage = await readProviderMessage(response, profile.apiKey);
       throw error;
     }
 

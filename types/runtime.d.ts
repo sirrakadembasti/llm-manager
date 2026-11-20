@@ -32,6 +32,7 @@ export interface ClassifiedLLMError {
   status: number;
   retryable: boolean;
   upstreamStatus?: number;
+  providerMessage?: string;
 }
 export function classifyLLMError(error: unknown): ClassifiedLLMError;
 export interface ParsedProviderResponse {
