@@ -130,3 +130,74 @@ test('init probe starts with generated chat token and explicit development origi
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// K03/K04: iki adaptör aynı giriş politikasını uygular.
+//  - İstemci kimliği varsa: sayaç dolunca o istemcinin doğru parolası da Retry-After süresince reddedilir.
+//  - İstemci kimliği yoksa: ortak sayaçla kilitlenme yoktur; doğru parola girer, her doğrulama sabit gecikmeyle sıralanır.
+const wrongBasic = 'Basic ' + Buffer.from('admin:wrong-password').toString('base64');
+
+function webAdapter({ clientId, ...rateLimit } = {}) {
+  const manager = createLLMManager({
+    store,
+    adminPassword: 'correct-password',
+    getClientId: clientId ? () => clientId : undefined,
+    rateLimit: { authFailuresPerMinute: 2, authDelayMs: 25, ...rateLimit }
+  });
+  return async authorization => (await manager.fetch(request('/api/llm/profiles', authorization))).status;
+}
+
+async function expressAdapter() {
+  const { createBasicAuth } = await import('../src/index.js');
+  const middleware = createBasicAuth({
+    password: 'correct-password',
+    rateLimit: { authFailuresPerMinute: 2 }
+  });
+  return async authorization => {
+    let status = 0;
+    const res = { set() {}, status: code => ((status = code), { json() {} }) };
+    middleware({ get: () => authorization, ip: '10.0.0.1', socket: {} }, res, () => (status = 200));
+    return status;
+  };
+}
+
+test('K04: istemci kimlikli iki adaptör aynı senaryo tablosunu verir', async () => {
+  const adapters = { web: () => webAdapter({ clientId: 'istemci-1' }), express: expressAdapter };
+  for (const [name, create] of Object.entries(adapters)) {
+    const attempt = await create();
+    // Sayaç boş: yanlış 401, doğru 200 (başarı sayacı sıfırlar).
+    assert.equal(await attempt(wrongBasic), 401, name);
+    assert.equal(await attempt(basic), 200, name);
+    // Sayaç dolu: yanlış da doğru da 429.
+    assert.equal(await attempt(wrongBasic), 401, name);
+    assert.equal(await attempt(wrongBasic), 401, name);
+    assert.equal(await attempt(wrongBasic), 429, name);
+    assert.equal(await attempt(basic), 429, name);
+  }
+});
+
+test('K04: istemci kimliği yokken yönetici kilitlenmez ama doğrulama denemeleri sabit gecikmeyle sıralanır', async () => {
+  const attempt = webAdapter({ authFailuresPerMinute: 2, authDelayMs: 25 });
+  const started = Date.now();
+  for (let i = 0; i < 20; i++) assert.equal(await attempt(wrongBasic), 401);
+  assert.ok(Date.now() - started >= 20 * 25 * 0.9, `toplam süre ${Date.now() - started} ms`);
+  assert.equal(await attempt(basic), 200);
+  // Paralel denemeler de sıraya girer: 8 yanlış deneme tek tek gecikir.
+  const parallelStarted = Date.now();
+  await Promise.all(Array.from({ length: 8 }, () => attempt(wrongBasic)));
+  assert.ok(Date.now() - parallelStarted >= 8 * 25 * 0.9);
+  // Doğrulanmış kimlik bilgisi yeniden denenirken beklemez.
+  const repeatStarted = Date.now();
+  for (let i = 0; i < 10; i++) assert.equal(await attempt(basic), 200);
+  assert.ok(Date.now() - repeatStarted < 10 * 25);
+});
+
+test('K04: kimliksiz durumda sıra dolunca yeni deneme 429 ve Retry-After alır', async () => {
+  const manager = createLLMManager({ store, adminPassword: 'correct-password', rateLimit: { authDelayMs: 40 } });
+  const responses = await Promise.all(
+    Array.from({ length: 30 }, () => manager.fetch(request('/api/llm/profiles', wrongBasic)))
+  );
+  const limited = responses.filter(response => response.status === 429);
+  assert.ok(limited.length >= 1);
+  assert.ok(Number(limited[0].headers.get('retry-after')) >= 1);
+  assert.equal(responses.filter(response => response.status === 401).length, 30 - limited.length);
+});
