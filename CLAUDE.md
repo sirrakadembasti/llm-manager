@@ -72,6 +72,18 @@ Kullanıcı onay verdiğinde:
 ## Git akışı
 
 - `main`'e doğrudan commit atılmaz; her iş ayrı dalda (`fix/...`, `feat/...`, `docs/...`) yapılır, PR ile
-  birleştirilir. Commit ve push yalnız kullanıcı isteyince yapılır.
+  birleştirilir. Commit ve push yalnız kullanıcı isteyince yapılır. Yerel doğrulama (lint, typecheck, format,
+  tam seri test) her iki iş sınıfında da commit öncesi yapılır; PR'ın ve CI'ın ne kadar bekleneceği iş sınıfına
+  bağlıdır:
+  - **Çekirdek iş** (`src/`, `bin/`, `types/`, `scripts/`, `.github/`, bağımlılıklar; güvenlik, gizlilik, yol,
+    dosya sistemi, süreç ve CLI gibi platforma duyarlı kod): dal → push → PR → altı CI işinin bitmesi beklenir,
+    sonuç (geçti/kaldı ve nedeni) raporlanır → kullanıcı onayıyla birleştirilir. Platform farklarını (ör. macOS
+    `realpath`) yalnız CI yakalar.
+  - **Küçük iş** (yalnız Markdown belge, yalnız test, kod davranışını değiştirmeyen yazım/yorum düzeltmesi):
+    dal → push → PR yine açılır, ama CI'ın bitmesi beklenmez; kullanıcı onayıyla hemen birleştirilebilir, CI
+    arka planda koşar ve düşerse bildirilir. Doğrudan `main`'e commit yine yapılmaz; yalnız kullanıcı o iş için
+    açıkça isterse yapılır. Genel "PR sonrası CI takibi" kuralının bu depodaki istisnası budur.
+  - İş sınıfından emin değilseniz çekirdek iş sayın. Bir iş hem kod hem belge içeriyorsa çekirdektir.
+  - Push, iş bitince tek seferde yapılır (her commit'te değil); dal GitHub'a gitmeden CI, PR ve yedek olmaz.
 - Commit mesajı: Conventional Commits + Türkçe açıklama, ör. `fix(project): sır filtresindeki yanlış alarmları gider`.
 - Birleştirilen dal yerelde ve GitHub'da silinir; yerel `main`, `origin/main` ile eşitlenir.
