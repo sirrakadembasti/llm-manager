@@ -21,6 +21,22 @@ function deepFreeze(obj) {
 export const CATALOG_VERSION = catalogData.catalogVersion;
 export const CATALOG_UPDATED_AT = catalogData.updatedAt;
 export const PROVIDERS = deepFreeze(catalogData.providers);
+export const MODEL_FAMILIES = deepFreeze(catalogData.modelFamilies ?? []);
+
+// Model adına göre taşımanın kural ailesi: öneke eşit ya da önekten sonra '.' veya '-' gelen ilk kayıt.
+// Katalogda olmayan model adı null döner; taşımalar bu durumda ek alan göndermez.
+export function modelFamily(transport, model) {
+  const name = String(model ?? '')
+    .replace(/^models\//, '')
+    .toLowerCase();
+  return (
+    MODEL_FAMILIES.find(
+      family =>
+        family.transport === transport &&
+        family.match.some(prefix => name === prefix || (name.startsWith(prefix) && /[.-]/.test(name[prefix.length])))
+    ) ?? null
+  );
+}
 
 const disallowedHost = /(^|\.)(localhost|local|internal)$/i;
 export function validateProviderUrl(value, { allowLocalHttp = false, allowedPrivateHosts = [] } = {}) {

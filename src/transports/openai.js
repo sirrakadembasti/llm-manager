@@ -1,3 +1,5 @@
+import { PROVIDERS, modelFamily } from '../providers.js';
+
 export default {
   id: 'openai',
 
@@ -36,40 +38,41 @@ export default {
     return messages;
   },
 
+  // Alan adları ve düşünme biçimi sağlayıcı kataloğundan (`providers.json`), model ailesi kuralları `modelFamilies`
+  // bölümünden gelir; katalogda olmayan sağlayıcı veya model için ek alan gönderilmez.
   buildBody(profile, messages, opts = {}) {
-    const modern = ['openai', 'xiaomi_mimo'].includes(profile.provider);
+    const settings = PROVIDERS.find(p => p.id === profile.provider) ?? {};
+    const family = modelFamily('openai', profile.model);
     const body = {
       model: profile.model,
       messages: this.normalizeMessages(messages, profile),
-      [modern ? 'max_completion_tokens' : 'max_tokens']: opts.maxOutputTokens
+      [settings.tokenField ?? 'max_tokens']: opts.maxOutputTokens
     };
 
-    if (profile.provider === 'xiaomi_mimo') {
+    if (settings.thinkingStyle === 'thinking_object') {
       if (opts.thinking && opts.thinking !== 'auto') {
         body.thinking = { type: opts.thinking };
       }
-    } else if (profile.provider === 'qwen') {
+    } else if (settings.thinkingStyle === 'enable_thinking') {
       if (opts.thinking === 'enabled') {
         body.enable_thinking = true;
       } else if (opts.thinking === 'disabled') {
         body.enable_thinking = false;
       }
-    } else {
-      const currentGpt = /^gpt-6(?:[.-]|$)/i.test(profile.model || '');
-      const isReasoning = /^(?:o\d|gpt-[56])/i.test(profile.model || '');
+    } else if (settings.thinkingStyle === 'reasoning_effort') {
       if (opts.thinking === 'enabled') {
         body.reasoning_effort = 'medium';
-      } else if (opts.thinking === 'disabled' && isReasoning) {
-        body.reasoning_effort = currentGpt ? 'none' : 'low';
+      } else if (opts.thinking === 'disabled' && family?.disableThinking) {
+        body.reasoning_effort = family.disableThinking;
       }
     }
 
     if (opts.stream) {
       body.stream = true;
-      body.stream_options = { include_usage: true };
+      if (settings.streamUsage) body.stream_options = { include_usage: true };
     }
 
-    const samplingSupported = !/^gpt-6(?:[.-]|$)/i.test(profile.model || '') || body.reasoning_effort === 'none';
+    const samplingSupported = family?.samplingWithThinking !== false || body.reasoning_effort === 'none';
     if (opts.temperature !== undefined && samplingSupported) body.temperature = opts.temperature;
     if (opts.topP !== undefined && samplingSupported) body.top_p = opts.topP;
     if (opts.stop) body.stop = opts.stop;

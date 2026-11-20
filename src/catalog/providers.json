@@ -11,7 +11,10 @@
         "thinking": true
       },
       "baseURL": "https://api.openai.com/v1",
-      "models": ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"]
+      "models": ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"],
+      "tokenField": "max_completion_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "anthropic",
@@ -41,7 +44,10 @@
       "region": "ABD",
       "transport": "openai",
       "baseURL": "https://api.x.ai/v1",
-      "models": ["grok-4.7"]
+      "models": ["grok-4.7"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "openrouter",
@@ -52,7 +58,10 @@
         "thinking": true
       },
       "baseURL": "https://openrouter.ai/api/v1",
-      "models": ["moonshotai/kimi-k3.1-pro"]
+      "models": ["moonshotai/kimi-k3.1-pro"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "perplexity",
@@ -60,7 +69,10 @@
       "region": "ABD",
       "transport": "openai",
       "baseURL": "https://api.perplexity.ai",
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "groq",
@@ -71,7 +83,10 @@
         "thinking": true
       },
       "baseURL": "https://api.groq.com/openai/v1",
-      "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+      "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "together",
@@ -79,7 +94,10 @@
       "region": "ABD",
       "transport": "openai",
       "baseURL": "https://api.together.xyz/v1",
-      "models": ["deepseek-ai/DeepSeek-V4-Pro-0813", "deepseek-ai/DeepSeek-V4.1-Flash-1017", "Qwen/Qwen3.8-Flash"]
+      "models": ["deepseek-ai/DeepSeek-V4-Pro-0813", "deepseek-ai/DeepSeek-V4.1-Flash-1017", "Qwen/Qwen3.8-Flash"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "fireworks",
@@ -87,7 +105,10 @@
       "region": "ABD",
       "transport": "openai",
       "baseURL": "https://api.fireworks.ai/inference/v1",
-      "models": ["accounts/fireworks/models/glm-5p3-flash"]
+      "models": ["accounts/fireworks/models/glm-5p3-flash"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "cohere",
@@ -95,7 +116,10 @@
       "region": "Kanada",
       "transport": "openai",
       "baseURL": "https://api.cohere.ai/compatibility/v1",
-      "models": ["command-a-plus-05-2026", "command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
+      "models": ["command-a-plus-05-2026", "command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "deepseek",
@@ -116,7 +140,10 @@
           "baseURL": "https://api.deepseek.com/v1"
         }
       ],
-      "models": ["deepseek-flash", "deepseek-v4-pro"]
+      "models": ["deepseek-flash", "deepseek-v4-pro"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "qwen",
@@ -141,7 +168,10 @@
           "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1"
         }
       ],
-      "models": ["qwen3.8-max", "qwen3.7-plus", "qwen3.8-flash"]
+      "models": ["qwen3.8-max", "qwen3.7-plus", "qwen3.8-flash"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "enable_thinking"
     },
     {
       "id": "kimi",
@@ -159,7 +189,10 @@
           "baseURL": "https://api.moonshot.cn/v1"
         }
       ],
-      "models": ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"]
+      "models": ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "minimax",
@@ -177,7 +210,10 @@
           "baseURL": "https://api.minimaxi.com/v1"
         }
       ],
-      "models": ["MiniMax-M3.1-Flash", "MiniMax-M3"]
+      "models": ["MiniMax-M3.1-Flash", "MiniMax-M3"],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "zhipu",
@@ -195,7 +231,10 @@
           "baseURL": "https://api.z.ai/api/paas/v4"
         }
       ],
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "siliconflow",
@@ -213,7 +252,10 @@
           "baseURL": "https://api.siliconflow.com/v1"
         }
       ],
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "baidu",
@@ -221,7 +263,10 @@
       "region": "Çin",
       "transport": "openai",
       "baseURL": "https://qianfan.baidubce.com/v2",
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "doubao",
@@ -229,7 +274,10 @@
       "region": "Çin",
       "transport": "openai",
       "baseURL": "https://ark.cn-beijing.volces.com/api/v3",
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "hunyuan",
@@ -237,7 +285,10 @@
       "region": "Çin",
       "transport": "openai",
       "baseURL": "https://api.hunyuan.cloud.tencent.com/v1",
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "xiaomi_mimo",
@@ -266,7 +317,10 @@
           "baseURL": "https://token-plan-ams.xiaomimimo.com/v1"
         }
       ],
-      "models": ["mimo-v2.6-pro", "mimo-v2.6-flash"]
+      "models": ["mimo-v2.6-pro", "mimo-v2.6-flash"],
+      "tokenField": "max_completion_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "thinking_object"
     },
     {
       "id": "ollama",
@@ -278,7 +332,10 @@
       },
       "baseURL": "http://localhost:11434/v1",
       "models": ["gpt-oss:20b"],
-      "note": "Yerel bağlantı için allowLocalHttp: true veya LAN için allowedPrivateHosts gereklidir."
+      "note": "Yerel bağlantı için allowLocalHttp: true veya LAN için allowedPrivateHosts gereklidir.",
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
     },
     {
       "id": "custom",
@@ -286,7 +343,52 @@
       "region": "Özel",
       "transport": "openai",
       "baseURL": "",
-      "models": []
+      "models": [],
+      "tokenField": "max_tokens",
+      "streamUsage": true,
+      "thinkingStyle": "reasoning_effort"
+    }
+  ],
+  "modelFamilies": [
+    {
+      "transport": "openai",
+      "match": ["gpt-6"],
+      "disableThinking": "none",
+      "samplingWithThinking": false
+    },
+    {
+      "transport": "openai",
+      "match": ["gpt-5", "o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8", "o9"],
+      "disableThinking": "low"
+    },
+    {
+      "transport": "anthropic",
+      "match": ["claude-opus-5-5", "claude-fable-5-1"],
+      "thinking": "adaptive",
+      "disableThinking": false
+    },
+    {
+      "transport": "anthropic",
+      "match": ["claude-sonnet-5-5"],
+      "thinking": "adaptive",
+      "disableThinking": "between_tools"
+    },
+    {
+      "transport": "anthropic",
+      "match": ["claude-haiku-5-5"],
+      "thinking": "adaptive",
+      "disableThinking": "disabled"
+    },
+    {
+      "transport": "google",
+      "match": ["gemini-3", "gemini-4"],
+      "thinking": "level",
+      "disableThinking": false
+    },
+    {
+      "transport": "google",
+      "match": ["gemini-2.5-pro"],
+      "disableThinking": false
     }
   ]
 }

@@ -376,6 +376,12 @@ export interface ProviderCatalogEntry {
   readonly baseURL: string;
   readonly models: readonly string[];
   readonly capabilities?: Readonly<{ thinking?: boolean }>;
+  /** OpenAI uyumlu taşıma: çıktı sınırı alanı adı. */
+  readonly tokenField?: 'max_tokens' | 'max_completion_tokens';
+  /** OpenAI uyumlu taşıma: akışta `stream_options.include_usage` gönderilir. */
+  readonly streamUsage?: boolean;
+  /** OpenAI uyumlu taşıma: düşünme ayarının istek gövdesindeki biçimi. */
+  readonly thinkingStyle?: 'reasoning_effort' | 'thinking_object' | 'enable_thinking';
   readonly endpoints?: readonly Readonly<{ id?: string; name?: string; baseURL: string; models?: readonly string[] }>[];
 }
 export const PROVIDERS: readonly ProviderCatalogEntry[];

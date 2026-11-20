@@ -1,4 +1,5 @@
 import { LLMError, ErrorCodes } from '../errors.js';
+import { modelFamily } from '../providers.js';
 
 // Toplam girdi: önbelleğe yazılan + önbellekten okunan + önbelleksiz token'lar.
 function inputTokensOf(usage) {
@@ -70,17 +71,19 @@ export default {
       body.system = systemText;
     }
 
-    const adaptive = /^claude-(?:(?:opus|sonnet|haiku)-5-5|fable-5-1)(?:-|$)/.test(profile.model || '');
+    // Uyarlamalı düşünme ve kapatma kuralları katalogdaki model ailesinden gelir (`providers.json` → modelFamilies).
+    const family = modelFamily('anthropic', profile.model);
+    const adaptive = family?.thinking === 'adaptive';
     if (adaptive && opts.thinking === 'enabled') {
       body.thinking = { type: 'adaptive' };
     } else if (adaptive && opts.thinking === 'disabled') {
-      if (/^claude-(?:opus|fable)-/.test(profile.model)) {
+      if (!family.disableThinking) {
         throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Bu modelde düşünme kapatılamaz.', {
           status: 400,
           retryable: false
         });
       }
-      body.thinking = { type: profile.model.startsWith('claude-sonnet-') ? 'between_tools' : 'disabled' };
+      body.thinking = { type: family.disableThinking };
     } else if (opts.thinking === 'enabled') {
       const maxTokens = opts.maxOutputTokens || 8192;
       const budgetTokens = Math.min(2048, maxTokens - 1);
