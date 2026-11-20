@@ -24,6 +24,18 @@ function openDefaultBrowser(url) {
   }
 }
 
+// Parola yalnız LLM Yonetimi'nin kendi 401 yanıtını veren sürece gönderilir: o portta başka bir uygulama
+// dinliyorsa kimlik bilgisi ona sızmasın. Yönlendirmeler izlenmez.
+async function fetchAdminPage(url, auth, timeoutMs) {
+  const options = { redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) };
+  const challenge = await fetch(url, options);
+  await challenge.body?.cancel();
+  if (challenge.status !== 401 || challenge.headers.get('www-authenticate') !== 'Basic realm="LLM Yonetimi"')
+    return { status: challenge.status, text: '' };
+  const res = await fetch(url, { ...options, headers: { Authorization: auth } });
+  return { status: res.status, text: res.status === 200 ? await res.text() : '' };
+}
+
 // Uygulamanın geliştirme sunucusu varsayılan portları (.env içindeki PORT önceliklidir).
 const HOST_DEFAULT_PORTS = { nextjs: 3000, nuxt: 3000, sveltekit: 5173 };
 
@@ -68,12 +80,9 @@ export async function probeCompiledHost({
   let hostVerified;
   let status = 0;
   try {
-    const res = await fetch(`http://127.0.0.1:${hostPort}${pagePath}`, {
-      headers: { Authorization: auth },
-      signal: AbortSignal.timeout(3000)
-    });
+    const res = await fetchAdminPage(`http://127.0.0.1:${hostPort}${pagePath}`, auth, 3000);
     status = res.status;
-    hostVerified = res.status === 200 && (await res.text()).includes(marker);
+    hostVerified = res.status === 200 && res.text.includes(marker);
   } catch {
     hostVerified = false;
   }
@@ -143,9 +152,9 @@ export async function probeAndOpenBrowser({
 
   if (port > 0) {
     try {
-      const res = await fetch(url, { headers: { Authorization: auth } });
+      const res = await fetchAdminPage(url, auth, 3000);
       status = res.status;
-      if (res.status === 200 && (await res.text()).includes(`data-api-base="${apiPath}"`)) {
+      if (res.status === 200 && res.text.includes(`data-api-base="${apiPath}"`)) {
         ok = true;
       }
     } catch {

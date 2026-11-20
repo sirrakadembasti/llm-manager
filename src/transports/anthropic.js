@@ -1,5 +1,10 @@
 import { LLMError, ErrorCodes } from '../errors.js';
 
+// Toplam girdi: önbelleğe yazılan + önbellekten okunan + önbelleksiz token'lar.
+function inputTokensOf(usage) {
+  return (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
+}
+
 export default {
   id: 'anthropic',
 
@@ -92,7 +97,7 @@ export default {
     const content = textParts.join('\n');
     const finishReason = payload.stop_reason || null;
 
-    const inputTokens = payload.usage?.input_tokens ?? 0;
+    const inputTokens = inputTokensOf(payload.usage);
     const outputTokens = payload.usage?.output_tokens ?? 0;
     const usage = {
       inputTokens,
@@ -111,7 +116,10 @@ export default {
 
       if (type === 'error') {
         const errMsg = payload.error?.message || 'Anthropic stream error';
-        throw new LLMError(ErrorCodes.LLM_PROVIDER_ERROR, errMsg, { status: 502, retryable: false });
+        throw new LLMError(ErrorCodes.LLM_PROVIDER_ERROR, errMsg, {
+          status: 502,
+          retryable: payload.error?.type === 'overloaded_error'
+        });
       }
 
       if (type === 'content_block_delta') {
@@ -140,7 +148,7 @@ export default {
         let usage = null;
         if (payload.message?.usage) {
           usage = {
-            inputTokens: payload.message.usage.input_tokens ?? 0
+            inputTokens: inputTokensOf(payload.message.usage)
           };
         }
         return {

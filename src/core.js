@@ -78,8 +78,10 @@ export function createUiAssets({ apiPath = '/api/llm', pagePath = '/llm', homeUr
   if (!html.includes('data-api-base=')) html = html.replace('<body', `<body data-api-base="${apiPath}"`);
   html = html.replace(/data-locale="[^"]*"/, `data-locale="${normalizedLocale}"`);
   if (!html.includes('data-locale=')) html = html.replace('<body', `<body data-locale="${normalizedLocale}"`);
-  html = html.replace(/data-home-url="[^"]*"/, `data-home-url="${homeUrl}"`);
-  if (!html.includes('data-home-url=')) html = html.replace('<body', `<body data-home-url="${homeUrl}"`);
+  // homeUrl host yapılandırmasından gelir; yine de öznitelik değeri olarak kaçışlanır ve işlevle yerleştirilir (özel yerine koyma desenleri yorumlanmasın).
+  const homeAttribute = `data-home-url="${String(homeUrl).replace(/[&"<>]/g, c => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c])}"`;
+  html = html.replace(/data-home-url="[^"]*"/, () => homeAttribute);
+  if (!html.includes('data-home-url=')) html = html.replace('<body', () => `<body ${homeAttribute}`);
   html = html.replace(/src="(?:\.\/|\/llm\/)llm-ui\.js"/, `src="${pagePath}/llm-ui.js"`);
 
   // Replace data-i18n text in html
@@ -192,7 +194,8 @@ export function createLLMManager({
   let cachedUiKey = '';
   let cachedUi = null;
 
-  const usageDir = dataDir || (filePath ? path.dirname(filePath) : 'data');
+  const storePath = filePath || (typeof store.filePath === 'string' ? store.filePath : '');
+  const usageDir = dataDir || (storePath ? path.dirname(storePath) : 'data');
   const usageTracker = createUsageTracker({ dataDir: usageDir, enabled: usageLog });
 
   const defaultRetryConfig = {

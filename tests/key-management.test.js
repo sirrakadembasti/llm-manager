@@ -368,3 +368,25 @@ test('B4 setup operations honor environment profile and key paths over dataDir',
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('K21: dışa aktarım yedek parolası en az 12 karakter ister; kısa parola dosya yazmaz', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-export-short-'));
+  try {
+    const store = createLLMProfileStore({ dataDir: dir });
+    await store.save({
+      name: 'Prod',
+      provider: 'openai',
+      model: 'gpt-4o',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'sk-test-secret-123'
+    });
+    const outputPath = path.join(dir, 'backup.json');
+    for (const password of ['abcd', 'on-bir-krkt']) {
+      assert.throws(() => exportProfiles({ dataDir: dir, outputPath, password }), /en az 12 karakter/);
+    }
+    assert.equal(fs.existsSync(outputPath), false);
+    assert.equal(exportProfiles({ dataDir: dir, outputPath, password: 'tam-12-krktr' }).profileCount, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

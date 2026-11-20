@@ -224,3 +224,49 @@ test('YH1-A5: buildProviderRequest dispatches to strategy pattern cleanly', () =
   assert.equal(req.body.system, 'sys');
   assert.equal(req.body.messages[0].content, 'hello');
 });
+
+test("K21: Gemini kullanımı düşünme token'larını çıktıya, toplamı ise sağlayıcı değerine yansıtır", () => {
+  const usageMetadata = {
+    promptTokenCount: 10,
+    cachedContentTokenCount: 6,
+    candidatesTokenCount: 5,
+    thoughtsTokenCount: 20,
+    totalTokenCount: 35
+  };
+  const response = google.parseResponse({ candidates: [{ content: { parts: [{ text: 'x' }] } }], usageMetadata });
+  assert.deepEqual(response.usage, { inputTokens: 10, outputTokens: 25, totalTokens: 35 });
+  const chunk = google.parseStreamEvent(
+    JSON.stringify({ candidates: [{ content: { parts: [{ text: 'x' }] } }], usageMetadata })
+  );
+  assert.deepEqual(chunk.usage, { inputTokens: 10, outputTokens: 25, totalTokens: 35 });
+  // Toplam yoksa girdi + çıktı (düşünme dahil) hesaplanır.
+  const { totalTokenCount: _omitted, ...withoutTotal } = usageMetadata;
+  assert.equal(google.parseResponse({ candidates: [], usageMetadata: withoutTotal }).usage.totalTokens, 35);
+});
+
+test("K21: Anthropic kullanımı önbellek yazma/okuma token'larını girdiye katar", () => {
+  const usage = { input_tokens: 4, cache_creation_input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 7 };
+  const response = anthropic.parseResponse({ content: [{ type: 'text', text: 'x' }], usage });
+  assert.deepEqual(response.usage, { inputTokens: 154, outputTokens: 7, totalTokens: 161 });
+  const start = anthropic.parseStreamEvent(JSON.stringify({ type: 'message_start', message: { usage } }));
+  assert.equal(start.usage.inputTokens, 154);
+});
+
+test('K21: Anthropic akış hatasında overloaded_error yeniden denenebilir, diğer türler denenemez sayılır', () => {
+  const event = type => JSON.stringify({ type: 'error', error: { type, message: 'Hata iletisi' } });
+  assert.throws(
+    () => anthropic.parseStreamEvent(event('overloaded_error')),
+    error => {
+      assert.ok(error instanceof LLMError);
+      assert.equal(error.retryable, true);
+      return true;
+    }
+  );
+  assert.throws(
+    () => anthropic.parseStreamEvent(event('invalid_request_error')),
+    error => {
+      assert.equal(error.retryable, false);
+      return true;
+    }
+  );
+});

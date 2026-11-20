@@ -61,6 +61,8 @@ export interface LLMStoreListResult {
 export interface LLMStore {
   /** Yönetici/proje kapsamlı kalıcı sohbet deposu. Sağlanmazsa geçmiş kaydı kapalıdır. */
   assistantHistory?: AssistantHistoryStorage;
+  /** Deponun profil dosyası; verilirse kullanım kaydı (`usage-*.jsonl`) aynı klasöre yazılır. */
+  filePath?: string;
   list(): LLMStoreListResult | Promise<LLMStoreListResult>;
   getActive(): LLMProfileInternal | null | Promise<LLMProfileInternal | null>;
   get(id: string): LLMProfileInternal | null | Promise<LLMProfileInternal | null>;

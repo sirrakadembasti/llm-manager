@@ -320,7 +320,7 @@ npx llm-manager import yedek.json --password yedek-parolasi
 
 **Döndürmeden önce** bütün depo süreçlerini durdurun ve üç dosyayı yedekleyin. Profil/geçmiş kilitlenip yazmadan önce çözülür; ikisi yeni anahtarla şifrelenir. Eski veriler `.bak`, eski anahtar `llm-encryption.key.old-<tarih>-<kimlik>` olur. Bozuk geçmiş işlemi durdurur; normal yazma hatasında veriler geri alınır. Sistem çökmesinde çok dosyalı atomiklik yoktur; profil/geçmiş yedeklerini eşleşen eski anahtarla birlikte geri yükleyin.
 
-Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup legacy `.env` anahtarını dosyaya taşır; `.env` değişmez. `writeEnv: true` eski uyumluluk yoludur. Döndürme sonrasında açık/env anahtarını yeni değere güncelleyip süreçleri yeniden başlatın; CLI `.env` dosyasını güncellemez. Export/import yalnız **profil** taşır, sohbet arşivini içermez. Yedek parolası `--password`, yoksa `LLM_BACKUP_PASSWORD`, o da yoksa `LLM_ADMIN_PASSWORD` değerinden alınır; yönetici parolasından ayrı yedek parolası için `LLM_BACKUP_PASSWORD` tanımlayın.
+Anahtar önceliği: açık `encryptionKey` > `LLM_CONFIG_ENCRYPTION_KEY` > anahtar dosyası. Varsayılan setup legacy `.env` anahtarını dosyaya taşır; `.env` değişmez. `writeEnv: true` eski uyumluluk yoludur. Döndürme sonrasında açık/env anahtarını yeni değere güncelleyip süreçleri yeniden başlatın; CLI `.env` dosyasını güncellemez. Export/import yalnız **profil** taşır, sohbet arşivini içermez. Yedek parolası `--password`, yoksa `LLM_BACKUP_PASSWORD`, o da yoksa `LLM_ADMIN_PASSWORD` değerinden alınır ve dışa aktarımda en az **12 karakter** olmalıdır (dosya düz API anahtarlarını içerir; geri yükleme eski, kısa parolalı yedekleri kabul eder); yönetici parolasından ayrı yedek parolası için `LLM_BACKUP_PASSWORD` tanımlayın.
 
 | Belirti / kod | Yapılacak işlem |
 | --- | --- |
@@ -338,7 +338,7 @@ Dosya izinleri (0600) Windows'ta uygulanmaz; `data/` klasörünü yalnız uygula
 
 ## Dağıtım ve ayarlar
 
-Üretimde TLS ters vekili, servis hesabı ve kalıcı veri dizini kullanın. Ağa açık CLI en az **12 karakter** parola ister. Parolayı komut satırı/kabuk geçmişi yerine servis ortamında tutun. Sağlık: `curl -f http://127.0.0.1:8010/api/llm/health`; ok/version/hasActiveProfile/requestId döner, canlı sağlayıcı başarısını kanıtlamaz. `usageLog:true` veya `LLM_USAGE_LOG=true` aylık içeriksiz JSONL ve admin `/usage` açar; `chat.completed` başarı/hata/iptal/erken yineleyici dönüşü dahil mantıksal isteği bir kez kaydeder, bilinmeyen usage null'dır.
+Üretimde TLS ters vekili, servis hesabı ve kalıcı veri dizini kullanın. Ağa açık CLI en az **12 karakter** parola ister. Parolayı komut satırı/kabuk geçmişi yerine servis ortamında tutun. Sağlık: `curl -f http://127.0.0.1:8010/api/llm/health`; ok/version/hasActiveProfile/requestId döner, canlı sağlayıcı başarısını kanıtlamaz. `usageLog:true` veya `LLM_USAGE_LOG=true` aylık içeriksiz JSONL (`usage-YYYY-MM.jsonl`; `dataDir`, yoksa profil dosyasının klasörü, o da yoksa `data/`) ve admin `/usage` açar; `chat.completed` başarı/hata/iptal/erken yineleyici dönüşü dahil mantıksal isteği bir kez kaydeder, bilinmeyen usage null'dır.
 
 | Ayar | Kapsam |
 | --- | --- |

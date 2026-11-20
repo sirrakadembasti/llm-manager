@@ -268,6 +268,7 @@ export function createLLMProfileStore({
 
   return {
     assistantHistory,
+    filePath,
     async list() {
       const data = await read();
       return { version: data.version, activeId: data.activeId, profiles: data.profiles.map(publicProfile) };

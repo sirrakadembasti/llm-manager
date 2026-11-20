@@ -220,10 +220,14 @@ export function exportProfiles({
   password,
   outputPath
 } = {}) {
-  if (!password || typeof password !== 'string' || password.length < 4) {
-    throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Yedekleme için geçerli bir parola gereklidir (en az 4 karakter).', {
-      status: 400
-    });
+  if (!password || typeof password !== 'string' || password.length < 12) {
+    throw new LLMError(
+      ErrorCodes.PROFILE_INVALID,
+      'Yedekleme için geçerli bir parola gereklidir (en az 12 karakter).',
+      {
+        status: 400
+      }
+    );
   }
   if (!outputPath) {
     throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Çıktı dosya yolu (--out) belirtilmelidir.', { status: 400 });
