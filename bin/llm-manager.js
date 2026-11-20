@@ -28,6 +28,7 @@ Seçenekler:
   --host <adres>            Dinlenecek adres (varsayılan: 127.0.0.1)
   -p, --port <sayı>         Dinlenecek port (varsayılan: 8010, PORT ile de verilebilir)
   -c, --cors <adres>        İzin verilen SPA/masaüstü adresleri (ör. http://localhost:5173 veya *)
+  --trust-proxy <değer>     Ters vekil güveni: atlama sayısı (1) veya adres listesi (LLM_TRUST_PROXY); varsayılan kapalı
   --data-dir <dizin>        Profil ve anahtar verilerinin saklanacağı klasör
   --project-root <dizin>    Proje Asistanı için kaynak kökü (sunucu modu; isteğe bağlı)
   --out <dosya>             Dışa aktarılacak dosya yolu (export için)
@@ -177,6 +178,8 @@ for (let i = 0; i < args.length; i++) {
     process.env.LLM_ADMIN_USER = String(args[++i] || '');
   } else if (arg === '-c' || arg === '--cors') {
     process.env.LLM_ALLOWED_ORIGINS = String(args[++i] || '');
+  } else if (arg === '--trust-proxy') {
+    process.env.LLM_TRUST_PROXY = String(args[++i] || '');
   } else if (arg === '--data-dir') {
     dataDir = String(args[++i] || '');
   } else if (arg === '--chat-token') {
@@ -247,6 +250,7 @@ if (isInit) {
     adminUser: process.env.LLM_ADMIN_USER || 'admin',
     adminPassword: process.env.LLM_ADMIN_PASSWORD,
     allowedOrigins: process.env.LLM_ALLOWED_ORIGINS || '',
+    trustProxy: process.env.LLM_TRUST_PROXY,
     dataDir,
     chatTokens,
     ...(pagePath ? { pagePath } : {}),

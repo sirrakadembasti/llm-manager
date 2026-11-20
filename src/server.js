@@ -1,12 +1,29 @@
 import express from 'express';
 import { mountLLMManagement } from './index.js';
 
+// Ters vekil güveni: kapalı (varsayılan), atlama sayısı (1), true ya da Express'in kabul ettiği adres listesi/adı
+// ('127.0.0.1,loopback'). Ortam değişkeni ve CLI metin verdiği için metin biçimleri de ayrıştırılır.
+function trustProxySetting(value) {
+  if (value === undefined || value === null || value === false) return false;
+  let setting = value;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text || text.toLowerCase() === 'false') return false;
+    setting = text.toLowerCase() === 'true' ? true : /^\d+$/.test(text) ? Number(text) : text;
+  }
+  if (setting === 0) return false;
+  const valid = setting === true || typeof setting === 'string' || (Number.isInteger(setting) && setting > 0);
+  if (!valid) throw new Error('Geçersiz trustProxy değeri: atlama sayısı, true veya adres listesi verin.');
+  return setting;
+}
+
 export async function createStandaloneServer({
   host = '127.0.0.1',
   port = 8010,
   adminUser = 'admin',
   adminPassword = process.env.LLM_ADMIN_PASSWORD,
   allowedOrigins = [],
+  trustProxy,
   dataDir,
   chatTokens,
   logger = console,
@@ -47,7 +64,17 @@ export async function createStandaloneServer({
     }
   }
 
+  const trust = trustProxySetting(trustProxy);
   const app = express();
+  if (trust !== false) {
+    try {
+      app.set('trust proxy', trust);
+    } catch {
+      throw new Error(
+        'Geçersiz trustProxy değeri: adres listesi veya adları (loopback, linklocal, uniquelocal) bekleniyor.'
+      );
+    }
+  }
 
   if (originsSet.size > 0) {
     app.use((req, res, next) => {
