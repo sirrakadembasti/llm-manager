@@ -130,6 +130,12 @@ function defaultTestMessages(mode) {
 }
 
 const ok = (body, status = 200) => ({ status, body });
+
+// Sağlayıcının hata metni (maskelenmiş) yalnız yönetici yanıtına girer; Bearer sohbet istemcisi genel mesajı görür.
+const forPrincipal = (classified, principal) => {
+  const { providerMessage, ...rest } = classified;
+  return principal?.isAdmin === true && providerMessage ? { ...rest, providerMessage } : rest;
+};
 const safeUsage = usage => {
   if (!usage || typeof usage !== 'object') return null;
   const tokenCount = value => (Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0);
@@ -359,7 +365,10 @@ export function createLLMManager({
           });
         } catch {}
       }
-      return ok({ ...classified, mode, durationMs: Date.now() - start, requestId }, classified.status);
+      return ok(
+        { ...forPrincipal(classified, principal), mode, durationMs: Date.now() - start, requestId },
+        classified.status
+      );
     } finally {
       pendingTests.delete(id);
     }
@@ -887,7 +896,7 @@ export function createLLMManager({
         fallbackUsed: completionProfile.id !== profile.id,
         code: classified.code
       });
-      return ok({ ...classified, durationMs, requestId }, classified.status);
+      return ok({ ...forPrincipal(classified, principal), durationMs, requestId }, classified.status);
     }
   }
 
@@ -1303,7 +1312,7 @@ export function createLLMManager({
               const classified = classifyLLMError(err);
               controller.enqueue(
                 encoder.encode(
-                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, requestId })}\n\n`
+                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, providerMessage: forPrincipal(classified, principal).providerMessage, requestId })}\n\n`
                 )
               );
               controller.close();

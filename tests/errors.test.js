@@ -473,3 +473,154 @@ test('YH1-A4: Google SAFETY and upstream request rejection retain typed behavior
     globalThis.fetch = originalFetch;
   }
 });
+
+test('K10: içerik filtresi türü bitiş nedenleri tek istekle LLM_CONTENT_FILTERED döner, yeniden denenmez', async () => {
+  const { executeWithRetry, parseSseStream } = await import('../src/runtime.js');
+  const { google, anthropic } = await import('../src/transports/index.js');
+  const profiles = {
+    google: {
+      provider: 'google',
+      model: 'gemini-2.0-flash',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: 'k'
+    },
+    anthropic: {
+      provider: 'anthropic',
+      model: 'claude-3-7-sonnet-latest',
+      baseURL: 'https://api.anthropic.com/v1',
+      apiKey: 'k'
+    }
+  };
+  const cases = [
+    ['google', { candidates: [{ finishReason: 'RECITATION' }] }],
+    ['google', { candidates: [{ finishReason: 'PROHIBITED_CONTENT' }] }],
+    ['google', { candidates: [{ finishReason: 'BLOCKLIST' }] }],
+    ['google', { candidates: [{ finishReason: 'SPII' }] }],
+    ['google', { promptFeedback: { blockReason: 'PROHIBITED_CONTENT' } }],
+    ['google', { promptFeedback: { blockReason: 'SAFETY' } }],
+    ['anthropic', { content: [], stop_reason: 'refusal' }]
+  ];
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [provider, body] of cases) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls++;
+        return new Response(JSON.stringify(body), { status: 200 });
+      };
+      await assert.rejects(
+        () =>
+          executeWithRetry(() => generateProfileResponse([{ role: 'user', content: 'Merhaba' }], profiles[provider]), {
+            attempts: 3,
+            baseMs: 1,
+            maxMs: 2
+          }),
+        error => error.code === ErrorCodes.LLM_CONTENT_FILTERED && error.status === 422,
+        JSON.stringify(body)
+      );
+      assert.equal(calls, 1, `${JSON.stringify(body)} yeniden denendi`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  // Akış: istem engeli ve RECITATION da filtre sayılır.
+  const sse = payload =>
+    new Response(`data: ${JSON.stringify(payload)}\n\n`, { headers: { 'content-type': 'text/event-stream' } }).body;
+  for (const [transport, payload] of [
+    [google, { candidates: [{ finishReason: 'RECITATION' }] }],
+    [google, { promptFeedback: { blockReason: 'BLOCKLIST' } }],
+    [anthropic, { type: 'message_delta', delta: { stop_reason: 'refusal' }, usage: { output_tokens: 0 } }]
+  ]) {
+    await assert.rejects(
+      async () => {
+        const chunks = [];
+        for await (const chunk of parseSseStream(sse(payload), transport)) chunks.push(chunk);
+      },
+      error => error.code === ErrorCodes.LLM_CONTENT_FILTERED,
+      JSON.stringify(payload)
+    );
+  }
+});
+
+test('K10: sağlayıcı hata gövdesindeki mesaj yalnız yönetici yanıtında görünür ve sırlar maskelenir', async t => {
+  const { createMockProvider } = await import('./helpers/mockProvider.js');
+  const mock = createMockProvider();
+  const { url } = await mock.start();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-provider-message-'));
+  t.after(async () => {
+    await mock.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const profileKey = 'profil-anahtari-12345678';
+  mock.setResponse((req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        error: {
+          type: 'invalid_request_error',
+          message: `model bulunamadı: gpt-yok. Authorization: Bearer abc.DEF-123 anahtar sk-proj-abcdefghijklmnop1234 ve ${profileKey}`
+        }
+      })
+    );
+  });
+  const manager = createLLMManager({
+    dataDir: dir,
+    allowLocalHttp: true,
+    chatTokens: ['sohbet-belirteci-123'],
+    retry: false
+  });
+  const saved = await manager.handle({
+    method: 'POST',
+    path: '/profiles',
+    body: { name: 'Hata', provider: 'openai', baseURL: `${url}/v1`, model: 'gpt-yok', apiKey: profileKey }
+  });
+  await manager.handle({
+    method: 'POST',
+    path: `/profiles/${saved.body.id}/activate`,
+    body: { revision: saved.body.revision }
+  });
+
+  const admin = await manager.handle({
+    method: 'POST',
+    path: '/chat',
+    principal: { isAdmin: true },
+    body: { prompt: 'x' }
+  });
+  assert.equal(admin.status, 502);
+  assert.equal(admin.body.code, 'LLM_REQUEST_REJECTED');
+  const message = admin.body.providerMessage;
+  assert.match(message, /invalid_request_error/);
+  assert.match(message, /model bulunamadı: gpt-yok/);
+  assert.doesNotMatch(message, /abc\.DEF-123|sk-proj-abcdefghijklmnop1234|profil-anahtari-12345678/);
+  assert.ok(message.length <= 300);
+
+  // Sohbet istemcisi (Bearer): alan yok, genel mesaj korunur.
+  const client = await manager.handle({
+    method: 'POST',
+    path: '/chat',
+    principal: { isAdmin: false },
+    body: { prompt: 'x' }
+  });
+  assert.equal('providerMessage' in client.body, false);
+  assert.doesNotMatch(JSON.stringify(client.body), /model bulunamadı/);
+
+  // Akış hata olayı: yönetici mesajı alır, Bearer istemcisi almaz.
+  const streamError = async authorization => {
+    const response = await manager.fetch(
+      new Request('http://localhost/api/llm/chat', {
+        method: 'POST',
+        headers: { authorization, 'content-type': 'application/json', 'X-LLM-CSRF': '1' },
+        body: JSON.stringify({ prompt: 'x', stream: true })
+      }),
+      { adminPassword: 'yonetici-parolasi-123' }
+    );
+    return response.text();
+  };
+  const adminStream = await streamError('Basic ' + Buffer.from('admin:yonetici-parolasi-123').toString('base64'));
+  assert.match(adminStream, /event: error/);
+  assert.match(adminStream, /"providerMessage":"invalid_request_error: model bulunamadı/);
+  assert.doesNotMatch(adminStream, /abc.DEF-123|sk-proj-abcdefghijklmnop1234|profil-anahtari-12345678/);
+  const clientStream = await streamError('Bearer sohbet-belirteci-123');
+  assert.match(clientStream, /event: error/);
+  assert.doesNotMatch(clientStream, /providerMessage|model bulunamadı/);
+});

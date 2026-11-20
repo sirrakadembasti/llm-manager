@@ -74,6 +74,8 @@ export class LLMError extends Error {
   status?: number;
   retryable?: boolean;
   upstreamStatus?: number;
+  /** Sağlayıcı hata gövdesinden alınan, maskelenmiş ve 300 karakterle sınırlı mesaj (yalnız yönetici yanıtına girer). */
+  providerMessage?: string;
   cause?: unknown;
 
   constructor(
