@@ -287,7 +287,10 @@ export function mountLLMManagement(
         try {
           for await (const chunk of result.stream) {
             if (abortController.signal.aborted) break;
-            if (chunk.type === 'delta') {
+            if (chunk.type === 'meta') {
+              const { type: _type, ...meta } = chunk;
+              res.write(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`);
+            } else if (chunk.type === 'delta') {
               res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`);
             } else if (chunk.type === 'done') {
               res.write(

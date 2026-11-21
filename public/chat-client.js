@@ -1,14 +1,25 @@
 function createLLMChatClient({ baseURL, fetchImpl = (...args) => fetch(...args) }) {
-  async function transmit({ profileId, messages, stream = false, signal, onDelta = () => {} }) {
+  // `path` ve `payload` verilirse aynı akış okuyucusu başka bir uç noktayı da (ör. `/project/chat`) okur; `meta` olayı
+  // (kaynaklar, getirme izi) `onMeta` ile gelir ve yanıt metnine eklenmez.
+  async function transmit({
+    profileId,
+    messages,
+    stream = false,
+    signal,
+    onDelta = () => {},
+    onMeta = () => {},
+    path = '/chat',
+    payload
+  }) {
     const started = Date.now();
     const deadline = AbortSignal.timeout(330000);
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
-    const response = await fetchImpl(`${baseURL.replace(/\/$/, '')}/chat`, {
+    const response = await fetchImpl(`${baseURL.replace(/\/$/, '')}${path}`, {
       method: 'POST',
       credentials: 'same-origin',
       signal: combined,
       headers: { 'Content-Type': 'application/json', 'X-LLM-CSRF': '1' },
-      body: JSON.stringify({ profileId, messages, stream })
+      body: JSON.stringify(payload ?? { profileId, messages, stream })
     });
     const failure = data =>
       Object.assign(new Error(data?.error || `HTTP ${response.status}`), {
@@ -23,6 +34,7 @@ function createLLMChatClient({ baseURL, fetchImpl = (...args) => fetch(...args) 
     const decoder = new TextDecoder();
     let buffer = '',
       content = '',
+      meta = null,
       usage = null,
       finishReason,
       completed = false,
@@ -46,6 +58,11 @@ function createLLMChatClient({ baseURL, fetchImpl = (...args) => fetch(...args) 
       }
       if (data.error) throw failure(data);
       if (completed) throw new Error('Yanıt tamamlandıktan sonra beklenmeyen veri alındı.');
+      if (event === 'meta') {
+        meta = data;
+        onMeta(data);
+        return;
+      }
       if (typeof data.text === 'string') {
         content += data.text;
         onDelta(data.text);
@@ -72,7 +89,7 @@ function createLLMChatClient({ baseURL, fetchImpl = (...args) => fetch(...args) 
       }
       if (buffer.trim()) line(buffer.replace(/\r$/, ''));
       if (!completed) throw new Error('Yanıt akışı tamamlanmadan kesildi.');
-      return { content, usage, finishReason, durationMs: Date.now() - started };
+      return { content, usage, finishReason, ...(meta ? { meta } : {}), durationMs: Date.now() - started };
     } finally {
       await reader.cancel().catch(() => {});
       reader.releaseLock();

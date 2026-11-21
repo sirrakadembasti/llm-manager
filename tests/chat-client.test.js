@@ -101,3 +101,33 @@ test('invalid JSON and native network/timeout errors have Turkish user messages'
   ];
   for (const [fetcher, message] of cases) await assert.rejects(client(fetcher).send(input), message);
 });
+
+test('K14: kaynaklı sohbet yolu ve yükü ile meta olayı geri çağrıya gelir, metin olarak sayılmaz', async () => {
+  let observed;
+  const sse =
+    'event: meta\ndata: {"sources":[{"path":"a.js","startLine":1,"endLine":2}],"revision":"r1"}\n\n' +
+    'event: delta\ndata: {"text":"Kıs"}\n\n' +
+    'event: delta\ndata: {"text":"men"}\n\n' +
+    'event: done\ndata: {"usage":{"totalTokens":3},"finishReason":"stop"}\n\n';
+  const chat = client(async (url, options) => {
+    observed = { url, body: JSON.parse(options.body) };
+    return new Response(sse, { headers: { 'content-type': 'text/event-stream' } });
+  });
+  const metas = [];
+  const chunks = [];
+  const reply = await chat.send({
+    path: '/project/chat',
+    payload: { prompt: 'Soru', shareSources: true, stream: true },
+    stream: true,
+    onMeta: meta => metas.push(meta),
+    onDelta: text => chunks.push(text)
+  });
+  assert.equal(observed.url, '/custom/api/project/chat');
+  assert.deepEqual(observed.body, { prompt: 'Soru', shareSources: true, stream: true });
+  assert.equal(metas.length, 1);
+  assert.equal(metas[0].sources[0].path, 'a.js');
+  assert.equal(chunks.join(''), 'Kısmen');
+  assert.equal(reply.content, 'Kısmen');
+  assert.equal(reply.meta.revision, 'r1');
+  assert.equal(reply.usage.totalTokens, 3);
+});

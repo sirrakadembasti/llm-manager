@@ -649,29 +649,48 @@ function createLLMProjectUI({
       async signal => {
         runningChat = true;
         const answer = await beginTurn(prompt, 'Kaynaklı sohbet');
+        let body = lastMessageBody;
         let failure;
-        try {
-          signal.throwIfAborted();
-          const reply = await request('/project/chat', {
-            method: 'POST',
-            signal,
-            body: JSON.stringify({
-              prompt,
-              history: completedContext(),
-              revision: state.inventory?.revision,
-              shareSources: true,
-              retrievalMode: el('project-use-graphify').checked ? 'graphify' : 'basic'
-            })
-          });
-          answer.content = reply.content || '';
-          answer.retrieval = reply.retrieval;
-          answer.sources = (reply.sources || [])
+        const sourceList = sources =>
+          (sources || [])
             .map(
               s =>
                 `${s.path}:${s.startLine}–${s.endLine}${s.role ? ' [' + ({ canonical: 'Güncel belge adayı', manifest: 'Bağımlılık bildirimi', historical: 'Tarihsel kayıt', plan: 'Plan; uygulanma durumu doğrulanmalı', code: 'Kaynak kod', test: 'Test' }[s.role] || 'Kaynak') + ']' : ''}`
             )
             .join(', ')
             .slice(0, 12000);
+        try {
+          signal.throwIfAborted();
+          // Yanıt akışla gelir: `meta` kaynak ve getirme izini, `delta` metni artırır.
+          const reply = await chatClient.send({
+            path: '/project/chat',
+            stream: true,
+            signal,
+            payload: {
+              prompt,
+              history: completedContext(),
+              revision: state.inventory?.revision,
+              shareSources: true,
+              retrievalMode: el('project-use-graphify').checked ? 'graphify' : 'basic',
+              stream: true
+            },
+            onMeta: meta => {
+              answer.retrieval = meta.retrieval;
+              answer.sources = sourceList(meta.sources);
+              renderTranscript(false);
+              body = lastMessageBody;
+            },
+            onDelta: text => {
+              const follow = nearBottom();
+              if (body) body.textContent += text;
+              answer.content = ((answer.content || '') + text).slice(0, 32000);
+              if (follow) el('assistant-messages').scrollTop = el('assistant-messages').scrollHeight;
+            }
+          });
+          const evidence = reply.meta || reply;
+          answer.content = reply.content || '';
+          if (evidence.retrieval) answer.retrieval = evidence.retrieval;
+          if (evidence.sources) answer.sources = sourceList(evidence.sources);
           history.push(
             { role: 'user', content: prompt },
             { role: 'assistant', content: String(reply.content || '').slice(0, 10000) }
