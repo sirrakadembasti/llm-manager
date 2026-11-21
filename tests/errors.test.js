@@ -624,3 +624,78 @@ test('K10: sağlayıcı hata gövdesindeki mesaj yalnız yönetici yanıtında g
   assert.match(clientStream, /event: error/);
   assert.doesNotMatch(clientStream, /providerMessage|model bulunamadı/);
 });
+
+test('K10: Express akış hata olayı sağlayıcı mesajını yalnız yöneticiye taşır', async t => {
+  const { createMockProvider } = await import('./helpers/mockProvider.js');
+  const { default: express } = await import('express');
+  const { mountLLMManagement } = await import('../src/index.js');
+  const { once } = await import('node:events');
+  const mock = createMockProvider();
+  const { url } = await mock.start();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-express-provider-message-'));
+  mock.setResponse((req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        error: { type: 'invalid_request_error', message: 'model bulunamadı: gpt-yok. Bearer abc.DEF-123' }
+      })
+    );
+  });
+  const app = express();
+  const mounted = mountLLMManagement(app, {
+    dataDir: dir,
+    allowLocalHttp: true,
+    adminPassword: 'yonetici-parolasi-123',
+    chatTokens: ['sohbet-belirteci-123'],
+    rateLimit: false,
+    retry: false
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(async () => {
+    await mounted.close();
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await mock.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const base = `http://127.0.0.1:${server.address().port}/api/llm`;
+  const adminHeaders = {
+    Authorization: 'Basic ' + Buffer.from('admin:yonetici-parolasi-123').toString('base64'),
+    'Content-Type': 'application/json',
+    'X-LLM-CSRF': '1'
+  };
+  const saved = await (
+    await fetch(`${base}/profiles`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: 'Hata',
+        provider: 'openai',
+        baseURL: `${url}/v1`,
+        model: 'gpt-yok',
+        apiKey: 'sk-mock-key'
+      })
+    })
+  ).json();
+  await fetch(`${base}/profiles/${saved.id}/activate`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({ revision: saved.revision })
+  });
+  const streamError = async authorization =>
+    (
+      await fetch(`${base}/chat`, {
+        method: 'POST',
+        headers: { ...adminHeaders, Authorization: authorization },
+        body: JSON.stringify({ prompt: 'x', stream: true })
+      })
+    ).text();
+  const adminStream = await streamError(adminHeaders.Authorization);
+  assert.match(adminStream, /event: error/);
+  assert.match(adminStream, /"providerMessage":"invalid_request_error: model bulunamadı/);
+  assert.doesNotMatch(adminStream, /abc\.DEF-123/);
+  const clientStream = await streamError('Bearer sohbet-belirteci-123');
+  assert.match(clientStream, /event: error/);
+  assert.doesNotMatch(clientStream, /providerMessage|model bulunamadı/);
+});
