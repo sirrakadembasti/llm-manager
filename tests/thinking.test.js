@@ -37,32 +37,35 @@ test('YH1-C7: OpenAI reasoning models map thinking to reasoning_effort', () => {
   assert.equal(req4.body.reasoning_effort, undefined);
 });
 
-test('YH1-C7: Anthropic maps thinking: enabled to budget_tokens < maxOutputTokens and clears temperature', () => {
+test('YH1-C7: Anthropic düşünme alanını yalnız katalogdaki 5.x ailelerine gönderir; eski modellerde alan yok, örnekleme korunur', () => {
   const messages = [{ role: 'user', content: 'Explain quantum computing' }];
-  const profile = {
+  const profile = model => ({
     provider: 'anthropic',
     baseURL: 'https://api.anthropic.com/v1',
-    model: 'claude-3-7-sonnet-latest',
+    model,
     apiKey: 'sk-ant-test'
-  };
-
-  // 1. Thinking enabled -> budget_tokens and temperature omitted/cleared
-  const req1 = buildProviderRequest(profile, messages, {
+  });
+  // Katalogda olmayan (eski veya yeni) model: ne açma ne kapatma için thinking gönderilir; temperature/top_p korunur.
+  for (const model of ['claude-3-7-sonnet-latest', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-yeni-9-9']) {
+    for (const thinking of ['enabled', 'disabled', 'auto']) {
+      const { body } = buildProviderRequest(profile(model), messages, {
+        thinking,
+        maxOutputTokens: 4096,
+        temperature: 0.7,
+        topP: 0.9
+      });
+      assert.equal('thinking' in body, false, `${model}/${thinking}`);
+      assert.equal(body.temperature, 0.7, `${model}/${thinking}`);
+      assert.equal(body.top_p, 0.9, `${model}/${thinking}`);
+    }
+  }
+  // Katalogdaki uyarlamalı aile düşünme alanını alır ve örnekleme göndermez.
+  const adaptive = buildProviderRequest(profile('claude-sonnet-5-5'), messages, {
     thinking: 'enabled',
-    maxOutputTokens: 4096,
     temperature: 0.7
-  });
-  assert.deepEqual(req1.body.thinking, { type: 'enabled', budget_tokens: 2048 });
-  assert.equal(req1.body.temperature, undefined, 'Anthropic forbids temperature when thinking is enabled');
-  assert.ok(req1.body.thinking.budget_tokens < req1.body.max_tokens);
-
-  // 2. Thinking disabled -> no thinking block, temperature preserved
-  const req2 = buildProviderRequest(profile, messages, {
-    thinking: 'disabled',
-    temperature: 0.5
-  });
-  assert.equal(req2.body.thinking, undefined);
-  assert.equal(req2.body.temperature, 0.5);
+  }).body;
+  assert.deepEqual(adaptive.thinking, { type: 'adaptive' });
+  assert.equal(adaptive.temperature, undefined);
 });
 
 test('YH1-C7: Gemini 3+ düşünmeyi thinkingConfig.thinkingLevel ile eşler; kataloğun bilmediği modele ek alan gönderilmez', () => {
@@ -171,22 +174,4 @@ test('Gemini 3/4 use thinkingLevel and reject unsupported full thinking-off', ()
     () => buildProviderRequest(profile, messages, { thinking: 'disabled' }),
     error => error.code === 'RUNTIME_OPTIONS_INVALID'
   );
-});
-
-test('K09: Anthropic düşünme bütçesi 1.024 altına inecekse thinking alanı gövdeye konmaz', () => {
-  const messages = [{ role: 'user', content: 'Merhaba' }];
-  const profile = {
-    provider: 'anthropic',
-    baseURL: 'https://api.anthropic.com/v1',
-    model: 'claude-3-7-sonnet-latest',
-    apiKey: 'sk-ant-test'
-  };
-  const body = maxOutputTokens =>
-    buildProviderRequest(profile, messages, { thinking: 'enabled', maxOutputTokens }).body;
-  // Hızlı testin çıktı sınırı 512: bütçe 511 olurdu ve API 400 ile reddederdi.
-  assert.equal('thinking' in body(512), false);
-  assert.equal('thinking' in body(1024), false);
-  // Asgari bütçe (1.024) ve üstü korunur; bütçe max_tokens'tan küçük kalır.
-  assert.deepEqual(body(1025).thinking, { type: 'enabled', budget_tokens: 1024 });
-  assert.deepEqual(body(8192).thinking, { type: 'enabled', budget_tokens: 2048 });
 });
