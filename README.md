@@ -57,15 +57,15 @@ Genel tanıtımda frontend/backend/yetki/entegrasyon/veritabanı kaynaklarına p
 Graphify seçilirse aynı bütçeye en fazla 20 dosya/satır referanslı ilişki ve sınırlı kaynak satırları eklenir. Ek dosya veya ilişki kanıtı yoksa `graphUsed`/`graphContributed` false olur. Sohbet ve geliştirme görevleri aynı seçim/revizyon kontrolünü kullanır; ilişki izi Yanıt ayrıntılarında ve şifreli geçmişte korunur.
 Gizlilik filtresi boş Vue reactive ifadelerini parola sanmaz; gerçek literal kimlik bilgileri çalışma kopyasına alınmaz. Yalnız atama biçimli sır satırları yüzünden dışlanan dosyalar salt-okunur kaynaklı sohbette `[GİZLENDİ]` satırlarıyla görünür; gerçek anahtar biçimi taşıyanlar, Graphify, OpenCode ve değişiklik akışları tam dışlama kuralında kalır. **Dışlanan kaynaklar ve nedenleri** paneli güvenli göreli yollar ve neden kodlarını gösterir; ham sır içermez. Özet sınırlıdır ve dizinler tek kayıtla gösterilebilir; DB URL örnekleri güvenle ayrıştırılamazsa dosya dışlanır.
 
-Görevler geçici kaynak kopyasında hazırlanır; hedef dosyalar ayrı onayla değişir. Sohbetler ve iş çıktısı özetleri mevcut anahtarla şifreli kalıcı kaydedilir; kayıtlı sohbet açılıp sürdürülebilir. Canlı diff/geri alma kayıtları sunucu belleğindedir; kapanışta silinir. Geçmiş kaydı dosyaları otomatik uygulamaz. Kaynak taraması gerçek veritabanına bağlanmaz.
+Görevler geçici kaynak kopyasında hazırlanır; hedef dosyalar ayrı onayla değişir. Sohbetler ve iş çıktısı özetleri mevcut anahtarla şifreli kalıcı kaydedilir; kayıtlı sohbet açılıp sürdürülebilir. Uygulanmış değişikliklerin geri alma kaydı şifreli `<profil-dosyası>.tasks.enc` dosyasında saklanır ve sunucu yeniden başlasa da geri alınabilir; henüz uygulanmamış öneriler bellekte kalır, kapanışta silinir. Geçmiş kaydı dosyaları otomatik uygulamaz. Kaynak taraması gerçek veritabanına bağlanmaz.
 
 ## Belgeler
 
 - [Tek kullanıcı kılavuzu](docs/KULLANICI_KILAVUZU.md): başlangıç, arayüz, entegrasyon, API, güvenlik, yedekleme, dağıtım ve geliştirme.
 - [Değişiklikler, doğrulanmış durum ve belge özetleri](docs/KULLANICI_KILAVUZU.md#geçmiş-ve-belge-özetleri).
 
-**Yedekleme:** `data/llm-profiles.json`, varsa `data/llm-profiles.json.assistant.enc` ve `data/llm-encryption.key` dosyalarını birlikte saklayın. Anahtar kaybolursa profiller ve sohbet geçmişi çözülemez. Özel profil yolu kullanılıyorsa geçmiş dosyası `<profil-dosyası>.assistant.enc` konumundadır.
+**Yedekleme:** `data/llm-profiles.json`, varsa `data/llm-profiles.json.assistant.enc`, `data/llm-profiles.json.tasks.enc` ve `data/llm-encryption.key` dosyalarını birlikte saklayın. Anahtar kaybolursa profiller, sohbet geçmişi ve görev kayıtları çözülemez. Özel profil yolu kullanılıyorsa geçmiş ve görev dosyaları `<profil-dosyası>.assistant.enc` ve `<profil-dosyası>.tasks.enc` konumundadır.
 
-Anahtar döndürme profil ve sohbet geçmişini birlikte yeniden şifreler. Önce sunucuyu durdurun; açık/env anahtarını güncelleyip yeniden başlatın. [Yedekleme ve kurtarma](docs/KULLANICI_KILAVUZU.md#yedekleme-ve-sorun-giderme).
+Anahtar döndürme profil, sohbet geçmişi ve görev kayıtlarını birlikte yeniden şifreler. Önce sunucuyu durdurun; açık/env anahtarını güncelleyip yeniden başlatın. [Yedekleme ve kurtarma](docs/KULLANICI_KILAVUZU.md#yedekleme-ve-sorun-giderme).
 
 [MIT Lisansı](LICENSE)

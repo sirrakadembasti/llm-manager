@@ -252,22 +252,29 @@ export function createLLMProfileStore({
     revision: profile.revision || null
   });
 
-  const assistantPath = `${filePath}.assistant.enc`;
-  const assistantKey = async () => {
-    if (encryptionKey === undefined && !process.env.LLM_CONFIG_ENCRYPTION_KEY && (await exists(assistantPath))) {
-      const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
-      if (!(await exists(keyPath))) throw new Error('Existing assistant history key is missing');
-    }
-    return getKeyBytes();
+  // Şifreli yan dosyalar (sohbet geçmişi, uygulanmış görev kayıtları) profil anahtarını yeniden kullanır; dosya varken
+  // anahtar kaybolmuşsa yeni anahtar üretilip eski veri sessizce okunamaz bırakılmaz.
+  const archiveStorage = (archivePath, label) => {
+    const archiveKey = async () => {
+      if (encryptionKey === undefined && !process.env.LLM_CONFIG_ENCRYPTION_KEY && (await exists(archivePath))) {
+        const keyPath = process.env.LLM_CONFIG_KEY_PATH || path.join(path.dirname(filePath), 'llm-encryption.key');
+        if (!(await exists(keyPath))) throw new Error(`Existing ${label} key is missing`);
+      }
+      return getKeyBytes();
+    };
+    return createAssistantHistoryStorage({
+      filePath: archivePath,
+      seal: async value => encrypt(value, await archiveKey()),
+      open: async value => decrypt(value, await archiveKey())
+    });
   };
-  const assistantHistory = createAssistantHistoryStorage({
-    filePath: assistantPath,
-    seal: async value => encrypt(value, await assistantKey()),
-    open: async value => decrypt(value, await assistantKey())
-  });
+  const assistantHistory = archiveStorage(`${filePath}.assistant.enc`, 'assistant history');
+  // Yalnız uygulanmış proje görevlerinin geri alma kaydı (kapsam: proje kökü özeti).
+  const projectTasks = archiveStorage(`${filePath}.tasks.enc`, 'project task archive');
 
   return {
     assistantHistory,
+    projectTasks,
     filePath,
     async list() {
       const data = await read();

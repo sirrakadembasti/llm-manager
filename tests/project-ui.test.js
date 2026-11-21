@@ -844,3 +844,32 @@ test('K14: akış yarıda koparsa o ana kadarki yanıt korunur ve başarısız i
   assert.match(text, /Yarım yanıt/);
   assert.match(text, /Başarısız/);
 });
+
+test('K15: uygulanan görev diske yazılamadıysa uyarı, yeniden başlatmadan yüklenen görev notla gösterilir', async () => {
+  const proposal = {
+    id: 'task-one',
+    revision: 'proposal-one',
+    mode: 'change',
+    state: 'proposed',
+    content: 'Güncelleme hazır',
+    files: [{ path: 'src/app.js', before: 'old', after: 'new', kind: 'update' }]
+  };
+  const { ui, element } = fixture(async url => {
+    if (url.endsWith('/apply'))
+      return { ...proposal, state: 'applied', revision: 'applied-two', persisted: false, restored: true };
+    if (url === '/project/tasks') return proposal;
+    return { ...ready, capabilities: { changes: true } };
+  });
+  await ui.init();
+  element('project-mode').value = 'change';
+  element('project-share').checked = true;
+  element('project-prompt').value = 'İyileştir';
+  await element('project-chat-form').listeners.submit({ preventDefault() {} });
+  assert.doesNotMatch(element('project-task-state').textContent, /diske yazılamadı/);
+  element('project-approve').checked = true;
+  await element('project-apply').listeners.click();
+  assert.match(element('project-task-state').textContent, /Uygulandı/);
+  assert.match(element('project-task-state').textContent, /diske yazılamadı/);
+  // Yeniden başlatmadan sonra arşivden yüklenen görev yalnız geri alınabilir notunu taşır.
+  assert.match(element('project-task-state').textContent, /geri yüklendi/);
+});

@@ -12,10 +12,97 @@ const conflict = () =>
     409
   );
 
-export function createProjectChanges({ reader, maxTasks = 10 }) {
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `archive` (isteğe bağlı) `{ read(scope), update(scope, mutate) }` biçiminde şifreli kapsamlı depodur. Yalnız
+ * **uygulanmış** görevlerin `{ id, revision, root, appliedAt, files }` kaydı yazılır; geri alma veya kullanıcı
+ * kapatması kaydı siler, bellek temizliği (discard) silmez. Yazma hatası uygulamayı bozmaz (`persisted: false`).
+ */
+export function createProjectChanges({ reader, maxTasks = 10, archive }) {
   const tasks = new Map();
   let queue = Promise.resolve();
-  const view = task => structuredClone({ id: task.id, revision: task.revision, state: task.state, files: task.files });
+  let restoring;
+  const view = task =>
+    structuredClone({
+      id: task.id,
+      revision: task.revision,
+      state: task.state,
+      files: task.files,
+      ...(task.restored ? { restored: true } : {}),
+      ...(task.persisted === false ? { persisted: false } : {})
+    });
+
+  // Kapsam, proje kökünün gerçek yolunun özetidir; başka kökün kayıtlarına dokunulmaz.
+  const scopeOf = async () =>
+    crypto
+      .createHash('sha256')
+      .update(await fs.realpath(reader.root))
+      .digest('hex');
+  async function persist(mutate) {
+    if (!archive) return true;
+    try {
+      await archive.update(await scopeOf(), mutate);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const dropRecord = id => records => {
+    const index = records.findIndex(record => record?.id === id);
+    if (index >= 0) records.splice(index, 1);
+  };
+  const recordOf = task => ({
+    id: task.id,
+    revision: task.revision,
+    root: task.root,
+    appliedAt: task.appliedAt,
+    files: task.files
+  });
+
+  function validRecord(record, root) {
+    if (!record || typeof record !== 'object' || !uuid.test(record.id) || typeof record.revision !== 'string')
+      return false;
+    if (record.root !== root || Number.isNaN(Date.parse(record.appliedAt))) return false;
+    if (!Array.isArray(record.files) || !record.files.length || record.files.length > 100) return false;
+    const content = value => value === null || (typeof value === 'string' && Buffer.byteLength(value) <= 256 * 1024);
+    return record.files.every(file => {
+      try {
+        projectPath(file?.path);
+      } catch {
+        return false;
+      }
+      return ['create', 'update', 'delete'].includes(file.kind) && content(file.before) && content(file.after);
+    });
+  }
+
+  async function load() {
+    if (!archive) return [];
+    let records;
+    const root = await fs.realpath(reader.root);
+    try {
+      records = await archive.read(await scopeOf());
+    } catch {
+      // Okunamayan (anahtar uyuşmazlığı, bozuk) arşiv yeni görevleri engellemez; kayıtlar belleğe alınmaz.
+      return [];
+    }
+    const restored = [];
+    for (const record of Array.isArray(records) ? records : []) {
+      if (tasks.size >= maxTasks || tasks.has(record?.id) || !validRecord(record, root)) continue;
+      const task = {
+        id: record.id,
+        revision: record.revision,
+        state: 'applied',
+        files: record.files.map(({ path: name, before, after, kind }) => ({ path: name, before, after, kind })),
+        root,
+        appliedAt: record.appliedAt,
+        restored: true
+      };
+      tasks.set(task.id, task);
+      restored.push({ id: task.id, appliedAt: task.appliedAt });
+    }
+    return restored;
+  }
 
   function validateFiles(files) {
     const map = new Map();
@@ -154,6 +241,15 @@ export function createProjectChanges({ reader, maxTasks = 10 }) {
     }
     task.state = reverse ? 'reverted' : 'applied';
     task.revision = crypto.randomUUID();
+    if (reverse) {
+      await persist(dropRecord(task.id));
+    } else {
+      task.appliedAt = new Date().toISOString();
+      task.persisted = await persist(records => {
+        dropRecord(task.id)(records);
+        records.push(recordOf(task));
+      });
+    }
     return view(task);
   }
 
@@ -172,7 +268,16 @@ export function createProjectChanges({ reader, maxTasks = 10 }) {
       for (const file of task.files) if ((await currentHash(task, file)) !== digest(file[field])) throw conflict();
       return true;
     },
+    /** Arşivden yüklenen uygulanmış görevleri bellekte kurar; bir kez çalışır. */
+    restore: () => (restoring ??= load()),
+    /** Yalnız bellekten düşer (iç temizlik); arşiv kaydı korunur. */
     discard: id => tasks.delete(id),
+    /** Kullanıcı kapatması: bellekten ve arşivden siler. */
+    forget: async id => {
+      const task = tasks.get(id);
+      tasks.delete(id);
+      if (task && (task.state === 'applied' || task.restored)) await persist(dropRecord(id));
+    },
     apply: (id, approval) => enqueue(id, approval, false),
     revert: (id, approval) => enqueue(id, approval, true),
     get: id => (tasks.has(id) ? view(tasks.get(id)) : null)

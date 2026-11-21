@@ -454,7 +454,13 @@ function createLLMProjectUI({
       reverted: tr('reverted', 'Geri alındı')
     };
     el('project-task-state').textContent = task
-      ? `${labels[task.state] || task.state} · ${task.profile?.model || ''}`
+      ? `${labels[task.state] || task.state} · ${task.profile?.model || ''}` +
+        (task.restored
+          ? ` · ${tr('task_restored', 'Yeniden başlatmadan sonra geri yüklendi; yalnız geri alınabilir')}`
+          : '') +
+        (task.persisted === false
+          ? ` · ${tr('task_not_persisted', 'Geri alma kaydı diske yazılamadı; sunucu yeniden başlarsa geri alınamaz')}`
+          : '')
       : '';
     el('project-task-output').textContent = task?.content || '';
     const skipped = task?.skippedFiles || [];
