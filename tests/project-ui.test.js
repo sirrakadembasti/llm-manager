@@ -3,7 +3,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-function fixture(request, chatClient) {
+// Kaynaklı sohbet chatClient üzerinden akar; önceki testler 'request' taklidiyle yanıt verdiği için varsayılan köprü onu çağırır.
+function requestBackedChatClient(request) {
+  return {
+    async send(input) {
+      const reply = await request(input.path, {
+        method: 'POST',
+        signal: input.signal,
+        body: JSON.stringify(input.payload)
+      });
+      input.onMeta?.(reply);
+      return reply;
+    }
+  };
+}
+
+function fixture(request, chatClient = requestBackedChatClient(request)) {
   let source = '';
   try {
     source = fs.readFileSync('public/project-ui.js', 'utf8');
@@ -764,4 +779,68 @@ test('streaming follows the bottom and preserves manual reading position through
   await f.element('project-chat-form').listeners.submit({ preventDefault() {} });
   assert.equal(f.element('assistant-messages').scrollTop, 0);
   assert.ok(!f.notices.some(n => n[1]));
+});
+
+test('K14: kaynaklı sohbet akışla büyür; meta kaynakları taşır ve yanıt tamamlanınca bitmiş görünür', async () => {
+  const requests = [];
+  let observed;
+  let release;
+  const gate = new Promise(resolve => (release = resolve));
+  let firstDelta;
+  const sawDelta = new Promise(resolve => (firstDelta = resolve));
+  const { ui, element } = fixture(
+    async url => {
+      requests.push(url);
+      return ready;
+    },
+    {
+      async send(input) {
+        observed = input;
+        input.onMeta({ sources: [{ path: 'src/app.js', startLine: 2, endLine: 4, role: 'code' }], revision: 'one' });
+        input.onDelta('Kıs');
+        firstDelta();
+        await gate;
+        input.onDelta('men');
+        return { content: 'Kısmen', usage: { totalTokens: 3 }, finishReason: 'stop' };
+      }
+    }
+  );
+  await ui.init();
+  element('project-share').checked = true;
+  element('project-prompt').value = 'Uygulamayı açıkla';
+  const pending = element('project-chat-form').listeners.submit({ preventDefault() {} });
+  await sawDelta;
+  // Yanıt tamamlanmadan ilk parça görünür.
+  assert.match(element('project-conversation').textContent, /Kıs/);
+  assert.match(element('project-conversation').textContent, /Yanıt sürüyor/);
+  release();
+  await pending;
+  const text = element('project-conversation').textContent;
+  assert.match(text, /Kısmen/);
+  assert.match(text, /src\/app\.js:2–4/);
+  assert.doesNotMatch(text, /Yanıt sürüyor/);
+  assert.equal(observed.path, '/project/chat');
+  assert.equal(observed.stream, true);
+  assert.equal(observed.payload.stream, true);
+  assert.equal(observed.payload.shareSources, true);
+  assert.equal(observed.payload.prompt, 'Uygulamayı açıkla');
+  assert.ok(!requests.includes('/project/chat'));
+});
+
+test('K14: akış yarıda koparsa o ana kadarki yanıt korunur ve başarısız işaretlenir', async () => {
+  const { ui, element } = fixture(async () => ready, {
+    async send(input) {
+      input.onDelta('Yarım yanıt');
+      throw Object.assign(new Error('Akış koptu'), { code: 'LLM_NETWORK' });
+    }
+  });
+  await ui.init();
+  element('project-share').checked = true;
+  element('project-prompt').value = 'Soru';
+  await element('project-chat-form')
+    .listeners.submit({ preventDefault() {} })
+    .catch(() => {});
+  const text = element('project-conversation').textContent;
+  assert.match(text, /Yarım yanıt/);
+  assert.match(text, /Başarısız/);
 });

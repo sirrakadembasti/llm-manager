@@ -39,7 +39,7 @@ Sağlayıcı kataloğu ve varsayılan model listeleri (katalog tarihi: 2026-10; 
 | Tür | Kullanımı |
 | --- | --- |
 | Model denemesi | Proje gerektirmez. Kayıtlı profil seçilir; sistem talimatı ve SSE/JSON akışı **Yanıt ayarları** altındadır. Kaynak gönderilmez. |
-| Kaynaklı sohbet | Etkin profil ve seçilmiş proje parçaları kullanılır; kaynak paylaşım onayı gerekir. Yanıt tamamlanınca gösterilir. |
+| Kaynaklı sohbet | Etkin profil ve seçilmiş proje parçaları kullanılır; kaynak paylaşım onayı gerekir. Yanıt akışla gelir: kaynaklar ve getirme izi önce, metin parça parça görünür; durdurunca model isteği kesilir. |
 | Geliştirme planı | OpenCode temiz kopyayı okur; hedef dosyalara yazmaz. |
 | Değişiklik hazırla | OpenCode geçici kopyada fark hazırlar; hedefe uygulama ayrıca onaylanır. |
 
@@ -234,7 +234,7 @@ Varsayılan sayfa `/llm`, API kökü `/api/llm`; `pagePath` / `apiPath` ile değ
 | Önizleme/özet/sağlık | `POST /models/preview`, `GET /usage?month=YYYY-MM` (ay 01–12, aksi 400), `GET /health` |
 | Model sohbeti | `POST /chat`: `{prompt}` veya `{messages}`, isteğe bağlı `stream: true` |
 | Proje durumu/tarama/iptal | `GET /project`, `POST /project/scan`, `POST /project/cancel` |
-| Kaynaklı sohbet | `POST /project/chat`: `{prompt, shareSources:true, revision?, history?}` |
+| Kaynaklı sohbet | `POST /project/chat`: `{prompt, shareSources:true, revision?, history?, stream?}`; `stream:true` ile SSE (`meta` → `delta`… → `done`/`error`), yoksa JSON. `meta` olayı `sources`, `partial`, `revision`, `graphUsed`, `retrieval` taşır. Doğrulama, tarama ve revizyon hataları akıştan önce düz JSON döner. |
 | Görev hazırla/listele/oku | `POST /project/tasks`: `{mode:'plan' veya 'change', prompt, shareSources:true, revision?, history?}`; `GET /project/tasks` ve `/:id` |
 | Uygula/geri al/doğrula | `POST /project/tasks/:id/apply`, `/revert`, `/commands/:name`: `{approved:true, revision}` |
 | Görevi kapat | `POST /project/tasks/:id/discard`: `{approved:true}` |
@@ -256,7 +256,7 @@ const result = await response.json();
 if (!response.ok) throw new Error(JSON.stringify(result));
 ```
 
-`ask()` dize, `{raw:true}` ile usage/finishReason/profileId/duration sonucu döndürür. `stream()` AsyncIterable; HTTP SSE `delta`, `done`, `error` kullanır. `done` gerçek `profileId`/`fallbackUsed` taşır. Bağlantı kopması veya `signal` sağlayıcı isteğini iptal eder; done olmadan bitiş başarı değildir. Hiç metin üretmeyen akış (boş içerik, ayrıştırılamayan JSON veya olaysız gövde) `done` değil, JSON yoluyla aynı `LLM_EMPTY_RESPONSE` (502, retryable) hatasıdır; ilk çıktıdan önce olduğu için tekrar ve yedek profil zinciri sürer. Kabul edilen kesilme (`acceptTruncated`) bunun dışındadır. Retry yalnız retryable hatada ilk çıktıdan önce çalışır; Retry-After/backoff ve bütün fallback'ler ilk profilin tek süre bütçesini paylaşır. `retry:false` kapatır; seçenek verilmediğinde `LLM_RETRY=false` ortam değeri de (CLI, Next.js helper ve diğer hostlarda `.env` ile) tekrarı kapatır. Gizli düşünce son yanıta eklenmez; filtre/kesilme ayrı hatadır.
+`ask()` dize, `{raw:true}` ile usage/finishReason/profileId/duration sonucu döndürür. `stream()` AsyncIterable; HTTP SSE `delta`, `done`, `error` kullanır (proje sohbeti başına `meta` da gönderir). `done` gerçek `profileId`/`fallbackUsed` taşır. Bağlantı kopması veya `signal` sağlayıcı isteğini iptal eder; done olmadan bitiş başarı değildir. Hiç metin üretmeyen akış (boş içerik, ayrıştırılamayan JSON veya olaysız gövde) `done` değil, JSON yoluyla aynı `LLM_EMPTY_RESPONSE` (502, retryable) hatasıdır; ilk çıktıdan önce olduğu için tekrar ve yedek profil zinciri sürer. Kabul edilen kesilme (`acceptTruncated`) bunun dışındadır. Retry yalnız retryable hatada ilk çıktıdan önce çalışır; Retry-After/backoff ve bütün fallback'ler ilk profilin tek süre bütçesini paylaşır. `retry:false` kapatır; seçenek verilmediğinde `LLM_RETRY=false` ortam değeri de (CLI, Next.js helper ve diğer hostlarda `.env` ile) tekrarı kapatır. Gizli düşünce son yanıta eklenmez; filtre/kesilme ayrı hatadır.
 
 | Ayar / kapsam | Varsayılan veya sınır |
 | --- | --- |
@@ -489,6 +489,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-20 içerik filtresi redleri | Gemini `RECITATION`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `SPII` (ve görsel/istem tarafı `IMAGE_SAFETY`, `MODEL_ARMOR`, `JAILBREAK`) bitiş nedenleri ile aday döndürmeyen `promptFeedback.blockReason` yanıtı ve Anthropic `stop_reason: "refusal"` artık `LLM_CONTENT_FILTERED` (422, yeniden denenmez) döner; önceden boş yanıt sayılıp aynı istek yeniden gönderiliyor ve yedek profile geçiliyordu. Bitiş nedeni adları Google ve Anthropic belgelerinden doğrulandı, canlı çağrı yapılmadı. |
 | 2026-11-20 sağlayıcı hata metni | Sağlayıcı 4xx/5xx döndürdüğünde gövdedeki `error.type`/`error.message` maskelenip 300 karakterle sınırlanarak yönetici yanıtına `providerMessage` olarak eklenir; önceden yalnız "Sağlayıcı HTTP 400 döndürdü" görünüyordu. Bearer sohbet istemcisi yanıtında alan yoktur. |
 | 2026-11-20 model kuralları kataloğa taşındı | Taşıma kodundaki model adı düzenli ifadeleri (`gpt-6`, `claude-…-5-5`, `gemini-3`, `gemini-2.5-pro` vb.) ve sağlayıcı kimliği dalları `providers.json` içine (`tokenField`, `streamUsage`, `thinkingStyle`, `modelFamilies`) taşındı. İstek gövdeleri değişmedi; tek fark önek eşleşmesinin sınırıdır (`gpt-60` gibi uydurma adlar artık aileye girmez). Katalogda olmayan model için ek alan gönderilmez. |
+| 2026-11-20 kaynaklı sohbet akışı | `POST /project/chat` gövdesinde isteğe bağlı `stream: true`: önce `meta` (kaynaklar, revizyon, getirme izi), ardından model `delta`/`done` olayları; iki adaptör de `meta` olayını yazar. Arayüz yanıtı akışla gösterir, durdurma ve bağlantı kopması sağlayıcı isteğini keser, akış yarıda koparsa o ana kadarki metin korunur ve yanıt başarısız işaretlenir. `stream` verilmeyen istek eski JSON biçimini döndürür. |
 
 ### Doğrulanmış durum ve açık işler
 

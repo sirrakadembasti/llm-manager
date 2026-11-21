@@ -193,6 +193,7 @@ export function createLLMManager({
     ? createProjectAssistant({
         options: project,
         ask: (messages, settings) => askMessages(messages, settings),
+        stream: (messages, settings) => stream(messages, settings),
         getActiveProfile: () => store.getActive(),
         networkOptions: { allowLocalHttp, proxyUrl, allowedHosts, allowedPrivateHosts }
       })
@@ -1296,7 +1297,10 @@ export function createLLMManager({
             try {
               for await (const chunk of result.stream) {
                 if (cancelled || responseSignal.aborted) break;
-                if (chunk.type === 'delta') {
+                if (chunk.type === 'meta') {
+                  const { type: _type, ...meta } = chunk;
+                  controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`));
+                } else if (chunk.type === 'delta') {
                   controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`));
                 } else if (chunk.type === 'done') {
                   controller.enqueue(
