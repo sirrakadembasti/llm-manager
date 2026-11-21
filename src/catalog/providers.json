@@ -1,6 +1,6 @@
 {
-  "catalogVersion": "2026.10",
-  "updatedAt": "2026-10-24",
+  "catalogVersion": "2026.11",
+  "updatedAt": "2026-11-21",
   "providers": [
     {
       "id": "openai",
@@ -83,7 +83,7 @@
         "thinking": true
       },
       "baseURL": "https://api.groq.com/openai/v1",
-      "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+      "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
       "tokenField": "max_tokens",
       "streamUsage": true,
       "thinkingStyle": "reasoning_effort"
@@ -116,7 +116,7 @@
       "region": "Kanada",
       "transport": "openai",
       "baseURL": "https://api.cohere.ai/compatibility/v1",
-      "models": ["command-a-plus-05-2026", "command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
+      "models": ["command-a-plus-05-2026", "command-r-plus-08-2024", "command-r-08-2024"],
       "tokenField": "max_tokens",
       "streamUsage": true,
       "thinkingStyle": "reasoning_effort"
@@ -358,7 +358,7 @@
     },
     {
       "transport": "openai",
-      "match": ["gpt-5", "o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8", "o9"],
+      "match": ["gpt-5"],
       "disableThinking": "low"
     },
     {
@@ -384,16 +384,6 @@
       "match": ["gemini-3", "gemini-4"],
       "thinking": "level",
       "disableThinking": false
-    },
-    {
-      "transport": "google",
-      "match": ["gemini-2.5-pro"],
-      "disableThinking": false
-    },
-    {
-      "transport": "google",
-      "match": ["gemini-2.5-flash-lite"],
-      "minThinkingBudget": 512
     }
   ]
 }
