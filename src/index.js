@@ -301,7 +301,7 @@ export function mountLLMManagement(
         } catch (err) {
           const classified = classifyLLMError(err);
           res.write(
-            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, requestId: req.requestId })}\n\n`
+            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, providerMessage: req.user?.isAdmin === true ? classified.providerMessage : undefined, requestId: req.requestId })}\n\n`
           );
         } finally {
           res.off('close', onClose);
