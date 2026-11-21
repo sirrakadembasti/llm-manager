@@ -13,10 +13,34 @@ import { projectError, hasProjectSecret } from './policy.js';
 // OpenCode görevi çok sayıda model isteği içerir; varsayılan bütçe 10 dk, tek istek profil süresiyle sınırlı kalır.
 export const DEFAULT_OPENCODE_TIMEOUT_MS = 600000;
 
-export function createProjectTasks({ reader, options, getActiveProfile, networkOptions }) {
+export function createProjectTasks({ reader, options, getActiveProfile, networkOptions, archive }) {
   const taskTimeoutMs = options.opencodeTimeoutMs || DEFAULT_OPENCODE_TIMEOUT_MS;
-  const changes = createProjectChanges({ reader });
+  const changes = createProjectChanges({ reader, archive });
   const tasks = new Map();
+  let restoring;
+
+  // Yeniden başlatmadan sonra uygulanmış görevler arşivden gelir: geçici kopya ve motor çıktısı yoktur, yalnız
+  // dosya farkı ve geri alma vardır (doğrulama komutu çalıştırılamaz).
+  function restore() {
+    restoring ??= (async () => {
+      for (const { id, appliedAt } of await changes.restore()) {
+        tasks.set(id, {
+          workspace: null,
+          stagedRevision: null,
+          mode: 'change',
+          content: '',
+          skippedFiles: [],
+          skippedFilesTruncated: false,
+          createdAt: appliedAt,
+          engineVersion: null,
+          retrieval: null,
+          graphUsed: false,
+          profile: null
+        });
+      }
+    })();
+    return restoring;
+  }
   const commands = options.commands || {};
   // The staged copy is scanned with the host's limits; default limits would reject a project the host enlarged for.
   const scanLimits = Object.fromEntries(
@@ -196,8 +220,14 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     if (approval?.revision !== task.revision) throw projectError('PROJECT_CONFLICT', 'Görev sürümü değişti.', 409);
     if (!Object.hasOwn(commands, name))
       throw projectError('PROJECT_COMMAND_INVALID', 'Bu doğrulama komutu host tarafından tanımlanmamış.', 404);
-    await changes.verify(id);
     const entry = tasks.get(id);
+    if (!entry.workspace)
+      throw projectError(
+        'PROJECT_TASK_RESTORED',
+        'Yeniden başlatmadan sonra geri yüklenen görevde doğrulama komutu çalıştırılamaz; yalnız geri alınabilir.',
+        409
+      );
+    await changes.verify(id);
     const stagedReader = createProjectFiles({ root: entry.workspace.root, ...scanLimits });
     if ((await stagedReader.scan({ signal })).revision !== entry.stagedRevision)
       throw projectError('PROJECT_CONFLICT', 'Geçici kaynak kopyası değişti; görevi yeniden hazırlayın.', 409);
@@ -221,19 +251,20 @@ export function createProjectTasks({ reader, options, getActiveProfile, networkO
     get(id);
     if (approval?.approved !== true)
       throw projectError('PROJECT_APPROVAL_REQUIRED', 'Geri alma kaydını kapatmayı onaylayın.');
-    await tasks.get(id).workspace.dispose();
+    await tasks.get(id).workspace?.dispose();
     tasks.delete(id);
-    changes.discard(id);
+    await changes.forget(id);
     return { discarded: true };
   }
 
   async function close() {
-    await Promise.allSettled([...tasks.values()].map(t => t.workspace.dispose()));
+    await Promise.allSettled([...tasks.values()].map(t => t.workspace?.dispose()));
     for (const id of tasks.keys()) changes.discard(id);
     tasks.clear();
   }
 
   return {
+    restore,
     prepare,
     get,
     list,

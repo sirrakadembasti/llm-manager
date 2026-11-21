@@ -13,14 +13,15 @@ export const projectSystemInstruction =
 // questions this sentence pulled unrelated integration details into answers.
 export const projectOverviewInstruction = 'Genel tanıtımda kaynaklarda görülen güncel LLM entegrasyonunu da belirt.';
 
-export function createProjectAssistant({ options, ask, stream, getActiveProfile, networkOptions }) {
+export function createProjectAssistant({ options, ask, stream, getActiveProfile, networkOptions, taskArchive }) {
   const documentRoles = normalizeDocumentRoles(options.documentRoles);
   const reader = createProjectFiles(options);
   const tasks = createProjectTasks({
     reader,
     options: { ...options, documentRoles },
     getActiveProfile,
-    networkOptions
+    networkOptions,
+    archive: taskArchive
   });
   let inventory = null;
   let analysis = null;
@@ -247,6 +248,8 @@ export function createProjectAssistant({ options, ask, stream, getActiveProfile,
     if (principal && principal.isAdmin !== true)
       return { status: 403, body: { code: 'FORBIDDEN', error: 'Yönetici yetkisi gerekli.' } };
     try {
+      // Önceki oturumda uygulanmış görevler (varsa) ilk istekte arşivden bellek kaydına alınır.
+      await tasks.restore();
       if (method === 'GET' && path === '/project') return { status: 200, body: await status() };
       const owner = ownerOf(principal);
       if (method === 'POST' && path === '/project/cancel') {

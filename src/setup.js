@@ -114,100 +114,124 @@ export function rotateEncryptionKey({
   newKey
 } = {}) {
   const historyPath = `${filePath}.assistant.enc`;
+  const tasksPath = `${filePath}.tasks.enc`;
   return withFileLockSync(`${filePath}.lock`, () =>
-    withFileLockSync(`${historyPath}.lock`, () => {
-      const activeOldKey =
-        oldKey ||
-        process.env.LLM_CONFIG_ENCRYPTION_KEY ||
-        (fs.existsSync(keyPath) ? fs.readFileSync(keyPath, 'utf8').trim() : null);
-      if (!activeOldKey) {
-        throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Eski şifreleme anahtarı bulunamadı.', { status: 400 });
-      }
-      const oldKeyBytes = parseEncryptionKey(activeOldKey);
-      const activeNewKey = newKey || crypto.randomBytes(32).toString('hex');
-      const newKeyBytes = parseEncryptionKey(activeNewKey);
+    withFileLockSync(`${historyPath}.lock`, () =>
+      withFileLockSync(`${tasksPath}.lock`, () => {
+        const activeOldKey =
+          oldKey ||
+          process.env.LLM_CONFIG_ENCRYPTION_KEY ||
+          (fs.existsSync(keyPath) ? fs.readFileSync(keyPath, 'utf8').trim() : null);
+        if (!activeOldKey) {
+          throw new LLMError(ErrorCodes.PROFILE_INVALID, 'Eski şifreleme anahtarı bulunamadı.', { status: 400 });
+        }
+        const oldKeyBytes = parseEncryptionKey(activeOldKey);
+        const activeNewKey = newKey || crypto.randomBytes(32).toString('hex');
+        const newKeyBytes = parseEncryptionKey(activeNewKey);
 
-      const originalProfiles = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
-      const originalHistory = fs.existsSync(historyPath) ? fs.readFileSync(historyPath) : null;
-      // Decode everything before changing any file. A corrupt archive must stop rotation.
-      let nextHistory;
-      if (originalHistory !== null) {
-        if (originalHistory.length > 64 * 1024 * 1024) throw new Error('History too large');
-        const plainHistory = decrypt(originalHistory.toString('utf8'), oldKeyBytes);
-        const history = JSON.parse(plainHistory);
-        if (
-          history?.version !== 1 ||
-          !history.scopes ||
-          typeof history.scopes !== 'object' ||
-          Array.isArray(history.scopes)
-        )
-          throw new LLMError(ErrorCodes.STORE_CORRUPT, 'Geçersiz sohbet deposu.', { status: 400 });
-        nextHistory = encrypt(plainHistory, newKeyBytes);
-      }
-      let nextProfiles;
-      let reEncryptedCount = 0;
-      if (fs.existsSync(filePath)) {
-        const raw = originalProfiles.toString('utf8');
-        const data = JSON.parse(raw);
-        validateStore(data);
-        if (Array.isArray(data.profiles)) {
-          for (const profile of data.profiles) {
-            if (profile.secret) {
-              const plainApiKey = decrypt(profile.secret, oldKeyBytes);
-              profile.secret = encrypt(plainApiKey, newKeyBytes);
-              reEncryptedCount++;
+        const originalProfiles = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
+        const originalHistory = fs.existsSync(historyPath) ? fs.readFileSync(historyPath) : null;
+        const originalTasks = fs.existsSync(tasksPath) ? fs.readFileSync(tasksPath) : null;
+        // Decode everything before changing any file. A corrupt archive must stop rotation.
+        let nextHistory;
+        if (originalHistory !== null) {
+          if (originalHistory.length > 64 * 1024 * 1024) throw new Error('History too large');
+          const plainHistory = decrypt(originalHistory.toString('utf8'), oldKeyBytes);
+          const history = JSON.parse(plainHistory);
+          if (
+            history?.version !== 1 ||
+            !history.scopes ||
+            typeof history.scopes !== 'object' ||
+            Array.isArray(history.scopes)
+          )
+            throw new LLMError(ErrorCodes.STORE_CORRUPT, 'Geçersiz sohbet deposu.', { status: 400 });
+          nextHistory = encrypt(plainHistory, newKeyBytes);
+        }
+        // Uygulanmış görev kayıtları sohbet deposuyla aynı kapsamlı biçimdedir ({ version: 1, scopes }).
+        let nextTasks;
+        if (originalTasks !== null) {
+          if (originalTasks.length > 64 * 1024 * 1024) throw new Error('Task archive too large');
+          const plainTasks = decrypt(originalTasks.toString('utf8'), oldKeyBytes);
+          const archive = JSON.parse(plainTasks);
+          if (
+            archive?.version !== 1 ||
+            !archive.scopes ||
+            typeof archive.scopes !== 'object' ||
+            Array.isArray(archive.scopes)
+          )
+            throw new LLMError(ErrorCodes.STORE_CORRUPT, 'Geçersiz görev kayıt deposu.', { status: 400 });
+          nextTasks = encrypt(plainTasks, newKeyBytes);
+        }
+        let nextProfiles;
+        let reEncryptedCount = 0;
+        if (fs.existsSync(filePath)) {
+          const raw = originalProfiles.toString('utf8');
+          const data = JSON.parse(raw);
+          validateStore(data);
+          if (Array.isArray(data.profiles)) {
+            for (const profile of data.profiles) {
+              if (profile.secret) {
+                const plainApiKey = decrypt(profile.secret, oldKeyBytes);
+                profile.secret = encrypt(plainApiKey, newKeyBytes);
+                reEncryptedCount++;
+              }
             }
           }
+          nextProfiles = JSON.stringify(data, null, 2);
         }
-        nextProfiles = JSON.stringify(data, null, 2);
-      }
 
-      const backupKeyPath = `${keyPath}.old-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID()}`;
-      fs.mkdirSync(path.dirname(keyPath), { recursive: true });
-      fs.writeFileSync(backupKeyPath, `${activeOldKey}\n`, { mode: 0o600, flag: 'wx' });
-      if (originalProfiles !== null) atomicWrite(`${filePath}.bak`, originalProfiles);
-      if (originalHistory !== null) atomicWrite(`${historyPath}.bak`, originalHistory);
-      const keyTemporary = `${keyPath}.${crypto.randomUUID()}.tmp`;
-      const written = [];
-      try {
-        if (nextProfiles !== undefined) {
-          atomicWrite(filePath, nextProfiles);
-          written.push([filePath, originalProfiles]);
-        }
-        if (nextHistory !== undefined) {
-          atomicWrite(historyPath, nextHistory);
-          written.push([historyPath, originalHistory]);
-        }
-        fs.writeFileSync(keyTemporary, `${activeNewKey}\n`, { mode: 0o600, flag: 'wx' });
-        robustRenameSync(keyTemporary, keyPath);
-      } catch (error) {
-        const failures = [];
-        for (const [target, original] of written.reverse()) {
-          try {
-            atomicWrite(target, original);
-          } catch (restoreError) {
-            failures.push(restoreError);
+        const backupKeyPath = `${keyPath}.old-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID()}`;
+        fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+        fs.writeFileSync(backupKeyPath, `${activeOldKey}\n`, { mode: 0o600, flag: 'wx' });
+        if (originalProfiles !== null) atomicWrite(`${filePath}.bak`, originalProfiles);
+        if (originalHistory !== null) atomicWrite(`${historyPath}.bak`, originalHistory);
+        if (originalTasks !== null) atomicWrite(`${tasksPath}.bak`, originalTasks);
+        const keyTemporary = `${keyPath}.${crypto.randomUUID()}.tmp`;
+        const written = [];
+        try {
+          if (nextProfiles !== undefined) {
+            atomicWrite(filePath, nextProfiles);
+            written.push([filePath, originalProfiles]);
           }
+          if (nextHistory !== undefined) {
+            atomicWrite(historyPath, nextHistory);
+            written.push([historyPath, originalHistory]);
+          }
+          if (nextTasks !== undefined) {
+            atomicWrite(tasksPath, nextTasks);
+            written.push([tasksPath, originalTasks]);
+          }
+          fs.writeFileSync(keyTemporary, `${activeNewKey}\n`, { mode: 0o600, flag: 'wx' });
+          robustRenameSync(keyTemporary, keyPath);
+        } catch (error) {
+          const failures = [];
+          for (const [target, original] of written.reverse()) {
+            try {
+              atomicWrite(target, original);
+            } catch (restoreError) {
+              failures.push(restoreError);
+            }
+          }
+          if (failures.length)
+            throw new AggregateError(
+              [error, ...failures],
+              'Anahtar döndürme geri alınamadı; profil, sohbet, görev kaydı ve eski anahtar yedeklerini birlikte geri yükleyin.',
+              { cause: error }
+            );
+          throw error;
+        } finally {
+          fs.rmSync(keyTemporary, { force: true });
         }
-        if (failures.length)
-          throw new AggregateError(
-            [error, ...failures],
-            'Anahtar döndürme geri alınamadı; profil, sohbet ve eski anahtar yedeklerini birlikte geri yükleyin.',
-            { cause: error }
-          );
-        throw error;
-      } finally {
-        fs.rmSync(keyTemporary, { force: true });
-      }
-      process.env.LLM_CONFIG_ENCRYPTION_KEY = activeNewKey;
+        process.env.LLM_CONFIG_ENCRYPTION_KEY = activeNewKey;
 
-      return {
-        ok: true,
-        count: reEncryptedCount,
-        newKey: activeNewKey,
-        backupKeyPath
-      };
-    })
+        return {
+          ok: true,
+          count: reEncryptedCount,
+          newKey: activeNewKey,
+          backupKeyPath
+        };
+      })
+    )
   );
 }
 

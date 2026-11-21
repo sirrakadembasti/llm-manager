@@ -201,6 +201,8 @@
   "project.absent": "Dosya yok",
   "project.skipped_files": "Şu dosyalar değişikliğe alınmadı",
   "project.skipped_more": "ve diğerleri",
+  "project.task_restored": "Yeniden başlatmadan sonra geri yüklendi; yalnız geri alınabilir",
+  "project.task_not_persisted": "Geri alma kaydı diske yazılamadı; sunucu yeniden başlarsa geri alınamaz",
   "project.create": "Yeni dosya",
   "project.update": "Güncelleme",
   "project.delete": "Silme",
