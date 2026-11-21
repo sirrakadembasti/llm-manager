@@ -89,7 +89,9 @@ export default {
       generationConfig.thinkingConfig = { thinkingBudget: 0 };
     } else if (opts.thinking === 'enabled') {
       const maxTokens = opts.maxOutputTokens || 8192;
-      generationConfig.thinkingConfig = { thinkingBudget: Math.min(2048, maxTokens - 1) };
+      // Modelin asgari bütçesinin (katalogdaki minThinkingBudget) altına inen bütçe API'de reddedilir; alan konmaz.
+      const budget = Math.min(2048, maxTokens - 1);
+      if (budget >= (family?.minThinkingBudget ?? 0)) generationConfig.thinkingConfig = { thinkingBudget: budget };
     }
 
     if (opts.temperature !== undefined) generationConfig.temperature = opts.temperature;

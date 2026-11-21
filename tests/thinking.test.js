@@ -186,3 +186,36 @@ test('K09: Anthropic düşünme bütçesi 1.024 altına inecekse thinking alanı
   assert.deepEqual(body(1025).thinking, { type: 'enabled', budget_tokens: 1024 });
   assert.deepEqual(body(8192).thinking, { type: 'enabled', budget_tokens: 2048 });
 });
+
+test('K18/K09: Gemini düşünme bütçesi modelin asgarisinin altına inecekse thinkingConfig gönderilmez', () => {
+  const messages = [{ role: 'user', content: 'Merhaba' }];
+  const thinkingConfig = (model, maxOutputTokens) =>
+    buildProviderRequest(
+      {
+        provider: 'google',
+        model,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: 'k'
+      },
+      messages,
+      { thinking: 'enabled', maxOutputTokens }
+    ).body.generationConfig.thinkingConfig;
+  // 2.5 Flash‑Lite asgari bütçesi 512: hızlı testin 512 tokenlik sınırı 511 üretirdi.
+  assert.equal(thinkingConfig('gemini-2.5-flash-lite', 512), undefined);
+  assert.deepEqual(thinkingConfig('gemini-2.5-flash-lite', 513), { thinkingBudget: 512 });
+  assert.deepEqual(thinkingConfig('gemini-2.5-flash-lite-preview', 8192), { thinkingBudget: 2048 });
+  // Asgarisi olmayan 2.5 Flash davranışı değişmez.
+  assert.deepEqual(thinkingConfig('gemini-2.5-flash', 512), { thinkingBudget: 511 });
+  // Kapatma (thinkingBudget: 0) Flash‑Lite'ta geçerlidir.
+  const disabled = buildProviderRequest(
+    {
+      provider: 'google',
+      model: 'gemini-2.5-flash-lite',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: 'k'
+    },
+    messages,
+    { thinking: 'disabled', maxOutputTokens: 512 }
+  ).body.generationConfig.thinkingConfig;
+  assert.deepEqual(disabled, { thinkingBudget: 0 });
+});
