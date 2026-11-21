@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { PROVIDERS, MODEL_FAMILIES, modelFamily } from '../src/providers.js';
+import { PROVIDERS, MODEL_FAMILIES, CATALOG_VERSION, CATALOG_UPDATED_AT, modelFamily } from '../src/providers.js';
 import { buildProviderRequest } from '../src/runtime.js';
 
 const messages = [{ role: 'user', content: 'Merhaba' }];
@@ -17,16 +17,19 @@ test('K18: model ailesi öneklerle ve sınır karakteriyle (. veya -) eşleşir'
   assert.equal(modelFamily('openai', 'gpt-6.1-sol').disableThinking, 'none');
   assert.equal(modelFamily('openai', 'GPT-6-astra').disableThinking, 'none');
   assert.equal(modelFamily('openai', 'gpt-5.1').disableThinking, 'low');
-  assert.equal(modelFamily('openai', 'o3-mini').disableThinking, 'low');
-  assert.equal(modelFamily('openai', 'o1').disableThinking, 'low');
   assert.equal(modelFamily('anthropic', 'claude-sonnet-5-5-20260101').disableThinking, 'between_tools');
   assert.equal(modelFamily('google', 'models/gemini-3.8-flash').thinking, 'level');
-  assert.equal(modelFamily('google', 'gemini-2.5-pro-preview').disableThinking, false);
   // Önek sınırı: gpt-60, onyx, gemini-30 aileye girmez; başka taşımanın ailesi de uygulanmaz.
   for (const [transport, model] of [
     ['openai', 'gpt-60'],
     ['openai', 'omni-moderation'],
     ['openai', 'llama-3'],
+    // Kapanmış veya 1 yılı aşmış modeller kural ailesinden çıkarıldı (2026-11-21).
+    ['openai', 'o1'],
+    ['openai', 'o3-mini'],
+    ['openai', 'o4-mini'],
+    ['google', 'gemini-2.5-pro'],
+    ['google', 'gemini-2.5-flash-lite'],
     ['google', 'gemini-30'],
     ['anthropic', 'claude-opus-5-50'],
     ['anthropic', 'gpt-6'],
@@ -60,8 +63,7 @@ test('K18: katalogda olmayan model adı için ek alan gönderilmez', () => {
   const anthropic = buildProviderRequest(profile('anthropic', 'claude-yeni-9-9'), messages, { thinking: 'disabled' });
   assert.equal('thinking' in anthropic.body, false);
   const google = buildProviderRequest(profile('google', 'gemini-yeni-9'), messages, { thinking: 'enabled' });
-  assert.ok(google.body.generationConfig.thinkingConfig.thinkingBudget > 0);
-  assert.equal('thinkingLevel' in google.body.generationConfig.thinkingConfig, false);
+  assert.equal(google.body.generationConfig.thinkingConfig, undefined);
 });
 
 test('K18: taşıma dosyalarında model adı düzenli ifadesi kalmaz', () => {
@@ -70,4 +72,18 @@ test('K18: taşıma dosyalarında model adı düzenli ifadesi kalmaz', () => {
     assert.doesNotMatch(source, /\/\^[^/\n]*(?:gpt|claude|gemini|o\\d)/i, file);
     assert.doesNotMatch(source, /profile\.model\s*\)?\.(?:startsWith|test)|\.test\(profile\.model/, file);
   }
+});
+
+test('K18: kapanmış veya 1 yılı aşmış modeller katalogdan çıkarıldı', () => {
+  const models = id => PROVIDERS.find(p => p.id === id).models;
+  for (const gone of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'])
+    assert.ok(!models('groq').includes(gone), gone);
+  assert.ok(!models('cohere').includes('command-a-03-2025'));
+  // Kapanış duyurusu olmayan, Groq'un önerdiği yedekler ve Cohere'in öteki modelleri korunur.
+  assert.ok(models('groq').includes('openai/gpt-oss-120b'));
+  assert.ok(models('cohere').includes('command-a-plus-05-2026'));
+  assert.ok(models('cohere').includes('command-r-plus-08-2024'));
+  // Katalog içeriği değişince sürüm ve tarih de güncellenir.
+  assert.equal(CATALOG_VERSION, '2026.11');
+  assert.equal(CATALOG_UPDATED_AT, '2026-11-21');
 });

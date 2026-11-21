@@ -6,19 +6,21 @@ import { PROVIDERS } from '../src/providers.js';
 test('YH1-C7: OpenAI reasoning models map thinking to reasoning_effort', () => {
   const messages = [{ role: 'user', content: 'Solve this riddle' }];
 
-  // 1. o3-mini reasoning model enabled -> medium
+  // 1. gpt-5.x reasoning model enabled -> medium
   const p1 = {
     provider: 'openai',
     baseURL: 'https://api.openai.com/v1',
-    model: 'o3-mini',
+    model: 'gpt-5.6-sol',
     apiKey: 'sk-test'
   };
   const req1 = buildProviderRequest(p1, messages, { thinking: 'enabled' });
   assert.equal(req1.body.reasoning_effort, 'medium');
 
-  // 2. o3-mini reasoning model disabled -> low
+  // 2. gpt-5.x reasoning model disabled -> low (kapanmış o-serisi artık aileye girmez)
   const req2 = buildProviderRequest(p1, messages, { thinking: 'disabled' });
   assert.equal(req2.body.reasoning_effort, 'low');
+  const legacy = buildProviderRequest({ ...p1, model: 'o3-mini' }, messages, { thinking: 'disabled' });
+  assert.equal(legacy.body.reasoning_effort, undefined);
 
   // 3. Non-reasoning model enabled -> medium
   const p3 = {
@@ -63,26 +65,32 @@ test('YH1-C7: Anthropic maps thinking: enabled to budget_tokens < maxOutputToken
   assert.equal(req2.body.temperature, 0.5);
 });
 
-test('YH1-C7: Google Gemini maps thinking to generationConfig.thinkingConfig', () => {
+test('YH1-C7: Gemini 3+ düşünmeyi thinkingConfig.thinkingLevel ile eşler; kataloğun bilmediği modele ek alan gönderilmez', () => {
   const messages = [{ role: 'user', content: 'What is photosynthesis?' }];
   const profile = {
     provider: 'google',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.8-flash',
     apiKey: 'goog-test'
   };
+  const config = (model, thinking, extra = {}) =>
+    buildProviderRequest({ ...profile, model }, messages, { thinking, ...extra }).body.generationConfig.thinkingConfig;
 
-  // 1. Thinking disabled -> thinkingBudget: 0
-  const req1 = buildProviderRequest(profile, messages, { thinking: 'disabled' });
-  assert.deepEqual(req1.body.generationConfig.thinkingConfig, { thinkingBudget: 0 });
+  // 1. Gemini 3.x/4.x: etkinleştirme thinkingLevel ile, auto alan göndermez.
+  assert.deepEqual(config('gemini-3.8-flash', 'enabled'), { thinkingLevel: 'medium' });
+  assert.equal(config('gemini-3.8-flash', 'auto'), undefined);
 
-  // 2. Thinking enabled -> thinkingBudget: 2048
-  const req2 = buildProviderRequest(profile, messages, { thinking: 'enabled', maxOutputTokens: 8192 });
-  assert.deepEqual(req2.body.generationConfig.thinkingConfig, { thinkingBudget: 2048 });
-
-  // 3. Thinking auto -> no thinkingConfig set
-  const req3 = buildProviderRequest(profile, messages, { thinking: 'auto' });
-  assert.equal(req3.body.generationConfig.thinkingConfig, undefined);
+  // 2. Katalogda olmayan (3 altı veya yeni) modeller: ne açma ne kapatma için thinkingConfig gönderilir.
+  for (const model of [
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-9-yeni'
+  ]) {
+    for (const thinking of ['enabled', 'disabled', 'auto'])
+      assert.equal(config(model, thinking, { maxOutputTokens: 8192 }), undefined, `${model}/${thinking}`);
+  }
 });
 
 test('YH1-C7: Qwen maps thinking to enable_thinking boolean', () => {
@@ -163,10 +171,6 @@ test('Gemini 3/4 use thinkingLevel and reject unsupported full thinking-off', ()
     () => buildProviderRequest(profile, messages, { thinking: 'disabled' }),
     error => error.code === 'RUNTIME_OPTIONS_INVALID'
   );
-  assert.throws(
-    () => buildProviderRequest({ ...profile, model: 'gemini-2.5-pro' }, messages, { thinking: 'disabled' }),
-    error => error.code === 'RUNTIME_OPTIONS_INVALID'
-  );
 });
 
 test('K09: Anthropic düşünme bütçesi 1.024 altına inecekse thinking alanı gövdeye konmaz', () => {
@@ -185,37 +189,4 @@ test('K09: Anthropic düşünme bütçesi 1.024 altına inecekse thinking alanı
   // Asgari bütçe (1.024) ve üstü korunur; bütçe max_tokens'tan küçük kalır.
   assert.deepEqual(body(1025).thinking, { type: 'enabled', budget_tokens: 1024 });
   assert.deepEqual(body(8192).thinking, { type: 'enabled', budget_tokens: 2048 });
-});
-
-test('K18/K09: Gemini düşünme bütçesi modelin asgarisinin altına inecekse thinkingConfig gönderilmez', () => {
-  const messages = [{ role: 'user', content: 'Merhaba' }];
-  const thinkingConfig = (model, maxOutputTokens) =>
-    buildProviderRequest(
-      {
-        provider: 'google',
-        model,
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
-        apiKey: 'k'
-      },
-      messages,
-      { thinking: 'enabled', maxOutputTokens }
-    ).body.generationConfig.thinkingConfig;
-  // 2.5 Flash‑Lite asgari bütçesi 512: hızlı testin 512 tokenlik sınırı 511 üretirdi.
-  assert.equal(thinkingConfig('gemini-2.5-flash-lite', 512), undefined);
-  assert.deepEqual(thinkingConfig('gemini-2.5-flash-lite', 513), { thinkingBudget: 512 });
-  assert.deepEqual(thinkingConfig('gemini-2.5-flash-lite-preview', 8192), { thinkingBudget: 2048 });
-  // Asgarisi olmayan 2.5 Flash davranışı değişmez.
-  assert.deepEqual(thinkingConfig('gemini-2.5-flash', 512), { thinkingBudget: 511 });
-  // Kapatma (thinkingBudget: 0) Flash‑Lite'ta geçerlidir.
-  const disabled = buildProviderRequest(
-    {
-      provider: 'google',
-      model: 'gemini-2.5-flash-lite',
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
-      apiKey: 'k'
-    },
-    messages,
-    { thinking: 'disabled', maxOutputTokens: 512 }
-  ).body.generationConfig.thinkingConfig;
-  assert.deepEqual(disabled, { thinkingBudget: 0 });
 });

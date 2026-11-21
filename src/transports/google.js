@@ -74,24 +74,17 @@ export default {
     }));
 
     const generationConfig = { maxOutputTokens: opts.maxOutputTokens };
-    // Düzey tabanlı düşünme ve kapatılamayan modeller katalogdaki model ailesinden gelir (`providers.json`).
+    // Yalnız katalogdaki Gemini 3+ ailesi (`providers.json` → modelFamilies) düşünme alanı alır; 3 altı ve kataloğun
+    // bilmediği modellere `thinkingConfig` gönderilmez.
     const family = modelFamily('google', profile.model);
-    const thinkingLevel = family?.thinking === 'level';
     if (opts.thinking === 'disabled' && family?.disableThinking === false) {
       throw new LLMError(ErrorCodes.RUNTIME_OPTIONS_INVALID, 'Bu Gemini modelinde düşünme tamamen kapatılamaz.', {
         status: 400,
         retryable: false
       });
     }
-    if (thinkingLevel && opts.thinking === 'enabled') {
+    if (family?.thinking === 'level' && opts.thinking === 'enabled') {
       generationConfig.thinkingConfig = { thinkingLevel: 'medium' };
-    } else if (opts.thinking === 'disabled') {
-      generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    } else if (opts.thinking === 'enabled') {
-      const maxTokens = opts.maxOutputTokens || 8192;
-      // Modelin asgari bütçesinin (katalogdaki minThinkingBudget) altına inen bütçe API'de reddedilir; alan konmaz.
-      const budget = Math.min(2048, maxTokens - 1);
-      if (budget >= (family?.minThinkingBudget ?? 0)) generationConfig.thinkingConfig = { thinkingBudget: budget };
     }
 
     if (opts.temperature !== undefined) generationConfig.temperature = opts.temperature;
