@@ -116,7 +116,7 @@
       "region": "Kanada",
       "transport": "openai",
       "baseURL": "https://api.cohere.ai/compatibility/v1",
-      "models": ["command-a-plus-05-2026", "command-r-plus-08-2024", "command-r-08-2024"],
+      "models": ["command-a-plus-05-2026"],
       "tokenField": "max_tokens",
       "streamUsage": true,
       "thinkingStyle": "reasoning_effort"

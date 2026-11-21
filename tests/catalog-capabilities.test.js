@@ -78,11 +78,10 @@ test('K18: kapanmış veya 1 yılı aşmış modeller katalogdan çıkarıldı',
   const models = id => PROVIDERS.find(p => p.id === id).models;
   for (const gone of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'])
     assert.ok(!models('groq').includes(gone), gone);
-  assert.ok(!models('cohere').includes('command-a-03-2025'));
   // Kapanış duyurusu olmayan, Groq'un önerdiği yedekler ve Cohere'in öteki modelleri korunur.
   assert.ok(models('groq').includes('openai/gpt-oss-120b'));
   assert.ok(models('cohere').includes('command-a-plus-05-2026'));
-  assert.ok(models('cohere').includes('command-r-plus-08-2024'));
+  assert.deepEqual(models('cohere'), ['command-a-plus-05-2026']);
   // Katalog içeriği değişince sürüm ve tarih de güncellenir.
   assert.equal(CATALOG_VERSION, '2026.11');
   assert.equal(CATALOG_UPDATED_AT, '2026-11-21');
