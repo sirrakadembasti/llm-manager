@@ -18,6 +18,10 @@ test('K18: model ailesi öneklerle ve sınır karakteriyle (. veya -) eşleşir'
   assert.equal(modelFamily('openai', 'GPT-6-astra').disableThinking, 'none');
   assert.equal(modelFamily('openai', 'gpt-5.1').disableThinking, 'low');
   assert.equal(modelFamily('anthropic', 'claude-sonnet-5-5-20260101').disableThinking, 'between_tools');
+  // claude-fable-5-2: düşünme her zaman açık (adaptive), kapatma gönderilmez; fable-5-1 ile aynı aile.
+  assert.equal(modelFamily('anthropic', 'claude-fable-5-2').thinking, 'adaptive');
+  assert.equal(modelFamily('anthropic', 'claude-fable-5-2').disableThinking, false);
+  assert.equal(modelFamily('anthropic', 'claude-fable-5-1').disableThinking, false);
   assert.equal(modelFamily('google', 'models/gemini-3.8-flash').thinking, 'level');
   // Önek sınırı: gpt-60, onyx, gemini-30 aileye girmez; başka taşımanın ailesi de uygulanmaz.
   for (const [transport, model] of [
@@ -82,7 +86,18 @@ test('K18: kapanmış veya 1 yılı aşmış modeller katalogdan çıkarıldı',
   assert.ok(models('groq').includes('openai/gpt-oss-120b'));
   assert.ok(models('cohere').includes('command-a-plus-05-2026'));
   assert.deepEqual(models('cohere'), ['command-a-plus-05-2026']);
+  // Belge teyidiyle düzeltilenler (2026-11-27): MiniMax resmî adı -Preview; Together'da Qwen3.8-Flash bulunamadı.
+  assert.deepEqual(models('minimax'), ['MiniMax-M3.1-Flash-Preview', 'MiniMax-M3']);
+  assert.deepEqual(models('together'), ['deepseek-ai/DeepSeek-V4-Pro-0813', 'deepseek-ai/DeepSeek-V4.1-Flash-1017']);
+  // Anthropic: en yeni model başta; fable-5-1 hâlâ sunulduğundan (kapanış duyurusu yok) listede kalır.
+  assert.deepEqual(models('anthropic'), [
+    'claude-fable-5-2',
+    'claude-fable-5-1',
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-haiku-5-5'
+  ]);
   // Katalog içeriği değişince sürüm ve tarih de güncellenir.
   assert.equal(CATALOG_VERSION, '2026.11');
-  assert.equal(CATALOG_UPDATED_AT, '2026-11-21');
+  assert.equal(CATALOG_UPDATED_AT, '2026-11-27');
 });
