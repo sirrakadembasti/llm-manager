@@ -98,7 +98,7 @@ jobs:
           sudo cp -r bin src public types package.json node_modules /opt/llm-manager/
           sudo install -m 0755 "$(command -v node)" /usr/local/bin/llm-node
           sudo install -d -o llmsvc -g llmsvc -m 0700 /var/lib/llm-manager /var/lib/llm-manager-stok
-          printf 'LLM_ADMIN_PASSWORD=%s\n' "$LLM_ADMIN_PASSWORD" | sudo tee /etc/llm-manager.env > /dev/null
+          printf 'LLM_ADMIN_PASSWORD=%s\nLLM_TRUST_PROXY=1\n' "$LLM_ADMIN_PASSWORD" | sudo tee /etc/llm-manager.env > /dev/null
           sudo chmod 0600 /etc/llm-manager.env
           unit() {
             sudo tee "/etc/systemd/system/$1.service" > /dev/null <<EOF
@@ -250,7 +250,7 @@ jobs:
           nssm install LLMManager $node
           nssm set LLMManager AppDirectory $env:GITHUB_WORKSPACE
           nssm set LLMManager AppParameters "`"$env:GITHUB_WORKSPACE\bin\llm-manager.js`" --host 127.0.0.1 --port 8010 --data-dir C:\llm-data"
-          nssm set LLMManager AppEnvironmentExtra "LLM_ADMIN_PASSWORD=$env:LLM_ADMIN_PASSWORD"
+          nssm set LLMManager AppEnvironmentExtra "LLM_ADMIN_PASSWORD=$env:LLM_ADMIN_PASSWORD" "LLM_TRUST_PROXY=1"
           nssm set LLMManager AppExit Default Restart
           nssm set LLMManager AppStdout C:\llm-logs\out.log
           nssm set LLMManager AppStderr C:\llm-logs\err.log

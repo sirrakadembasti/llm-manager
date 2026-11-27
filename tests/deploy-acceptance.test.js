@@ -112,3 +112,14 @@ test('deployment acceptance workflow covers Docker, Nginx HTTPS with systemd and
   assert.match(workflow, /deploy-check\.mjs[^\n]*--phase verify/);
   assert.match(workflow, /::add-mask::/);
 });
+
+test('deployment acceptance runs the services behind Nginx and IIS with LLM_TRUST_PROXY=1', () => {
+  const workflow = readFileSync(join(root, '.github', 'workflows', 'deploy-acceptance.yml'), 'utf8');
+  // systemd servisleri aynı ortam dosyasını okur; Nginx tek ters vekildir.
+  assert.match(workflow, /printf 'LLM_ADMIN_PASSWORD=%s\\nLLM_TRUST_PROXY=1\\n'[^\n]*\/etc\/llm-manager\.env/);
+  // NSSM servisi IIS (URL Rewrite + ARR) arkasındadır.
+  assert.match(workflow, /AppEnvironmentExtra[^\n]*LLM_ADMIN_PASSWORD=[^\n]*"LLM_TRUST_PROXY=1"/);
+  // Docker işi doğrudan yayımlanır, ters vekil yoktur: güven açılmaz.
+  const docker = workflow.split(/^ {2}linux-service:/m)[0];
+  assert.doesNotMatch(docker, /LLM_TRUST_PROXY/);
+});
