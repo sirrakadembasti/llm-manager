@@ -19,7 +19,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * **uygulanmış** görevlerin `{ id, revision, root, appliedAt, files }` kaydı yazılır; geri alma veya kullanıcı
  * kapatması kaydı siler, bellek temizliği (discard) silmez. Yazma hatası uygulamayı bozmaz (`persisted: false`).
  */
-export function createProjectChanges({ reader, maxTasks = 10, archive }) {
+export function createProjectChanges({ reader, maxTasks = 10, archive, onWarning }) {
   const tasks = new Map();
   let queue = Promise.resolve();
   let restoring;
@@ -82,8 +82,10 @@ export function createProjectChanges({ reader, maxTasks = 10, archive }) {
     const root = await fs.realpath(reader.root);
     try {
       records = await archive.read(await scopeOf());
-    } catch {
+    } catch (error) {
       // Okunamayan (anahtar uyuşmazlığı, bozuk) arşiv yeni görevleri engellemez; kayıtlar belleğe alınmaz.
+      // Günlüğe yalnız hata kodu/adı yazılır; ileti metni ve arşiv içeriği yazılmaz.
+      onWarning?.('project.archive.unreadable', { reason: error?.code || error?.name || 'Error' });
       return [];
     }
     const restored = [];

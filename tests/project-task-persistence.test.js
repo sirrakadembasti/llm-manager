@@ -245,3 +245,47 @@ test('K15: bozuk veya başka kök için yazılmış kayıtlar yok sayılır, ar�
   const plain = createProjectChanges({ reader });
   assert.deepEqual(await plain.restore(), []);
 });
+
+test('okunamayan görev arşivi yeni görevleri engellemez ve bir kez uyarı günlüğü yazar', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-task-warn-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const reader = createProjectFiles({ root });
+  const warnings = [];
+  const failure = Object.assign(new Error('gizli-ayrinti-sk-123'), { code: 'ARCHIVE_UNREADABLE' });
+  const changes = createProjectChanges({
+    reader,
+    archive: {
+      read: async () => {
+        throw failure;
+      },
+      update: async () => {}
+    },
+    onWarning: (event, fields) => warnings.push([event, fields])
+  });
+  assert.deepEqual(await changes.restore(), []);
+  assert.deepEqual(await changes.restore(), []);
+  assert.deepEqual(warnings, [['project.archive.unreadable', { reason: 'ARCHIVE_UNREADABLE' }]]);
+  assert.ok(!JSON.stringify(warnings).includes('gizli-ayrinti'));
+});
+
+test('bozuk şifreli görev arşivi yönetici günlüğüne uyarı düşer ve proje durumu yine açılır', async t => {
+  const { root, dataDir } = await setup(t);
+  await fs.writeFile(path.join(dataDir, 'llm-profiles.json.tasks.enc'), 'bozuk-icerik');
+  const events = [];
+  const manager = createLLMManager({
+    dataDir,
+    allowLocalHttp: true,
+    adminPassword: 'fixture-admin-password',
+    rateLimit: false,
+    retry: false,
+    logger: { info() {}, error() {}, warn: (event, fields) => events.push([event, fields]) },
+    project: { root }
+  });
+  t.after(() => manager.close().catch(() => {}));
+  const response = await call(manager, `${base}/tasks`);
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).tasks, []);
+  const warned = events.filter(([event]) => event === 'project.archive.unreadable');
+  assert.equal(warned.length, 1);
+  assert.deepEqual(Object.keys(warned[0][1]), ['reason']);
+});

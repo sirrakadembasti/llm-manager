@@ -196,6 +196,7 @@ export function createLLMManager({
         ask: (messages, settings) => askMessages(messages, settings),
         stream: (messages, settings) => stream(messages, settings),
         taskArchive: store.projectTasks,
+        onWarning: (event, fields) => logger.warn(event, fields),
         getActiveProfile: () => store.getActive(),
         networkOptions: { allowLocalHttp, proxyUrl, allowedHosts, allowedPrivateHosts }
       })

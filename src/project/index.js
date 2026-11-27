@@ -13,7 +13,15 @@ export const projectSystemInstruction =
 // questions this sentence pulled unrelated integration details into answers.
 export const projectOverviewInstruction = 'Genel tanıtımda kaynaklarda görülen güncel LLM entegrasyonunu da belirt.';
 
-export function createProjectAssistant({ options, ask, stream, getActiveProfile, networkOptions, taskArchive }) {
+export function createProjectAssistant({
+  options,
+  ask,
+  stream,
+  getActiveProfile,
+  networkOptions,
+  taskArchive,
+  onWarning
+}) {
   const documentRoles = normalizeDocumentRoles(options.documentRoles);
   const reader = createProjectFiles(options);
   const tasks = createProjectTasks({
@@ -21,7 +29,8 @@ export function createProjectAssistant({ options, ask, stream, getActiveProfile,
     options: { ...options, documentRoles },
     getActiveProfile,
     networkOptions,
-    archive: taskArchive
+    archive: taskArchive,
+    onWarning
   });
   let inventory = null;
   let analysis = null;

@@ -106,7 +106,7 @@ yeterlidir. **Tamamlanan:** K01–K15, K17, K18, K21, K22 (PR 29–48) ve bunlar
   ileti metni ve `code`) tek davranışa indirilmesi — davranış değişikliği olduğundan **kullanıcı kararı**.
 - **K20** npm yayını (yayın iş akışı, köken kanıtı) — **kullanıcı kararı**; kendiliğinden başlatılmaz.
 - **K23** Arayüz için gerçek tarayıcı testi — yeni geliştirme bağımlılığı **kullanıcı kararı**.
-- Küçük: okunamayan görev arşivi sessizce yok sayılır (uyarı günlüğü yok); model listesi güncel değil
+- Küçük: model listesi güncel değil
   (`claude-fable-5-2` yok; `scripts/check-catalog.js` anahtar ve onay ister); `deploy-acceptance.yml` Nginx/IIS adımlarında
   `LLM_TRUST_PROXY` yok (değişirse iş akışı elle tetiklenir).
 - **Doğrulanmamış alanlar:** `src/init/` ve `public/` (proje arayüzü dışında) derin denetlenmedi; sağlayıcı davranışları
