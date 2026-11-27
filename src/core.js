@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { credentialEndpointProblem } from './credentialValidation.js';
 import { LLMError, ErrorCodes, isLLMError } from './errors.js';
 import { createRateLimiter } from './rateLimit.js';
-import { createAuthPolicy } from './authLimit.js';
+import { createAuthPolicy, authenticateRequest, denyRequest } from './authLimit.js';
+import { sseFrame, sseErrorFrame } from './sse.js';
 import { createStructuredLogger, redact, sanitizeRequestId } from './logger.js';
 import {
   generateProfileResponse,
@@ -632,6 +633,31 @@ export function createLLMManager({
         }
       }
 
+      // Akışlı ve akışsız yedek-profil döngüsünün ortak parçaları.
+      const profileOptions = (candidate, extra = {}) => ({
+        ...candidate,
+        ...resolveRuntimeOptions(candidate, overrides),
+        purpose,
+        ...networkOptions,
+        ...extra
+      });
+      const withRetry = operation =>
+        executeWithRetry(operation, {
+          attempts: retryPolicy ? (retryPolicy.attempts ?? 2) : 0,
+          baseMs: retryPolicy?.baseMs ?? 500,
+          maxMs: retryPolicy?.maxMs ?? 4000,
+          deadlineMs: Math.max(0, timeoutBudget - (Date.now() - start)),
+          signal: requestSignal
+        });
+      const logFallback = (failedProfile, nextProfile, classified) =>
+        logger.warn('chat.fallback', {
+          requestId,
+          failedProfileId: failedProfile.id,
+          nextProfileId: nextProfile?.id,
+          error: classified.error,
+          code: classified.code
+        });
+
       if (body?.stream === true) {
         async function* streamGenerator() {
           let lastStreamError;
@@ -644,39 +670,23 @@ export function createLLMManager({
             for (let pIdx = 0; pIdx < candidateProfiles.length; pIdx++) {
               currentProfile = candidateProfiles[pIdx];
               isFallback = pIdx > 0;
-              const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
-              const options = {
-                ...currentProfile,
-                ...runtimeOpts,
-                purpose,
-                ...networkOptions,
-                signal: requestSignal
-              };
+              const options = profileOptions(currentProfile, { signal: requestSignal });
 
               try {
                 let streamIterator;
-                const first = await executeWithRetry(
-                  async ({ signal }) => {
-                    streamIterator = (
-                      generateStream
-                        ? generateStream(messages, { ...options, signal })
-                        : generateProfileStream(messages, currentProfile, { ...options, signal })
-                    )[Symbol.asyncIterator]();
-                    try {
-                      return await streamIterator.next();
-                    } catch (error) {
-                      await streamIterator.return?.();
-                      throw error;
-                    }
-                  },
-                  {
-                    attempts: retryPolicy ? (retryPolicy.attempts ?? 2) : 0,
-                    baseMs: retryPolicy?.baseMs ?? 500,
-                    maxMs: retryPolicy?.maxMs ?? 4000,
-                    deadlineMs: Math.max(0, timeoutBudget - (Date.now() - start)),
-                    signal: requestSignal
+                const first = await withRetry(async ({ signal }) => {
+                  streamIterator = (
+                    generateStream
+                      ? generateStream(messages, { ...options, signal })
+                      : generateProfileStream(messages, currentProfile, { ...options, signal })
+                  )[Symbol.asyncIterator]();
+                  try {
+                    return await streamIterator.next();
+                  } catch (error) {
+                    await streamIterator.return?.();
+                    throw error;
                   }
-                );
+                });
 
                 finalStreamUsage = null;
                 try {
@@ -730,13 +740,7 @@ export function createLLMManager({
                 ) {
                   throw err;
                 }
-                logger.warn('chat.fallback', {
-                  requestId,
-                  failedProfileId: currentProfile.id,
-                  nextProfileId: candidateProfiles[pIdx + 1]?.id,
-                  error: classified.error,
-                  code: classified.code
-                });
+                logFallback(currentProfile, candidateProfiles[pIdx + 1], classified);
               }
             }
             throw lastStreamError;
@@ -782,13 +786,7 @@ export function createLLMManager({
         const currentProfile = candidateProfiles[pIdx];
         completionProfile = currentProfile;
         const isFallback = pIdx > 0;
-        const runtimeOpts = resolveRuntimeOptions(currentProfile, overrides);
-        const options = {
-          ...currentProfile,
-          ...runtimeOpts,
-          purpose,
-          ...networkOptions
-        };
+        const options = profileOptions(currentProfile);
 
         try {
           const executeOnce = async ({ signal } = {}) => {
@@ -802,13 +800,7 @@ export function createLLMManager({
             });
           };
 
-          const responseResult = await executeWithRetry(executeOnce, {
-            attempts: retryPolicy ? (retryPolicy.attempts ?? 2) : 0,
-            baseMs: retryPolicy?.baseMs ?? 500,
-            maxMs: retryPolicy?.maxMs ?? 4000,
-            deadlineMs: Math.max(0, timeoutBudget - (Date.now() - start)),
-            signal: requestSignal
-          });
+          const responseResult = await withRetry(executeOnce);
 
           const content = typeof responseResult === 'string' ? responseResult : responseResult?.content;
           const finishReason = typeof responseResult === 'object' ? responseResult?.finishReason : 'stop';
@@ -862,13 +854,7 @@ export function createLLMManager({
           if (!classified.retryable || pIdx === candidateProfiles.length - 1) {
             throw err;
           }
-          logger.warn('chat.fallback', {
-            requestId,
-            failedProfileId: currentProfile.id,
-            nextProfileId: candidateProfiles[pIdx + 1]?.id,
-            error: classified.error,
-            code: classified.code
-          });
+          logFallback(currentProfile, candidateProfiles[pIdx + 1], classified);
         }
       }
 
@@ -1150,53 +1136,35 @@ export function createLLMManager({
     let principal;
     if (isManaged && !isHealth) {
       const authorization = request.headers.get('authorization') || '';
-      const deny = (status, code, error) =>
-        Response.json(
-          { code, error, requestId },
-          {
-            status,
-            headers: {
-              ...commonHeaders,
-              ...(status === 401 ? { 'WWW-Authenticate': 'Basic realm="LLM Yonetimi"' } : {})
-            }
-          }
-        );
-      const blocked = authPolicy?.blocked(clientKey);
-      if (blocked) {
-        const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
-        response.headers.set('Retry-After', String(blocked.retryAfterSec));
-        return response;
-      }
-      const paced = await authPolicy?.pace(clientKey, authorization);
-      if (paced && !paced.ok) {
-        const response = deny(429, 'RATE_LIMITED', 'Çok fazla hatalı giriş denemesi yapıldı.');
-        response.headers.set('Retry-After', String(paced.retryAfterSec));
-        return response;
-      }
-      principal = checkBearerToken(authorization, tokens);
-      if (!principal) {
-        if (typeof authorizeRequest === 'function') principal = await authorizeRequest(request);
-        else if (password) principal = checkBasicAuth(authorization, { user, password }).principal;
-        else if (allowNoAuth === true) principal = { isAdmin: true, kind: 'insecure' };
-        else {
+      const deny = ({ status, code, error, headers = {} }) =>
+        Response.json({ code, error, requestId }, { status, headers: { ...commonHeaders, ...headers } });
+      const outcome = await authenticateRequest({
+        policy: authPolicy,
+        clientKey,
+        credential: authorization,
+        resolve: async () => {
+          const bearer = checkBearerToken(authorization, tokens);
+          if (bearer) return bearer;
+          if (typeof authorizeRequest === 'function') return await authorizeRequest(request);
+          if (password) return checkBasicAuth(authorization, { user, password }).principal;
+          if (allowNoAuth === true) return { isAdmin: true, kind: 'insecure' };
           if (!warnedMissingAuth) {
             warnedMissingAuth = true;
             const warning = 'LLM yönetimi kimlik doğrulaması yapılandırılmadığı için kapalı.';
             if (customLogger) logger.warn(warning);
             else console.warn(warning);
           }
-          return deny(500, 'AUTH_NOT_CONFIGURED', 'Kimlik doğrulama yapılandırılmadı.');
+          return denyRequest(500, 'AUTH_NOT_CONFIGURED', 'Kimlik doğrulama yapılandırılmadı.');
         }
+      });
+      if (outcome.denied) {
+        if (outcome.failed) logger.warn('auth.failed', { requestId, ip: clientKey || undefined });
+        return deny(outcome.denied);
       }
-      if (!principal) {
-        authPolicy?.fail(clientKey);
-        logger.warn('auth.failed', { requestId, ip: clientKey || undefined });
-        return deny(401, 'UNAUTHORIZED', 'Kimlik doğrulama gerekli.');
-      }
-      authPolicy?.succeed(clientKey, authorization);
+      principal = outcome.principal;
       const isChat = pathname === `${apiPath}/chat` && request.method === 'POST';
       if (principal.isAdmin !== true && (!isChat || chatAccess === 'admin')) {
-        return deny(403, 'FORBIDDEN', 'Yönetici yetkisi gerekli.');
+        return deny({ status: 403, code: 'FORBIDDEN', error: 'Yönetici yetkisi gerekli.' });
       }
     }
     if (request.method === 'GET' && pathname === pagePath) {
@@ -1298,28 +1266,13 @@ export function createLLMManager({
             try {
               for await (const chunk of result.stream) {
                 if (cancelled || responseSignal.aborted) break;
-                if (chunk.type === 'meta') {
-                  const { type: _type, ...meta } = chunk;
-                  controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`));
-                } else if (chunk.type === 'delta') {
-                  controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`));
-                } else if (chunk.type === 'done') {
-                  controller.enqueue(
-                    encoder.encode(
-                      `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason, profileId: chunk.profileId, fallbackUsed: chunk.fallbackUsed })}\n\n`
-                    )
-                  );
-                }
+                const frame = sseFrame(chunk);
+                if (frame) controller.enqueue(encoder.encode(frame));
               }
               if (!cancelled) controller.close();
             } catch (err) {
               if (cancelled) return;
-              const classified = classifyLLMError(err);
-              controller.enqueue(
-                encoder.encode(
-                  `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, providerMessage: forPrincipal(classified, principal).providerMessage, requestId })}\n\n`
-                )
-              );
+              controller.enqueue(encoder.encode(sseErrorFrame(err, { principal, requestId })));
               controller.close();
             }
           },

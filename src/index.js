@@ -5,7 +5,8 @@ import { generateProfileResponse, classifyLLMError } from './runtime.js';
 import { PROVIDERS, CATALOG_VERSION, CATALOG_UPDATED_AT, validateProviderUrl } from './providers.js';
 import { createLLMProfileStore } from './profileStore.js';
 import { createRateLimiter } from './rateLimit.js';
-import { createAuthPolicy } from './authLimit.js';
+import { createAuthPolicy, checkLockout, settleCredential } from './authLimit.js';
+import { sseFrame, sseErrorFrame } from './sse.js';
 import { sanitizeRequestId, createStructuredLogger, redact } from './logger.js';
 import {
   CSRF_HEADER,
@@ -82,24 +83,19 @@ export function createBasicAuth({ user = 'admin', password, rateLimit = true, lo
 
   return (req, res, next) => {
     const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
-    const blocked = authPolicy?.blocked(ip);
-    if (blocked) {
-      res.set('Retry-After', String(blocked.retryAfterSec));
-      return res.status(429).json({ error: 'Çok fazla hatalı giriş denemesi yapıldı.', code: 'RATE_LIMITED' });
-    }
-
     const authorization = req.get('Authorization') || '';
-    const authentication = checkBasicAuth(authorization, { user, password });
-    if (!authentication.ok) {
-      authPolicy?.fail(ip);
-      authLogger.warn('auth.failed', { ip, requestId: req.requestId });
-      res.set('WWW-Authenticate', 'Basic realm="LLM Yonetimi"');
-      return res
-        .status(401)
-        .json({ code: 'UNAUTHORIZED', error: 'Kimlik doğrulama gerekli.', requestId: req.requestId });
+    let outcome = checkLockout(authPolicy, ip);
+    if (!outcome) {
+      const authentication = checkBasicAuth(authorization, { user, password });
+      outcome = settleCredential(authPolicy, ip, authorization, authentication.ok ? authentication.principal : null);
     }
-    authPolicy?.succeed(ip);
-    req.user = authentication.principal;
+    if (outcome.denied) {
+      const { status, code, error, headers } = outcome.denied;
+      if (outcome.failed) authLogger.warn('auth.failed', { ip, requestId: req.requestId });
+      res.set(headers);
+      return res.status(status).json({ code, error, requestId: req.requestId });
+    }
+    req.user = outcome.principal;
     next();
   };
 }
@@ -287,22 +283,11 @@ export function mountLLMManagement(
         try {
           for await (const chunk of result.stream) {
             if (abortController.signal.aborted) break;
-            if (chunk.type === 'meta') {
-              const { type: _type, ...meta } = chunk;
-              res.write(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`);
-            } else if (chunk.type === 'delta') {
-              res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk.text })}\n\n`);
-            } else if (chunk.type === 'done') {
-              res.write(
-                `event: done\ndata: ${JSON.stringify({ usage: chunk.usage, finishReason: chunk.finishReason, profileId: chunk.profileId, fallbackUsed: chunk.fallbackUsed })}\n\n`
-              );
-            }
+            const frame = sseFrame(chunk);
+            if (frame) res.write(frame);
           }
         } catch (err) {
-          const classified = classifyLLMError(err);
-          res.write(
-            `event: error\ndata: ${JSON.stringify({ error: classified.error, code: classified.code, status: classified.status, providerMessage: req.user?.isAdmin === true ? classified.providerMessage : undefined, requestId: req.requestId })}\n\n`
-          );
+          res.write(sseErrorFrame(err, { principal: req.user, requestId: req.requestId }));
         } finally {
           res.off('close', onClose);
           res.end();
