@@ -13,9 +13,9 @@ import { projectError, hasProjectSecret } from './policy.js';
 // OpenCode görevi çok sayıda model isteği içerir; varsayılan bütçe 10 dk, tek istek profil süresiyle sınırlı kalır.
 export const DEFAULT_OPENCODE_TIMEOUT_MS = 600000;
 
-export function createProjectTasks({ reader, options, getActiveProfile, networkOptions, archive }) {
+export function createProjectTasks({ reader, options, getActiveProfile, networkOptions, archive, onWarning }) {
   const taskTimeoutMs = options.opencodeTimeoutMs || DEFAULT_OPENCODE_TIMEOUT_MS;
-  const changes = createProjectChanges({ reader, archive });
+  const changes = createProjectChanges({ reader, archive, onWarning });
   const tasks = new Map();
   let restoring;
 
