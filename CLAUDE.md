@@ -18,8 +18,10 @@ Kullanıcıyla ve commit/PR metinlerinde **Türkçe** yazın. Ayrıntılı davra
   `<profil-dosyası>.tasks.enc` uygulanmış görevlerin geri alma kaydı); anahtar döndürme/yedek `src/setup.js` üç dosyayı
   birlikte işler; `src/init/` kurulum sihirbazı; `src/project/{index,tasks,changes,files,policy,retrieval,...}.js`
   Proje Asistanı (kaynaklı sohbet `stream: true` ile `meta` → `delta` → `done` akar).
-- İki HTTP adaptörü (`src/core.js` Web `fetch`, `src/index.js` Express) hâlâ yinelenen kod taşır (SSE yazıcıları, kimlik/CSRF/kota).
-  Birinde değişiklik yapınca ötekini de güncelleyin ve iki adaptör için de test yazın (K19 bunu tekilleştirecek).
+- İki HTTP adaptörü (`src/core.js` Web `fetch`, `src/index.js` Express): SSE serileştirmesi `src/sse.js`, kimlik kapısı
+  (hatalı giriş sayacı, 401/429 içeriği) `src/authLimit.js` içinde ortaktır. CSRF, yönetici/sohbet yetkisi ve kota hâlâ iki
+  adaptörde ayrı yazılıdır ve bilinen küçük farklar taşır (`tests/adapter-parity.test.js` sabitler). Birinde değişiklik
+  yapınca ötekini de güncelleyin; eşdeğerlik testine satır ekleyin.
 - Bakım kapsamı (kullanıcı kararı, 2026-11-21): Gemini 3 altı, Claude 4.x ve altı, OpenAI o-serisi ve genel olarak
   **1 yılı aşmış veya sağlayıcıca kapatılmış modeller** için kural/öneri eklenmez; katalogda olmayan modele ek istek alanı
   gönderilmez (güvenli varsayılan). Yeni model ailesi `modelFamilies`'e belge teyidiyle eklenir.
@@ -99,9 +101,9 @@ yeterlidir. **Tamamlanan:** K01–K15, K17, K18, K21, K22 (PR 29–48) ve bunlar
 
 - **K16** Sohbet geçmişi: okuma önbelleği eklendi (`src/store/assistantHistory.js`, mtime+boyut+inode; 13 MiB'de kayıt
   ≈ 0,24 sn ölçüldü). Her kayıt hâlâ tüm dosyayı yeniden şifreler; kapsam başına dosya ayrı veri biçimi gerektirir, kullanıcı kararı.
-- **K19** İki HTTP adaptörünün politika kodunu tekilleştirme (`authorizeRequest` benzeri tek işlev, SSE yazıcısı,
-  `chatCompletion`'ın iki yedek-profil döngüsü). Davranış değiştirmeyen yeniden düzenleme: önce/sonra tam seri geçmeli,
-  iki adaptöre aynı istek tablosunu gönderen "adaptör eşdeğerliği" testi gerekir. Tasarım planı kullanıcıya sunulur.
+- **K19** (kısmen yapıldı) SSE yazıcısı, kimlik kapısı ve `chatCompletion` ortak yardımcıları tekilleştirildi. Kalan:
+  CSRF ve yetki ara katmanlarının ortaklaşması, iki adaptör arasındaki bilinen farkların (CSRF/sohbet kapalı sıralaması, 403
+  ileti metni ve `code`) tek davranışa indirilmesi — davranış değişikliği olduğundan **kullanıcı kararı**.
 - **K20** npm yayını (yayın iş akışı, köken kanıtı) — **kullanıcı kararı**; kendiliğinden başlatılmaz.
 - **K23** Arayüz için gerçek tarayıcı testi — yeni geliştirme bağımlılığı **kullanıcı kararı**.
 - Küçük: okunamayan görev arşivi sessizce yok sayılır (uyarı günlüğü yok); model listesi güncel değil

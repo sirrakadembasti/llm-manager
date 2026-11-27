@@ -201,3 +201,31 @@ test('K04: kimliksiz durumda sıra dolunca yeni deneme 429 ve Retry-After alır'
   assert.ok(Number(limited[0].headers.get('retry-after')) >= 1);
   assert.equal(responses.filter(response => response.status === 401).length, 30 - limited.length);
 });
+
+test('authenticateRequest: ortak kimlik kapısı reddi, başarısızlığı ve doğrudan reddi ayırır', async () => {
+  const { authenticateRequest, denyRequest, createAuthPolicy } = await import('../src/authLimit.js');
+  const policy = createAuthPolicy({ capacity: 1 });
+  const fail = () => authenticateRequest({ policy, clientKey: 'c', credential: 'x', resolve: () => null });
+  const first = await fail();
+  assert.equal(first.failed, true);
+  assert.equal(first.denied.status, 401);
+  assert.equal(first.denied.headers['WWW-Authenticate'], 'Basic realm="LLM Yonetimi"');
+  const locked = await authenticateRequest({ policy, clientKey: 'c', credential: 'x', resolve: () => ({ ok: 1 }) });
+  assert.equal(locked.denied.status, 429);
+  assert.ok(Number(locked.denied.headers['Retry-After']) > 0);
+  assert.equal(locked.failed, undefined);
+  const direct = await authenticateRequest({
+    policy: null,
+    clientKey: 'd',
+    credential: '',
+    resolve: () => denyRequest(500, 'AUTH_NOT_CONFIGURED', 'ayar yok')
+  });
+  assert.deepEqual(direct.denied, { status: 500, code: 'AUTH_NOT_CONFIGURED', error: 'ayar yok', headers: {} });
+  const granted = await authenticateRequest({
+    policy: null,
+    clientKey: 'd',
+    credential: '',
+    resolve: () => ({ id: 1 })
+  });
+  assert.deepEqual(granted, { principal: { id: 1 } });
+});
