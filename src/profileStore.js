@@ -265,7 +265,10 @@ export function createLLMProfileStore({
     return createAssistantHistoryStorage({
       filePath: archivePath,
       seal: async value => encrypt(value, await archiveKey()),
-      open: async value => decrypt(value, await archiveKey())
+      open: async value => decrypt(value, await archiveKey()),
+      ensureKey: async () => {
+        await archiveKey();
+      }
     });
   };
   const assistantHistory = archiveStorage(`${filePath}.assistant.enc`, 'assistant history');

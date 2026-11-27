@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createLLMManager } from '../src/core.js';
+import { createAssistantHistoryStorage } from '../src/store/assistantHistory.js';
+import { encrypt, decrypt } from '../src/profileStore.js';
 
 const admin = { isAdmin: true, kind: 'admin', id: 'one' };
 async function fixture(t, extra = {}) {
@@ -285,4 +287,76 @@ test('HTTP history uses admin and CSRF guards and accepts a bounded task followu
     })
   );
   assert.equal(saved.status, 201);
+});
+
+// Okuma önbelleği: değişmemiş dosya yeniden çözülmez, dışarıdan değişen dosya yeniden okunur.
+async function storageFixture(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-history-cache-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const filePath = path.join(root, 'x.assistant.enc');
+  const key = Buffer.alloc(32, 7);
+  const counts = { open: 0 };
+  const make = () =>
+    createAssistantHistoryStorage({
+      filePath,
+      seal: async value => encrypt(value, key),
+      open: async value => {
+        counts.open += 1;
+        return decrypt(value, key);
+      }
+    });
+  return { filePath, counts, make };
+}
+
+test('history storage does not decrypt an unchanged file twice', async t => {
+  const { counts, make } = await storageFixture(t);
+  const store = make();
+  await store.update('s', sessions => sessions.push({ id: 'a' }));
+  const other = make();
+  assert.deepEqual(await other.read('s'), [{ id: 'a' }]);
+  counts.open = 0;
+  assert.deepEqual(await other.read('s'), [{ id: 'a' }]);
+  assert.deepEqual(await other.read('s'), [{ id: 'a' }]);
+  assert.equal(counts.open, 0);
+});
+
+test('history storage serves the next update and read from the cache it just wrote', async t => {
+  const { counts, make } = await storageFixture(t);
+  const store = make();
+  await store.update('s', sessions => sessions.push({ id: 'a' }));
+  counts.open = 0;
+  await store.update('s', sessions => sessions.push({ id: 'b' }));
+  assert.deepEqual(await store.read('s'), [{ id: 'a' }, { id: 'b' }]);
+  assert.equal(counts.open, 0);
+});
+
+test('history storage returns data another instance wrote, even with equal size and mtime', async t => {
+  const { filePath, make } = await storageFixture(t);
+  const first = make();
+  const second = make();
+  await first.update('s', sessions => sessions.push({ id: 'aaaa' }));
+  assert.deepEqual(await first.read('s'), [{ id: 'aaaa' }]);
+  const before = await fs.stat(filePath);
+  await second.update('s', sessions => {
+    sessions[0] = { id: 'bbbb' };
+  });
+  await fs.utimes(filePath, before.atime, before.mtime);
+  assert.equal((await fs.stat(filePath)).size, before.size);
+  assert.deepEqual(await first.read('s'), [{ id: 'bbbb' }]);
+});
+
+test('history storage cache is not corrupted by callers or failed updates and follows file removal', async t => {
+  const { filePath, make } = await storageFixture(t);
+  const store = make();
+  await store.update('s', sessions => sessions.push({ id: 'a' }));
+  (await store.read('s'))[0].id = 'changed';
+  await assert.rejects(
+    store.update('s', sessions => {
+      sessions[0].id = 'half-done';
+      throw new Error('mutate failed');
+    })
+  );
+  assert.deepEqual(await store.read('s'), [{ id: 'a' }]);
+  await fs.rm(filePath);
+  assert.deepEqual(await store.read('s'), []);
 });
