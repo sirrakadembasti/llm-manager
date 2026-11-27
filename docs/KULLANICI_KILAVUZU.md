@@ -494,6 +494,7 @@ Kökteki async `runInteractiveInit`, `probeAndOpenBrowser`, `initLLMProject`, `v
 | 2026-11-21 eski model temizliği (katalog 2026.11) | Gemini 3 altı modeller için kurallar kaldırıldı (`gemini-2.5-pro`, `gemini-2.5-flash-lite` ve `minThinkingBudget`); Gemini taşıması katalogda olmayan modele ne açma ne kapatma için `thinkingConfig` göndermez, yalnız 3 ve üzeri `thinkingLevel` alır. OpenAI o-serisi (`o1`–`o9`) önekleri aileden çıkarıldı (`gpt-5` kuralı güncel gpt-5.6 için korundu). Groq'tan `llama-3.3-70b-versatile` ve `llama-3.1-8b-instant` (Groq kapanış tarihi 2026-08-16), Cohere'den `command-a-03-2025` çıkarıldı. Tarihler sağlayıcı belgelerinden (arama özetleri üzerinden) alındı; canlı çağrı yapılmadı. |
 | 2026-11-21 eski Claude ve Cohere temizliği | Anthropic taşımasındaki elle `budget_tokens` kolu kaldırıldı: Claude 3.x emekli, Sonnet 4/Opus 4/Opus 4.1 emekli, Sonnet 4.5 2026-11-30'da kapanıyor ve 4.7+ bu alanı zaten reddediyor; katalogda olmayan Claude modeline `thinking` gönderilmez, `temperature`/`top_p` korunur (önceden düşünme açıkken atlanıyordu). Cohere `command-r-plus-08-2024` ve `command-r-08-2024` öneri listesinden çıkarıldı (Ağustos 2024 çıkışlı); model kimliği elle girilebilir. |
 | 2026-11-21 geri alma kaydı kalıcılığı | Uygulanmış proje görevlerinin dosya farkı şifreli `<profil-dosyası>.tasks.enc` dosyasına yazılır; sunucu yeniden başlasa da görev geri yüklenir ve geri alınabilir (özet eşleşmesi yine şart). Geri yüklenen görevde doğrulama komutu çalışmaz. Geri alma veya kaydı kapatma dosyadan siler. Anahtar döndürme üçüncü dosyayı da yeniden şifreler. Kayıt yazılamazsa uygulama başarılı sayılır ve `persisted: false` döner. |
+| 2026-11-27 sohbet geçmişi okuma önbelleği | Sohbet geçmişi ve görev arşivi depolaması çözülmüş içeriği dosya kimliği (mtime, boyut, inode) değişmedikçe bellekte tutar; değişmemiş dosya her istekte yeniden çözülmez, başka süreç yazarsa dosya yeniden okunur. Önbellek anahtar eksikliği denetimini atlatmaz (anahtar kaybolursa okuma yine hata verir). Dosya biçimi değişmedi. |
 
 ### Doğrulanmış durum ve açık işler
 
@@ -525,7 +526,7 @@ Docs altında tek Markdown dosyası vardır; 11 belgenin toplam metnine göre bi
 
 **Açık işler (2026-11-21):**
 
-- **Sohbet geçmişi performansı:** Her kayıtta bütün şifreli dosya çözülüp yeniden yazılır (üst sınır 40 MiB). Önce ölçüm (50 sohbet × 200 KiB), sonuca göre ya kapsam başına dosya ya yalnız okuma önbelleği.
+- **Sohbet geçmişi yazma maliyeti:** Okuma önbelleği eklendi (2026-11-27); değişmemiş dosya yeniden çözülmez. Her kayıt hâlâ bütün şifreli dosyayı yeniden şifreleyip yazar (üst sınır 40 MiB; 50 sohbet × 200 KiB = 13 MiB'de ölçülen kayıt ≈ 0,24 sn). Kapsam başına dosya ayrı veri biçimi ve geçiş gerektirir; ihtiyaç doğarsa kullanıcı kararıyla ele alınır.
 - **İki HTTP adaptörünün tekilleştirilmesi:** Express ve Web (`fetch`) adaptörlerinde kimlik, CSRF, kota ve SSE yazıcıları hâlâ yinelenmiş kod; tek işlevde toplanacak (davranış değiştirmeyen yeniden düzenleme, adaptör eşdeğerliği testiyle).
 - **npm yayını:** Paket yayımlanmadı; yayın iş akışı ve köken kanıtı yok. Yayın kararı kullanıcıya aittir.
 - **Arayüz için gerçek tarayıcı testi:** Arayüz testleri `node:vm` ile yapılır; gerçek tarayıcı testi yeni bir geliştirme bağımlılığı gerektirir (karar bekliyor).

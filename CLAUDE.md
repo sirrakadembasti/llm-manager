@@ -97,8 +97,8 @@ Ayrıntılı iş kalemleri yerel (takipsiz) `YOL_HARITASI.md` dosyasındadır (v
 şartnameleri, kullanıcı kararları); dosya yoksa bu liste ve `docs/KULLANICI_KILAVUZU.md` "Doğrulanmış durum ve açık işler"
 yeterlidir. **Tamamlanan:** K01–K15, K17, K18, K21, K22 (PR 29–48) ve bunların dışındaki küçük işler. **Açık:**
 
-- **K16** Sohbet geçmişi her kayıtta tüm dosyayı yeniden şifreliyor (`src/store/assistantHistory.js`): önce ölçüm
-  (50 sohbet × 200 KiB), kazanç küçükse yalnız `mtime+size` okuma önbelleği; kapsam kullanıcıya sunulur.
+- **K16** Sohbet geçmişi: okuma önbelleği eklendi (`src/store/assistantHistory.js`, mtime+boyut+inode; 13 MiB'de kayıt
+  ≈ 0,24 sn ölçüldü). Her kayıt hâlâ tüm dosyayı yeniden şifreler; kapsam başına dosya ayrı veri biçimi gerektirir, kullanıcı kararı.
 - **K19** İki HTTP adaptörünün politika kodunu tekilleştirme (`authorizeRequest` benzeri tek işlev, SSE yazıcısı,
   `chatCompletion`'ın iki yedek-profil döngüsü). Davranış değiştirmeyen yeniden düzenleme: önce/sonra tam seri geçmeli,
   iki adaptöre aynı istek tablosunu gönderen "adaptör eşdeğerliği" testi gerekir. Tasarım planı kullanıcıya sunulur.
