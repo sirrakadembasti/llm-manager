@@ -108,8 +108,9 @@ yeterlidir. **Tamamlanan:** K01–K15, K17, K18, K21, K22 (PR 29–48) ve bunlar
 - **K23** Arayüz için gerçek tarayıcı testi — yeni geliştirme bağımlılığı **kullanıcı kararı**.
 - Küçük: model listesi 2026-11-27'de belge/arama özetiyle güncellendi (canlı çağrı yok); `gpt-6.1-sol` (yalnız üçüncü taraf
   kaynak), `grok-4.7` (resmî sayfalar çelişkili) ve MiMo kimlikleri (aracı sayfalar) canlı doğrulanmadı —
-  `scripts/check-catalog.js` anahtar ve onay ister; `deploy-acceptance.yml` Nginx/IIS adımlarında
-  `LLM_TRUST_PROXY` yok (değişirse iş akışı elle tetiklenir).
+  `scripts/check-catalog.js` anahtar ve onay ister. `deploy-acceptance.yml` systemd/Nginx ve NSSM/IIS servislerini
+  `LLM_TRUST_PROXY=1` ile çalıştırır (Docker işinde ters vekil yoktur, güven kapalı); kabulün sınadığı: hizmet bu ayarla
+  açılır ve vekil arkasında çalışır — istemci başına ayrı sayaç etkisi kabulde ölçülmez.
 - **Doğrulanmamış alanlar:** `src/init/` ve `public/` (proje arayüzü dışında) derin denetlenmedi; sağlayıcı davranışları
   (bitiş nedenleri, hata gövdeleri, bütçe alt sınırları) belge/arama özetiyle teyit edildi, canlı çağrıyla sınanmadı.
 - Kullanıcının daha önce verdiği kararlar bu oturumda belgelendi (ör. `ask()`/`stream()` HTTP kotasından muaf, yedek parolası
